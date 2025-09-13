@@ -48,10 +48,10 @@ func (tg *TemplateGenerator) Generate() error {
 		handler func() error
 	}{
 		{"Validating configuration", tg.validateConfiguration},
-		{"Generating base files", tg.generateBaseFiles}, // Menggantikan createProjectStructure & setupDependencies
+		{"Generating base files", tg.generateBaseFiles},
 		{"Generating framework files", tg.generateFrameworkFiles},
 		{"Generating database config", tg.generateDatabaseConfig},
-		{"Generating ORM files", tg.generateORMFiles}, // Menambahkan langkah untuk ORM
+		{"Generating ORM files", tg.generateORMFiles},
 		{"Generating architecture files", tg.generateArchitectureFiles},
 		{"Generating DevOps files", tg.generateDevOpsFiles},
 	}
@@ -70,11 +70,11 @@ func (tg *TemplateGenerator) Generate() error {
 	return nil
 }
 
-// DIUBAH: Fungsi helper utama untuk memproses semua template
-// Fungsi ini membaca file template, membuat direktori tujuan jika belum ada,
-// mengeksekusi template dengan data config, dan menulis hasilnya.
+// generateFileFromTemplate is the main helper function for processing templates.
+// It reads a template file, creates the destination directory if it doesn't exist,
+// executes the template with the config data, and writes the result.
 func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath string) error {
-	// Menghapus ekstensi .tmpl dari path tujuan
+	// Remove .tmpl extension from destination path
 	if strings.HasSuffix(destPath, ".tmpl") {
 		destPath = strings.TrimSuffix(destPath, ".tmpl")
 	}
@@ -82,25 +82,25 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 	fullDestPath := filepath.Join(tg.OutputDir, destPath)
 	fullTemplatePath := filepath.Join("templates", templatePath)
 
-	// Baca konten template
+	// Read template content
 	templateContent, err := os.ReadFile(fullTemplatePath)
 	if err != nil {
 		return fmt.Errorf("failed to read template %s: %w", fullTemplatePath, err)
 	}
 
-	// Buat direktori tujuan jika belum ada
+	// Create destination directory if it doesn't exist
 	if err := os.MkdirAll(filepath.Dir(fullDestPath), 0755); err != nil {
 		return fmt.Errorf("failed to create directory for %s: %w", fullDestPath, err)
 	}
 
-	// Buat file tujuan
+	// Create destination file
 	outputFile, err := os.Create(fullDestPath)
 	if err != nil {
 		return fmt.Errorf("failed to create destination file %s: %w", fullDestPath, err)
 	}
 	defer outputFile.Close()
 
-	// Parse dan eksekusi template
+	// Parse and execute template
 	tmpl, err := template.New(filepath.Base(templatePath)).Parse(string(templateContent))
 	if err != nil {
 		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)
@@ -114,19 +114,15 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 }
 
 func (tg *TemplateGenerator) validateConfiguration() error {
-	if tg.Config.ProjectName == "" {
-		return fmt.Errorf("project name is required")
-	}
-	if tg.Config.OutputDir == "" {
-		return fmt.Errorf("output directory is required")
-	}
-	if tg.Config.ModulePath == "" {
-		tg.Config.ModulePath = tg.Config.ProjectName
+	errors := config.ValidateProjectConfig(tg.Config)
+	if len(errors) > 0 {
+		// Join the errors into a single string to return as an error
+		return fmt.Errorf("configuration validation failed: %s", strings.Join(errors, ", "))
 	}
 	return nil
 }
 
-// BARU: Menggabungkan beberapa langkah menjadi satu
+// generateBaseFiles generates the base project files.
 func (tg *TemplateGenerator) generateBaseFiles() error {
 	baseTemplates := map[string]string{
 		"go.mod":         "base/go.mod.tmpl",
@@ -146,11 +142,11 @@ func (tg *TemplateGenerator) generateBaseFiles() error {
 	return nil
 }
 
-// DIISI: Menggunakan template dari direktori `frameworks`
+// generateFrameworkFiles generates the framework-specific files.
 func (tg *TemplateGenerator) generateFrameworkFiles() error {
 	framework := strings.ToLower(tg.Config.Framework.String())
 	if framework == "" {
-		return nil // Tidak ada framework yang dipilih
+		return nil // No framework selected
 	}
 
 	frameworkDir := filepath.Join("frameworks", framework)
@@ -186,25 +182,25 @@ func (tg *TemplateGenerator) generateFrameworkFiles() error {
 	return nil
 }
 
-// DIISI: Menggunakan template dari direktori `databases`
+// generateDatabaseConfig generates the database configuration files.
 func (tg *TemplateGenerator) generateDatabaseConfig() error {
 	database := strings.ToLower(tg.Config.Database.String())
 	if database == "" {
-		return nil // Tidak ada database yang dipilih
+		return nil // No database selected
 	}
 
 	templatePath := filepath.Join("databases", database, "connection.go.tmpl")
 	destPath := "internal/database/connection.go"
 
-	// Cek jika file template ada
+	// Check if the template file exists
 	if _, err := os.Stat(filepath.Join("templates", templatePath)); os.IsNotExist(err) {
-		return nil // Abaikan jika template tidak ada
+		return nil // Ignore if template doesn't exist
 	}
 
 	return tg.generateFileFromTemplate(destPath, templatePath)
 }
 
-// BARU: Fungsi untuk menangani file spesifik ORM
+// generateORMFiles generates the ORM-specific files.
 func (tg *TemplateGenerator) generateORMFiles() error {
 	orm := strings.ToLower(tg.Config.ORM.String())
 	if orm == "" {
@@ -224,7 +220,7 @@ func (tg *TemplateGenerator) generateORMFiles() error {
 		case "migration.go.tmpl":
 			destPath = "internal/database/migration.go"
 		case "model.go.tmpl":
-			// Ini mungkin lebih cocok di dalam arsitektur
+			// This might be better suited within the architecture templates
 			destPath = "internal/models/base_model.go"
 		default:
 			destPath = strings.TrimPrefix(templatePath, ormDir+string(filepath.Separator))
@@ -236,7 +232,7 @@ func (tg *TemplateGenerator) generateORMFiles() error {
 	return nil
 }
 
-// DIISI: Menggunakan template dari direktori `architectures` secara rekursif
+// generateArchitectureFiles generates the architecture-specific files recursively.
 func (tg *TemplateGenerator) generateArchitectureFiles() error {
 	architecture := strings.ToLower(tg.Config.Architecture.String())
 	if architecture == "" {
@@ -253,7 +249,7 @@ func (tg *TemplateGenerator) generateArchitectureFiles() error {
 			return nil
 		}
 
-		// Membuat path relatif untuk template dan tujuan
+		// Create relative paths for the template and destination
 		relPath, err := filepath.Rel(templateRootDir, path)
 		if err != nil {
 			return err
@@ -266,7 +262,7 @@ func (tg *TemplateGenerator) generateArchitectureFiles() error {
 	})
 }
 
-// DIISI: Menggunakan template dari direktori `devops` secara rekursif
+// generateDevOpsFiles generates the DevOps-specific files recursively.
 func (tg *TemplateGenerator) generateDevOpsFiles() error {
 	if !tg.Config.DevOps.Enabled {
 		return nil
@@ -276,9 +272,9 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 		toolName := strings.ToLower(tool)
 		templateRootDir := filepath.Join("templates", "devops", toolName)
 
-		// Cek apakah direktori template untuk tool ini ada
+		// Check if the template directory for this tool exists
 		if _, err := os.Stat(templateRootDir); os.IsNotExist(err) {
-			continue // Lanjut ke tool berikutnya jika tidak ada
+			continue // Continue to the next tool if it doesn't exist
 		}
 
 		err := filepath.Walk(templateRootDir, func(path string, info os.FileInfo, err error) error {
@@ -289,13 +285,13 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 				return nil
 			}
 
-			// Buat path relatif
+			// Create relative path
 			relPath, err := filepath.Rel(templateRootDir, path)
 			if err != nil {
 				return err
 			}
 
-			// Simpan di dalam direktori `devops/<tool>`
+			// Store in the 'devops/<tool>' directory
 			destPath := filepath.Join("devops", toolName, relPath)
 			templatePath := filepath.ToSlash(filepath.Join("devops", toolName, relPath))
 
@@ -309,8 +305,7 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 	return nil
 }
 
-// --- Fungsi Progress & Error Callback (Tidak berubah) ---
-
+// reportProgress sends a progress update via the callback.
 func (tg *TemplateGenerator) reportProgress(step int, message string) {
 	if tg.progressCallback != nil {
 		tg.progressCallback(step, message)

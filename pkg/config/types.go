@@ -4,7 +4,33 @@ package config
 
 import (
 	"strings"
+	"time"
 )
+
+// ProjectConfig holds all the configuration for the project to be generated
+type ProjectConfig struct {
+	ProjectName  string             `json:"project_name" validate:"required,min=1"`
+	ModulePath   string             `json:"module_path" validate:"required,modulepath"`
+	Description  string             `json:"description"`
+	OutputDir    string             `json:"output_dir" validate:"required"`
+	Framework    FrameworkChoice    `json:"framework" validate:"required"`
+	Database     DatabaseChoice     `json:"database" validate:"required"`
+	ORM          ORMChoice          `json:"orm" validate:"required"`
+	Architecture ArchitectureChoice `json:"architecture" validate:"required"`
+	DevOps       DevOpsConfig       `json:"devops"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+}
+
+// DevOpsConfig holds the DevOps tool configuration
+type DevOpsConfig struct {
+	Enabled     bool     `json:"enabled"`
+	Tools       []string `json:"tools"`
+	Kubernetes  bool     `json:"kubernetes"`
+	Helm        bool     `json:"helm"`
+	Terraform   bool     `json:"terraform"`
+	Ansible     bool     `json:"ansible"`
+}
 
 // Choice types for project configuration
 type (

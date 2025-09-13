@@ -10,30 +10,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-// ProjectConfig represents the complete project configuration
-type ProjectConfig struct {
-	ProjectName  string             `json:"project_name" yaml:"project_name" validate:"required,min=1"`
-	ModulePath   string             `json:"module_path" yaml:"module_path" validate:"required"`
-	Description  string             `json:"description" yaml:"description"`
-	OutputDir    string             `json:"output_dir" yaml:"output_dir" validate:"required"`
-	Framework    FrameworkChoice    `json:"framework" yaml:"framework" validate:"required"`
-	Database     DatabaseChoice     `json:"database" yaml:"database" validate:"required"`
-	ORM          ORMChoice          `json:"orm" yaml:"orm" validate:"required"`
-	Architecture ArchitectureChoice `json:"architecture" yaml:"architecture" validate:"required"`
-	DevOps       DevOpsConfig       `json:"devops" yaml:"devops"`
-	CreatedAt    time.Time          `json:"created_at" yaml:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at" yaml:"updated_at"`
-}
-
-// DevOpsConfig represents DevOps tools configuration
-type DevOpsConfig struct {
-	Enabled    bool     `json:"enabled" yaml:"enabled"`
-	Tools      []string `json:"tools" yaml:"tools"`
-	Kubernetes bool     `json:"kubernetes" yaml:"kubernetes"`
-	Helm       bool     `json:"helm" yaml:"helm"`
-	Terraform  bool     `json:"terraform" yaml:"terraform"`
-	Ansible    bool     `json:"ansible" yaml:"ansible"`
-}
 
 // AppConfig represents application-level configuration
 type AppConfig struct {
@@ -140,83 +116,7 @@ func UpdateConfig(key string, value interface{}) error {
 	return SaveConfig()
 }
 
-// ValidateProjectConfig validates a project configuration
-func ValidateProjectConfig(cfg *ProjectConfig) []string {
-	var errors []string
 
-	// Required fields validation
-	if cfg.ProjectName == "" {
-		errors = append(errors, "Project name is required")
-	}
-
-	if cfg.ModulePath == "" {
-		errors = append(errors, "Module path is required")
-	}
-
-	if cfg.OutputDir == "" {
-		errors = append(errors, "Output directory is required")
-	}
-
-	if cfg.Framework == "" {
-		errors = append(errors, "Framework selection is required")
-	}
-
-	if cfg.Database == "" {
-		errors = append(errors, "Database selection is required")
-	}
-
-	if cfg.ORM == "" {
-		errors = append(errors, "ORM selection is required")
-	}
-
-	if cfg.Architecture == "" {
-		errors = append(errors, "Architecture selection is required")
-	}
-
-	// Validate choices are valid
-	if !IsValidFramework(cfg.Framework) {
-		errors = append(errors, "Invalid framework choice")
-	}
-
-	if !IsValidDatabase(cfg.Database) {
-		errors = append(errors, "Invalid database choice")
-	}
-
-	if !IsValidORM(cfg.ORM) {
-		errors = append(errors, "Invalid ORM choice")
-	}
-
-	if !IsValidArchitecture(cfg.Architecture) {
-		errors = append(errors, "Invalid architecture choice")
-	}
-
-	// DevOps validation
-	if cfg.DevOps.Enabled && len(cfg.DevOps.Tools) == 0 {
-		errors = append(errors, "At least one DevOps tool must be selected when DevOps is enabled")
-	}
-
-	// Path validation
-	if !isValidPath(cfg.OutputDir) {
-		errors = append(errors, "Invalid output directory path")
-	}
-
-	return errors
-}
-
-// isValidPath checks if a path is valid
-func isValidPath(path string) bool {
-	if path == "" {
-		return false
-	}
-
-	// Basic path validation - can be enhanced
-	if filepath.IsAbs(path) {
-		return true
-	}
-
-	// Relative paths are also valid
-	return !filepath.IsAbs(path)
-}
 
 // GetProjectConfigDefaults returns default values for project configuration
 func GetProjectConfigDefaults() map[string]interface{} {

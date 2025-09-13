@@ -60,13 +60,66 @@ var listCmd = &cobra.Command{
 	Short: "List available frameworks, databases, and architectures",
 	Long:  `Menampilkan daftar framework, database, ORM, dan arsitektur yang tersedia`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: Implement list functionality
-		fmt.Println("Available options:")
-		fmt.Println("Frameworks: fiber, gin, chi, echo")
-		fmt.Println("Databases: postgresql, mysql, sqlite")
-		fmt.Println("ORMs: gorm, sqlc, sqlx")
-		fmt.Println("Architectures: simple, ddd, clean, hexagonal")
+		fmt.Println("GoBack offers the following options for your project:")
+
+		// Frameworks
+		fmt.Println("\n🏗️ Frameworks:")
+		printChoiceList(config.GetValidFrameworks())
+
+		// Databases
+		fmt.Println("\n🗄️ Databases:")
+		printChoiceList(config.GetValidDatabases())
+
+		// ORMs
+		fmt.Println("\n🔗 ORMs:")
+		printChoiceList(config.GetValidORMs())
+
+		// Architectures
+		fmt.Println("\n🏛️ Architectures:")
+		printChoiceList(config.GetValidArchitectures())
+
+		// DevOps Tools
+		fmt.Println("\n🚀 DevOps Tools:")
+		printChoiceList(config.GetValidDevOpsTools())
 	},
+}
+
+// A helper interface to work with different choice types
+type choice interface {
+	String() string
+	Description() string
+}
+
+// A wrapper for string slices to satisfy the choice interface
+type stringChoice string
+
+func (s stringChoice) String() string {
+	return string(s)
+}
+func (s stringChoice) Description() string {
+	return config.GetDevOpsToolDescription(string(s))
+}
+
+func printChoiceList[T any](items []T) {
+	for _, item := range items {
+		var choiceItem choice
+		switch v := any(item).(type) {
+		case config.FrameworkChoice:
+			choiceItem = v
+		case config.DatabaseChoice:
+			choiceItem = v
+		case config.ORMChoice:
+			choiceItem = v
+		case config.ArchitectureChoice:
+			choiceItem = v
+		case string:
+			choiceItem = stringChoice(v)
+		default:
+			continue
+		}
+		// Print with padding for alignment
+		fmt.Printf("  - %-25s %s\n", choiceItem.String(), choiceItem.Description())
+	}
 }
 
 // configCmd manages configuration
@@ -226,24 +279,12 @@ func createProjectViaCLI(cmd *cobra.Command, args []string) {
 	devops, _ := cmd.Flags().GetBool("devops")
 	devopsTools, _ := cmd.Flags().GetStringSlice("devops-tools")
 
-	// Set defaults
-	if framework == "" {
-		framework = "fiber"
-	}
-	if database == "" {
-		database = "postgresql"
-	}
-	if orm == "" {
-		orm = "gorm"
-	}
-	if architecture == "" {
-		architecture = "simple"
+	// Set module and output dir if not provided
+	if module == "" {
+		module = "github.com/user/" + projectName
 	}
 	if output == "" {
 		output = "./" + projectName
-	}
-	if module == "" {
-		module = "github.com/user/" + projectName
 	}
 
 	// Create configuration
@@ -263,12 +304,12 @@ func createProjectViaCLI(cmd *cobra.Command, args []string) {
 	}
 
 	// Validate configuration
-	errors := config.ValidateProjectConfig(cfg)
-	if len(errors) > 0 {
-		fmt.Println("Configuration validation failed:")
-		for _, err := range errors {
+	if validationErrors := config.ValidateProjectConfig(cfg); len(validationErrors) > 0 {
+		fmt.Println("❌ Configuration validation failed:")
+		for _, err := range validationErrors {
 			fmt.Printf("  - %s\n", err)
 		}
+		fmt.Println("\nPlease provide all required flags: --framework, --database, --orm, --architecture")
 		os.Exit(1)
 	}
 

@@ -48,8 +48,12 @@ var (
 			Foreground(InfoColor)
 
 	ErrorStyle = lipgloss.NewStyle().
+			Foreground(ErrorColor)
+
+	ErrorTitleStyle = lipgloss.NewStyle().
 			Foreground(ErrorColor).
-			Bold(true)
+			Bold(true).
+			Underline(true)
 
 	SuccessStyle = lipgloss.NewStyle().
 			Foreground(SuccessColor).
