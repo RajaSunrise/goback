@@ -8,7 +8,7 @@
 
 - Go 1.21+
 {{- if .Database}}
-- {{.Database | toTitle}} Database Server
+- {{.Database | printf "%s" | toTitle}} Database Server
 {{- end}}
 - Docker (optional, for containerization)
 - Make (optional, for automation)
@@ -17,7 +17,7 @@
 
 1.  **Clone the repository:**
     ```bash
-    git clone {{.GitRepo | default (printf "https://github.com/your-username/%s.git" .ProjectName)}}
+    git clone https://github.com/your-username/{{.ProjectName}}.git
     cd {{.ProjectName}}
     ```
 
@@ -49,4 +49,4 @@
 
 ## 📁 Project Structure
 
-A brief overview of the project structure based on the **{{.Architecture | title}} Architecture**:
+A brief overview of the project structure based on the **{{.Architecture | printf "%s" | title}} Architecture**:

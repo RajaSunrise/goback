@@ -3,9 +3,9 @@ package main
 import (
 	"log"
 
-	"{{.ModulePath}}/internal/config"
-	"{{.ModulePath}}/internal/database"
-	"{{.ModulePath}}/internal/models"
+	"github.com/test/test-project/internal/config"
+	"github.com/test/test-project/internal/database"
+	"github.com/test/test-project/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -104,9 +104,9 @@ func seedData(db *gorm.DB) error {
 
 	// Seed default settings
 	defaultSettings := []models.Setting{
-		{Key: "site_name", Value: "{{.ProjectName | title}}", Type: "string"},
-		{Key: "site_description", Value: "{{.Config.ProjectDetails.Description | default "A modern web application built with Go"}}", Type: "string"},
-		{Key: "site_version", Value: "{{.Config.ProjectDetails.Version | default "1.0.0"}}", Type: "string"},
+		{Key: "site_name", Value: "TEST-PROJECT", Type: "string"},
+		{Key: "site_description", Value: "A modern web application built with Go", Type: "string"},
+		{Key: "site_version", Value: "1.0.0", Type: "string"},
 		{Key: "maintenance_mode", Value: "false", Type: "bool"},
 		{Key: "user_registration_enabled", Value: "true", Type: "bool"},
 		{Key: "posts_per_page", Value: "10", Type: "int"},
@@ -188,7 +188,7 @@ func seedData(db *gorm.DB) error {
 	}
 
 	// Create admin user (optional)
-	adminEmail := "admin@{{.ProjectName | kebabCase}}.com"
+	adminEmail := "admin@test-project.com"
 	var adminUser models.User
 	if err := db.Where("email = ?", adminEmail).First(&adminUser).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {

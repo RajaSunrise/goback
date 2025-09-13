@@ -112,9 +112,9 @@ healthCheck:
     timeoutSeconds: 3
     failureThreshold: 3
 
-{{- if .Database.Enabled}}
+{{- if .Database}}
 # Database configuration
-{{- if eq .Database.Type "postgresql" }}
+{{- if eq .Database "postgresql" }}
 postgresql:
   enabled: true
   auth:
@@ -128,7 +128,7 @@ postgresql:
       size: 8Gi
   metrics:
     enabled: false
-{{- else if eq .Database.Type "mysql" }}
+{{- else if eq .Database "mysql" }}
 mysql:
   enabled: true
   auth:
@@ -147,7 +147,7 @@ mysql:
 # External database configuration (when not using built-in database)
 externalDatabase:
   host: ""
-  port: {{if eq .Database.Type "postgresql"}}5432{{else if eq .Database.Type "mysql"}}3306{{end}}
+  port: {{if eq .Database "postgresql"}}5432{{else if eq .Database "mysql"}}3306{{end}}
   username: "{{.ProjectName}}"
   password: ""
   database: "{{.ProjectName}}_db"

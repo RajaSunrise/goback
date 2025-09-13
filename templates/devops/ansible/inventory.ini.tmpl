@@ -1,0 +1,17 @@
+[web]
+{{.ProjectName}}-server-1 ansible_host=192.168.1.10
+{{.ProjectName}}-server-2 ansible_host=192.168.1.11
+
+[database]
+{{.ProjectName}}-db-1 ansible_host=192.168.1.20
+
+[all:vars]
+ansible_user=root
+ansible_ssh_private_key_file=~/.ssh/id_rsa
+project_name={{.ProjectName}}
+project_version=1.0.0
+app_port=8080
+db_port={{if eq .Database "postgresql"}}5432{{else if eq .Database "mysql"}}3306{{end}}
+db_name={{.ProjectName}}_db
+db_user={{.ProjectName}}_user
+db_password=changeme

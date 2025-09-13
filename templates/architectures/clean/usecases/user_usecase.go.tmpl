@@ -3,14 +3,14 @@ package usecases
 import (
 	"errors"
 	"{{.ModulePath}}/internal/entities"
-	{{- if eq .Database.Type "postgresql" }}
+	{{- if eq .Database "postgresql" }}
 	"github.com/google/uuid"
 	{{- end}}
 )
 
 // UserRepository defines the contract for user data access in use cases
 type UserRepository interface {
-	{{- if eq .Database.Type "postgresql" }}
+	{{- if eq .Database "postgresql" }}
 	GetByID(id uuid.UUID) (*entities.User, error)
 	{{- else}}
 	GetByID(id uint) (*entities.User, error)
@@ -18,7 +18,7 @@ type UserRepository interface {
 	GetByEmail(email string) (*entities.User, error)
 	GetAll(page, perPage int) ([]*entities.User, int64, error)
 	Create(user *entities.User) error
-	{{- if eq .Database.Type "postgresql" }}
+	{{- if eq .Database "postgresql" }}
 	Update(id uuid.UUID, user *entities.User) error
 	Delete(id uuid.UUID) error
 	{{- else}}
@@ -67,7 +67,7 @@ func (uc *UserUsecase) CreateUser(name, email, password string) (*entities.User,
 }
 
 // GetUser use case for retrieving a user by ID
-{{- if eq .Database.Type "postgresql" }}
+{{- if eq .Database "postgresql" }}
 func (uc *UserUsecase) GetUser(id uuid.UUID) (*entities.User, error) {
 {{- else}}
 func (uc *UserUsecase) GetUser(id uint) (*entities.User, error) {
@@ -131,7 +131,7 @@ func (uc *UserUsecase) SearchUsers(query string, page, perPage int) ([]*entities
 }
 
 // UpdateUser use case for updating user information
-{{- if eq .Database.Type "postgresql" }}
+{{- if eq .Database "postgresql" }}
 func (uc *UserUsecase) UpdateUser(id uuid.UUID, name, email, password *string, age *int, phone, address *string, isActive *bool) (*entities.User, error) {
 {{- else}}
 func (uc *UserUsecase) UpdateUser(id uint, name, email, password *string, age *int, phone, address *string, isActive *bool) (*entities.User, error) {
@@ -211,7 +211,7 @@ func (uc *UserUsecase) UpdateUser(id uint, name, email, password *string, age *i
 }
 
 // DeleteUser use case for deleting a user
-{{- if eq .Database.Type "postgresql" }}
+{{- if eq .Database "postgresql" }}
 func (uc *UserUsecase) DeleteUser(id uuid.UUID) error {
 {{- else}}
 func (uc *UserUsecase) DeleteUser(id uint) error {
@@ -237,7 +237,7 @@ func (uc *UserUsecase) DeleteUser(id uint) error {
 }
 
 // ActivateUser use case for activating a user account
-{{- if eq .Database.Type "postgresql" }}
+{{- if eq .Database "postgresql" }}
 func (uc *UserUsecase) ActivateUser(id uuid.UUID) error {
 {{- else}}
 func (uc *UserUsecase) ActivateUser(id uint) error {
@@ -255,7 +255,7 @@ func (uc *UserUsecase) ActivateUser(id uint) error {
 }
 
 // DeactivateUser use case for deactivating a user account
-{{- if eq .Database.Type "postgresql" }}
+{{- if eq .Database "postgresql" }}
 func (uc *UserUsecase) DeactivateUser(id uuid.UUID) error {
 {{- else}}
 func (uc *UserUsecase) DeactivateUser(id uint) error {
@@ -273,7 +273,7 @@ func (uc *UserUsecase) DeactivateUser(id uint) error {
 }
 
 // VerifyUserPassword use case for password verification
-{{- if eq .Database.Type "postgresql" }}
+{{- if eq .Database "postgresql" }}
 func (uc *UserUsecase) VerifyUserPassword(id uuid.UUID, password string) (bool, error) {
 {{- else}}
 func (uc *UserUsecase) VerifyUserPassword(id uint, password string) (bool, error) {

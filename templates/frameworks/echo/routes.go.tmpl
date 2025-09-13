@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	{{- if .Database.Enabled}}
+	{{- if .Database}}
 	"{{.ModulePath}}/internal/handlers"
 	{{- if eq .Architecture "ddd" }}
 	"{{.ModulePath}}/internal/domain/services"
@@ -20,12 +20,12 @@ import (
 	"{{.ModulePath}}/internal/repositories"
 	{{- end}}
 	{{- end}}
-	{{- if .Database.Enabled}}
+	{{- if .Database}}
 	"gorm.io/gorm"
 	{{- end}}
 )
 
-{{- if .Database.Enabled}}
+{{- if .Database}}
 func Setup(e *echo.Echo, db *gorm.DB) {
 	// Initialize repositories
 	{{- if eq .Architecture "ddd" }}
@@ -92,7 +92,7 @@ func Setup(e *echo.Echo) {
 	e.GET("/docs", docsHandler)
 }
 
-{{- if not .Database.Enabled}}
+{{- if not .Database}}
 func helloHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "Hello from {{.ProjectName}}!",
@@ -138,7 +138,7 @@ func docsHandler(c echo.Context) error {
 			<p>Health check endpoint</p>
 		</div>
 
-		{{- if .Database.Enabled}}
+		{{- if .Database}}
 		<div class="endpoint">
 			<span class="method get">GET</span>
 			<strong>/api/v1/users</strong>

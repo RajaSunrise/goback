@@ -22,7 +22,7 @@ output "private_subnet_ids" {
   value       = aws_subnet.private[*].id
 }
 
-{{- if .Database.Enabled}}
+{{- if .Database}}
 output "database_subnet_ids" {
   description = "IDs of the database subnets"
   value       = aws_subnet.database[*].id
@@ -35,7 +35,7 @@ output "app_security_group_id" {
   value       = aws_security_group.app.id
 }
 
-{{- if .Database.Enabled}}
+{{- if .Database}}
 output "database_security_group_id" {
   description = "ID of the database security group"
   value       = aws_security_group.database.id
@@ -172,7 +172,7 @@ output "connection_info" {
   description = "Connection information for the application"
   value = {
     load_balancer_dns = aws_lb.main.dns_name
-    {{- if .Database.Enabled}}
+    {{- if .Database}}
     database_endpoint = aws_db_instance.main.endpoint
     {{- end}}
     ecr_repository    = aws_ecr_repository.main.repository_url
@@ -186,9 +186,9 @@ output "environment_variables" {
   value = {
     AWS_REGION    = var.aws_region
     APP_ENV       = var.environment
-    {{- if .Database.Enabled}}
+    {{- if .Database}}
     DB_HOST       = aws_db_instance.main.endpoint
-    DB_PORT       = "{{if eq .Database.Type "postgresql"}}5432{{else if eq .Database.Type "mysql"}}3306{{else}}3306{{end}}"
+    DB_PORT       = "{{if eq .Database "postgresql"}}5432{{else if eq .Database "mysql"}}3306{{else}}3306{{end}}"
     DB_NAME       = aws_db_instance.main.db_name
     DB_USERNAME   = aws_db_instance.main.username
     {{- end}}
@@ -215,7 +215,7 @@ output "resource_summary" {
     vpc_id              = aws_vpc.main.id
     public_subnets      = length(aws_subnet.public)
     private_subnets     = length(aws_subnet.private)
-    {{- if .Database.Enabled}}
+    {{- if .Database}}
     database_subnets    = length(aws_subnet.database)
     database_instance   = aws_db_instance.main.identifier
     {{- end}}

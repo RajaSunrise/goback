@@ -65,8 +65,8 @@ coverage.out
 *.sqlite3
 {{- end}}
 
-{{- if .HasDevOps}}
-{{- if .HasTerraform}}
+{{- if .DevOps.Enabled}}
+{{- if .DevOps.Terraform}}
 # Terraform
 *.tfstate
 *.tfstate.*
@@ -76,12 +76,12 @@ terraform.tfvars
 *.tfvars
 {{- end}}
 
-{{- if .HasAnsible}}
+{{- if .DevOps.Ansible}}
 # Ansible
 *.retry
 {{- end}}
 
-{{- if .HasKubernetes}}
+{{- if .DevOps.Kubernetes}}
 # Kubernetes secrets
 *-secret.yaml
 *-secrets.yaml

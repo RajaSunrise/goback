@@ -67,7 +67,7 @@ variable "memory_target_value" {
   default     = 80
 }
 
-{{- if .Database.Enabled}}
+{{- if .Database}}
 # Database Variables
 variable "db_instance_class" {
   description = "The instance type of the RDS instance"
@@ -133,9 +133,9 @@ variable "db_performance_insights_enabled" {
 variable "db_parameter_group_family" {
   description = "The DB parameter group family"
   type        = string
-  {{- if eq .Database.Type "postgresql"}}
+  {{- if eq .Database "postgresql"}}
   default     = "postgres15"
-  {{- else if eq .Database.Type "mysql"}}
+  {{- else if eq .Database "mysql"}}
   default     = "mysql8.0"
   {{- end}}
 }

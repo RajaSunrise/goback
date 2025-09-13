@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 
@@ -10,19 +9,21 @@ import (
 {{- if eq .ORM "gorm"}}
 	"{{.ModulePath}}/internal/models"
 	"gorm.io/gorm"
+{{- else}}
+	"fmt"
 {{- end}}
 )
 
 func main() {
 	// Load configuration from .env
-	cfg, err := config.LoadConfig(".")
+	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("cannot load config: %v", err)
 	}
 
 {{- if eq .ORM "gorm"}}
 	// Connect to the database
-	db, err := database.Connect(cfg)
+	db, err := database.Connect(&cfg.Database)
 	if err != nil {
 		log.Fatalf("cannot connect to database: %v", err)
 	}

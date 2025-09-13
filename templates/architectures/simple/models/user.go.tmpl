@@ -3,10 +3,10 @@ package models
 import (
 	"time"
 
-	{{- if and (eq .ORM "Gorm") (eq .Database "postgresql") }}
+	{{- if and (eq .ORM "gorm") (eq .Database "postgresql") }}
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	{{- else if eq .ORM "Gorm" }}
+	{{- else if eq .ORM "gorm" }}
 	"gorm.io/gorm"
 	{{- else if eq .Database "postgresql" }}
 	"github.com/google/uuid"
@@ -17,17 +17,17 @@ import (
 // Struct tags disesuaikan berdasarkan pilihan ORM.
 type User struct {
 	{{- if eq .Database "postgresql" }}
-	ID        uuid.UUID `json:"id" {{if eq .ORM "Gorm"}}gorm:"type:uuid;primary_key;default:gen_random_uuid()"{{else}}db:"id"{{end}}`
+	ID        uuid.UUID `json:"id" {{if eq .ORM "gorm"}}gorm:"type:uuid;primary_key;default:gen_random_uuid()"{{else}}db:"id"{{end}}`
 	{{- else}}
-	ID        uint      `json:"id" {{if eq .ORM "Gorm"}}gorm:"primary_key"{{else}}db:"id"{{end}}`
+	ID        uint      `json:"id" {{if eq .ORM "gorm"}}gorm:"primary_key"{{else}}db:"id"{{end}}`
 	{{- end}}
-	Name      string    `json:"name" {{if eq .ORM "Gorm"}}gorm:"type:varchar(255);not null"{{else}}db:"name"{{end}}`
-	Email     string    `json:"email" {{if eq .ORM "Gorm"}}gorm:"type:varchar(255);unique;not null"{{else}}db:"email"{{end}}`
-	Password  string    `json:"-" {{if eq .ORM "Gorm"}}gorm:"type:varchar(255);not null"{{else}}db:"password"{{end}}`
-	IsActive  bool      `json:"is_active" {{if eq .ORM "Gorm"}}gorm:"default:true"{{else}}db:"is_active"{{end}}`
-	CreatedAt time.Time `json:"created_at" {{if eq .ORM "Gorm"}}{{else}}db:"created_at"{{end}}`
-	UpdatedAt time.Time `json:"updated_at" {{if eq .ORM "Gorm"}}{{else}}db:"updated_at"{{end}}`
-	{{- if eq .ORM "Gorm" }}
+	Name      string    `json:"name" {{if eq .ORM "gorm"}}gorm:"type:varchar(255);not null"{{else}}db:"name"{{end}}`
+	Email     string    `json:"email" {{if eq .ORM "gorm"}}gorm:"type:varchar(255);unique;not null"{{else}}db:"email"{{end}}`
+	Password  string    `json:"-" {{if eq .ORM "gorm"}}gorm:"type:varchar(255);not null"{{else}}db:"password"{{end}}`
+	IsActive  bool      `json:"is_active" {{if eq .ORM "gorm"}}gorm:"default:true"{{else}}db:"is_active"{{end}}`
+	CreatedAt time.Time `json:"created_at" {{if eq .ORM "gorm"}}{{else}}db:"created_at"{{end}}`
+	UpdatedAt time.Time `json:"updated_at" {{if eq .ORM "gorm"}}{{else}}db:"updated_at"{{end}}`
+	{{- if eq .ORM "gorm" }}
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 	{{- end}}
 }
