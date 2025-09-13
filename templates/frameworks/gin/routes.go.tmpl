@@ -15,11 +15,11 @@ import (
 {{- end}}
 
 	"github.com/gin-gonic/gin"
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	"gorm.io/gorm"
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	"github.com/jmoiron/sqlx"
-{{- else if eq .ORM "sqlc"}}
+{{- else if eq .Tool "sqlc"}}
 	"database/sql"
 {{- end}}
 )
@@ -27,11 +27,11 @@ import (
 {{- if eq .Architecture "simple"}}
 // Dependencies holds all the dependencies needed by the routes
 type Dependencies struct {
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	DB     *gorm.DB
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	DB     *sqlx.DB
-{{- else if eq .ORM "sqlc"}}
+{{- else if eq .Tool "sqlc"}}
 	DB     *sql.DB
 {{- end}}
 	Config *config.Config

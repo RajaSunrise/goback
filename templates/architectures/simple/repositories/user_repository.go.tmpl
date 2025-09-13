@@ -6,7 +6,7 @@ import (
 	
 	"{{.ModulePath}}/models"
 
-	{{- if eq .ORM "sqlx" }}
+	{{- if eq .Tool "sqlx" }}
 	"database/sql"
 	{{- end }}
 
@@ -14,11 +14,11 @@ import (
 	"github.com/google/uuid"
 	{{- end}}
 	
-	{{- if eq .ORM "gorm" }}
+	{{- if eq .Tool "gorm" }}
 	"gorm.io/gorm"
-	{{- else if eq .ORM "sqlx" }}
+	{{- else if eq .Tool "sqlx" }}
 	"github.com/jmoiron/sqlx"
-	{{- else if eq .ORM "sqlc" }}
+	{{- else if eq .Tool "sqlc" }}
 	"{{ .ModulePath }}/db" // Asumsi paket yang dihasilkan sqlc ada di 'db'
 	{{- end }}
 )
@@ -42,7 +42,7 @@ type UserRepository interface {
 
 
 {{/* --- IMPLEMENTASI UNTUK GORM --- */}}
-{{ if eq .ORM "gorm" }}
+{{ if eq .Tool "gorm" }}
 type userRepository struct {
 	db *gorm.DB
 }
@@ -113,7 +113,7 @@ func (r *userRepository) Delete(ctx context.Context, id UserID) error {
 
 
 {{/* --- IMPLEMENTASI UNTUK SQLX --- */}}
-{{ if eq .ORM "sqlx" }}
+{{ if eq .Tool "sqlx" }}
 type userRepository struct {
 	db *sqlx.DB
 }

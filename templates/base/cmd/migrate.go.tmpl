@@ -6,7 +6,7 @@ import (
 
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	"{{.ModulePath}}/internal/models"
 	"gorm.io/gorm"
 {{- else}}
@@ -21,7 +21,7 @@ func main() {
 		log.Fatalf("cannot load config: %v", err)
 	}
 
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	// Connect to the database
 	db, err := database.Connect(&cfg.Database)
 	if err != nil {
@@ -59,7 +59,7 @@ func main() {
 		}
 		log.Println("Rollback completed successfully.")
 	}
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	// For sqlx, migrations are typically handled by external tools
 	// like sql-migrate, goose, or atlas.
 	fmt.Println("For sqlx, please use a dedicated migration tool like 'golang-migrate/migrate'.")

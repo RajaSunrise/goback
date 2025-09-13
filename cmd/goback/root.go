@@ -199,18 +199,19 @@ func init() {
 	newCmd.Flags().StringP("output", "O", "", "Output directory")
 	newCmd.Flags().StringP("module", "m", "", "Go module path")
 	newCmd.Flags().Bool("devops", false, "Include DevOps configurations")
-	newCmd.Flags().StringSlice("devops-tools", []string{}, "DevOps tools to include (kubernetes, helm, terraform, ansible)")
+	newCmd.Flags().StringSlice("devops-tools", []string{},
+		"DevOps tools to include (kubernetes, helm, terraform, ansible)")
 
 	// Bind flags to viper
-	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
-	viper.BindPFlag("framework", newCmd.Flags().Lookup("framework"))
-	viper.BindPFlag("database", newCmd.Flags().Lookup("database"))
-	viper.BindPFlag("tool", newCmd.Flags().Lookup("tool"))
-	viper.BindPFlag("architecture", newCmd.Flags().Lookup("architecture"))
-	viper.BindPFlag("output", newCmd.Flags().Lookup("output"))
-	viper.BindPFlag("module", newCmd.Flags().Lookup("module"))
-	viper.BindPFlag("devops", newCmd.Flags().Lookup("devops"))
-	viper.BindPFlag("devops-tools", newCmd.Flags().Lookup("devops-tools"))
+	_ = viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
+	_ = viper.BindPFlag("framework", newCmd.Flags().Lookup("framework"))
+	_ = viper.BindPFlag("database", newCmd.Flags().Lookup("database"))
+	_ = viper.BindPFlag("tool", newCmd.Flags().Lookup("tool"))
+	_ = viper.BindPFlag("architecture", newCmd.Flags().Lookup("architecture"))
+	_ = viper.BindPFlag("output", newCmd.Flags().Lookup("output"))
+	_ = viper.BindPFlag("module", newCmd.Flags().Lookup("module"))
+	_ = viper.BindPFlag("devops", newCmd.Flags().Lookup("devops"))
+	_ = viper.BindPFlag("devops-tools", newCmd.Flags().Lookup("devops-tools"))
 }
 
 // initConfig reads in config file and ENV variables.

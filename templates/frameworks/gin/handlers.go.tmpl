@@ -5,13 +5,13 @@ import (
 	"strconv"
 
 	"{{.ModulePath}}/internal/config"
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	"{{.ModulePath}}/internal/models"
 	"gorm.io/gorm"
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	"{{.ModulePath}}/internal/models"
 	"github.com/jmoiron/sqlx"
-{{- else if eq .ORM "sqlc"}}
+{{- else if eq .Tool "sqlc"}}
 	"{{.ModulePath}}/internal/db"
 	"database/sql"
 {{- end}}
@@ -49,11 +49,11 @@ func (h *HealthHandler) Ready(c *gin.Context) {
 
 // UserHandler handles user-related endpoints
 type UserHandler struct {
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	db     *gorm.DB
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	db     *sqlx.DB
-{{- else if eq .ORM "sqlc"}}
+{{- else if eq .Tool "sqlc"}}
 	db     *sql.DB
 	queries *db.Queries
 {{- end}}
@@ -61,10 +61,10 @@ type UserHandler struct {
 }
 
 // NewUserHandler creates a new user handler
-func NewUserHandler({{- if eq .ORM "gorm"}}database *gorm.DB{{- else if eq .ORM "sqlx"}}database *sqlx.DB{{- else if eq .ORM "sqlc"}}database *sql.DB{{- end}}, cfg *config.Config) *UserHandler {
+func NewUserHandler({{- if eq .Tool "gorm"}}database *gorm.DB{{- else if eq .Tool "sqlx"}}database *sqlx.DB{{- else if eq .Tool "sqlc"}}database *sql.DB{{- end}}, cfg *config.Config) *UserHandler {
 	return &UserHandler{
 		db:     database,
-{{- if eq .ORM "sqlc"}}
+{{- if eq .Tool "sqlc"}}
 		queries: db.New(database),
 {{- end}}
 		config: cfg,
@@ -73,7 +73,7 @@ func NewUserHandler({{- if eq .ORM "gorm"}}database *gorm.DB{{- else if eq .ORM 
 
 // GetUsers handles GET /users
 func (h *UserHandler) GetUsers(c *gin.Context) {
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	var users []models.User
 	result := h.db.Find(&users)
 	if result.Error != nil {
@@ -87,7 +87,7 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 		"users": users,
 		"count": len(users),
 	})
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	var users []models.User
 	err := h.db.Select(&users, "SELECT * FROM users")
 	if err != nil {
@@ -101,7 +101,7 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 		"users": users,
 		"count": len(users),
 	})
-{{- else if eq .ORM "sqlc"}}
+{{- else if eq .Tool "sqlc"}}
 	users, err := h.queries.GetUsers(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -128,7 +128,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 		return
 	}
 
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	var user models.User
 	result := h.db.First(&user, id)
 	if result.Error != nil {
@@ -145,7 +145,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, user)
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	var user models.User
 	err = h.db.Get(&user, "SELECT * FROM users WHERE id = $1", id)
 	if err != nil {
@@ -162,7 +162,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, user)
-{{- else if eq .ORM "sqlc"}}
+{{- else if eq .Tool "sqlc"}}
 	user, err := h.queries.GetUser(c.Request.Context(), int32(id))
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -183,7 +183,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 
 // CreateUser handles POST /users
 func (h *UserHandler) CreateUser(c *gin.Context) {
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	var user models.User
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -201,7 +201,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, user)
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	var user models.User
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -220,7 +220,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, user)
-{{- else if eq .ORM "sqlc"}}
+{{- else if eq .Tool "sqlc"}}
 	var req struct {
 		Name  string `json:"name" binding:"required"`
 		Email string `json:"email" binding:"required,email"`
@@ -259,7 +259,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	var user models.User
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -286,7 +286,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	// Fetch updated user
 	h.db.First(&user, id)
 	c.JSON(http.StatusOK, user)
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	var req struct {
 		Name  string `json:"name"`
 		Email string `json:"email"`
@@ -320,7 +320,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	var user models.User
 	h.db.Get(&user, "SELECT * FROM users WHERE id = $1", id)
 	c.JSON(http.StatusOK, user)
-{{- else if eq .ORM "sqlc"}}
+{{- else if eq .Tool "sqlc"}}
 	var req struct {
 		Name  string `json:"name"`
 		Email string `json:"email"`
@@ -366,7 +366,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 		return
 	}
 
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	result := h.db.Delete(&models.User{}, id)
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -385,7 +385,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "User deleted successfully",
 	})
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	result, err := h.db.Exec("DELETE FROM users WHERE id = $1", id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -405,7 +405,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"message": "User deleted successfully",
 	})
-{{- else if eq .ORM "sqlc"}}
+{{- else if eq .Tool "sqlc"}}
 	err := h.queries.DeleteUser(c.Request.Context(), int32(id))
 	if err != nil {
 		if err == sql.ErrNoRows {

@@ -59,6 +59,7 @@ const (
 const (
 	ToolSqlx ToolChoice = "sqlx"
 	ToolSqlc ToolChoice = "sqlc"
+	ToolGorm ToolChoice = "gorm"
 )
 
 // Architecture choices
@@ -117,6 +118,7 @@ func IsValidTool(tool ToolChoice) bool {
 	validTools := []ToolChoice{
 		ToolSqlx,
 		ToolSqlc,
+		ToolGorm,
 	}
 
 	for _, valid := range validTools {
@@ -185,6 +187,7 @@ func GetValidTools() []ToolChoice {
 	return []ToolChoice{
 		ToolSqlx,
 		ToolSqlc,
+		ToolGorm,
 	}
 }
 
@@ -244,6 +247,8 @@ func (t ToolChoice) String() string {
 		return "SQLC"
 	case ToolSqlx:
 		return "SQLX"
+	case ToolGorm:
+		return "GORM"
 	default:
 		return strings.ToUpper(string(t))
 	}
@@ -300,6 +305,8 @@ func (t ToolChoice) Description() string {
 		return "Generate type-safe code from SQL"
 	case ToolSqlx:
 		return "Extensions on database/sql for easier usage"
+	case ToolGorm:
+		return "The fantastic ORM library for Golang"
 	default:
 		return ""
 	}
@@ -380,6 +387,8 @@ func (t ToolChoice) HasMigrations() bool {
 		return false // SQLC uses external migration tools
 	case ToolSqlx:
 		return false // SQLX uses external migration tools
+	case ToolGorm:
+		return true // GORM has built-in aut-migration
 	default:
 		return false
 	}
@@ -392,6 +401,8 @@ func (t ToolChoice) HasCodeGeneration() bool {
 		return true // SQLC generates Go code from SQL
 	case ToolSqlx:
 		return false // SQLX uses struct tags
+	case ToolGorm:
+		return false // GORM uses struct tags
 	default:
 		return false
 	}

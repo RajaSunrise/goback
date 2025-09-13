@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/NarmadaWeb/goback/internal/tui/styles"
 	"github.com/NarmadaWeb/goback/pkg/config"
 	"github.com/NarmadaWeb/goback/pkg/scaffolding/generator"
-	"github.com/NarmadaWeb/goback/internal/tui/styles"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -332,12 +332,3 @@ func (m *ProgressModel) GetError() error {
 	return m.error
 }
 
-// Simulate progress updates - this would be called by the generator
-func (m *ProgressModel) updateProgress(step int, message string) tea.Cmd {
-	return func() tea.Msg {
-		return progressMsg{
-			step:    step,
-			message: message,
-		}
-	}
-}

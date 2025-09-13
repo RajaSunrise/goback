@@ -36,7 +36,7 @@ type ConfigModel struct {
 	cursor       int
 	choices      []string
 	confirmed    bool
-	cancelled    bool
+	canceled     bool
 	stepComplete map[ConfigStep]bool
 
 	inputs     []textinput.Model
@@ -199,7 +199,7 @@ func (m *ConfigModel) updateChoices(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "esc", "q":
 			if m.Step == StepFramework {
-				m.cancelled = true
+				m.canceled = true
 				return m, nil
 			}
 			return m.goToPreviousStep()
@@ -253,7 +253,7 @@ func (m *ConfigModel) goToPreviousStep() (tea.Model, tea.Cmd) {
 	delete(m.stepComplete, m.Step) // Mark current step as incomplete
 	prevStep := m.Step - 1
 	if prevStep < StepFramework {
-		m.cancelled = true
+		m.canceled = true
 		return m, nil
 	}
 	// Skip devops tools if devops was not enabled
@@ -297,9 +297,14 @@ func (m *ConfigModel) setupStep() {
 	case StepDatabase:
 		m.choices = []string{"PostgreSQL", "MySQL", "SQLite"}
 	case StepTool:
-		m.choices = []string{"SQLX", "SQLC"}
+		m.choices = []string{"SQLX", "SQLC", "GORM"}
 	case StepArchitecture:
-		m.choices = []string{"Simple Architecture", "Domain-Driven Design (DDD)", "Clean Architecture", "Hexagonal Architecture"}
+		m.choices = []string{
+			"Simple Architecture",
+			"Domain-Driven Design (DDD)",
+			"Clean Architecture",
+			"Hexagonal Architecture",
+		}
 	case StepDevOpsOptions:
 		m.choices = []string{"Ya, gunakan DevOps tools", "Tidak menggunakan DevOps tools"}
 	case StepDevOpsTools:
@@ -342,7 +347,8 @@ func (m *ConfigModel) renderConfigReview() string {
 
 	var content strings.Builder
 	addRow := func(icon, label, value string) {
-		content.WriteString(fmt.Sprintf("%s %s: %s\n", icon, styles.FieldLabelStyle.Render(label), styles.FieldValueStyle.Render(value)))
+		content.WriteString(fmt.Sprintf("%s %s: %s\n",
+			icon, styles.FieldLabelStyle.Render(label), styles.FieldValueStyle.Render(value)))
 	}
 
 	addRow("📁", "Nama Proyek", m.GetProjectName())
@@ -366,7 +372,11 @@ func (m *ConfigModel) renderConfigReview() string {
 	content.WriteString("\n" + separator + "\n\n")
 
 	content.WriteString(styles.ConfirmStyle.Render("Apakah Anda siap untuk membuat proyek ini?"))
-	box := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("86")).Padding(1, 2).Render(content.String())
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("86")).
+		Padding(1, 2).
+		Render(content.String())
 	help := styles.HelpStyle.Render("✅ y/enter: Ya, Lanjutkan  |  ✏️ e/esc: Edit/Kembali  |  ❌ ctrl+c: Keluar")
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, subtitle, box, "\n", help)
@@ -481,20 +491,29 @@ func (m *ConfigModel) completeStep() {
 // Getters and other helper functions
 func (m *ConfigModel) getFrameworkFromString(s string) config.FrameworkChoice {
 	switch s {
-	case "Go Fiber": return config.FrameworkFiber
-	case "Go Gin": return config.FrameworkGin
-	case "Go Chi": return config.FrameworkChi
-	case "Go Echo": return config.FrameworkEcho
-	default: return ""
+	case "Go Fiber":
+		return config.FrameworkFiber
+	case "Go Gin":
+		return config.FrameworkGin
+	case "Go Chi":
+		return config.FrameworkChi
+	case "Go Echo":
+		return config.FrameworkEcho
+	default:
+		return ""
 	}
 }
 
 func (m *ConfigModel) getDatabaseFromString(s string) config.DatabaseChoice {
 	switch s {
-	case "PostgreSQL": return config.DatabasePostgreSQL
-	case "MySQL": return config.DatabaseMySQL
-	case "SQLite": return config.DatabaseSQLite
-	default: return ""
+	case "PostgreSQL":
+		return config.DatabasePostgreSQL
+	case "MySQL":
+		return config.DatabaseMySQL
+	case "SQLite":
+		return config.DatabaseSQLite
+	default:
+		return ""
 	}
 }
 
@@ -504,6 +523,8 @@ func (m *ConfigModel) getToolFromString(s string) config.ToolChoice {
 		return config.ToolSqlc
 	case "SQLX":
 		return config.ToolSqlx
+	case "GORM":
+		return config.ToolGorm
 	default:
 		return ""
 	}
@@ -511,11 +532,16 @@ func (m *ConfigModel) getToolFromString(s string) config.ToolChoice {
 
 func (m *ConfigModel) getArchitectureFromString(s string) config.ArchitectureChoice {
 	switch s {
-	case "Simple Architecture": return config.ArchitectureSimple
-	case "Domain-Driven Design (DDD)": return config.ArchitectureDDD
-	case "Clean Architecture": return config.ArchitectureClean
-	case "Hexagonal Architecture": return config.ArchitectureHexagonal
-	default: return ""
+	case "Simple Architecture":
+		return config.ArchitectureSimple
+	case "Domain-Driven Design (DDD)":
+		return config.ArchitectureDDD
+	case "Clean Architecture":
+		return config.ArchitectureClean
+	case "Hexagonal Architecture":
+		return config.ArchitectureHexagonal
+	default:
+		return ""
 	}
 }
 
@@ -528,14 +554,14 @@ func (m *ConfigModel) SetStep(step ConfigStep) {
 	m.setupStep()
 }
 
-func (m *ConfigModel) IsStepComplete(step ConfigStep) bool { return m.stepComplete[step] }
-func (m *ConfigModel) IsConfirmed() bool { return m.confirmed }
-func (m *ConfigModel) IsCancelled() bool { return m.cancelled }
-func (m *ConfigModel) GetFrameworkChoice() config.FrameworkChoice { return m.framework }
-func (m *ConfigModel) GetDatabaseChoice() config.DatabaseChoice { return m.database }
-func (m *ConfigModel) GetToolChoice() config.ToolChoice { return m.tool }
+func (m *ConfigModel) IsStepComplete(step ConfigStep) bool              { return m.stepComplete[step] }
+func (m *ConfigModel) IsConfirmed() bool                                { return m.confirmed }
+func (m *ConfigModel) IsCancelled() bool                                { return m.canceled }
+func (m *ConfigModel) GetFrameworkChoice() config.FrameworkChoice       { return m.framework }
+func (m *ConfigModel) GetDatabaseChoice() config.DatabaseChoice         { return m.database }
+func (m *ConfigModel) GetToolChoice() config.ToolChoice                 { return m.tool }
 func (m *ConfigModel) GetArchitectureChoice() config.ArchitectureChoice { return m.architecture }
-func (m *ConfigModel) GetDevOpsEnabled() bool { return m.devopsEnabled }
+func (m *ConfigModel) GetDevOpsEnabled() bool                           { return m.devopsEnabled }
 func (m *ConfigModel) GetDevOpsConfig() config.DevOpsConfig {
 	cfg := config.DevOpsConfig{
 		Enabled: m.devopsEnabled,
@@ -557,6 +583,6 @@ func (m *ConfigModel) GetDevOpsConfig() config.DevOpsConfig {
 }
 
 func (m *ConfigModel) GetProjectName() string { return m.inputs[0].Value() }
-func (m *ConfigModel) GetModulePath() string { return m.inputs[1].Value() }
+func (m *ConfigModel) GetModulePath() string  { return m.inputs[1].Value() }
 func (m *ConfigModel) GetDescription() string { return m.inputs[2].Value() }
-func (m *ConfigModel) GetOutputDir() string { return m.inputs[3].Value() }
+func (m *ConfigModel) GetOutputDir() string   { return m.inputs[3].Value() }
