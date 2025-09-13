@@ -49,6 +49,8 @@ type ConfigModel struct {
 	devopsEnabled       bool
 	devopsTools         []string
 	devopsToolsSelected map[string]bool
+
+	validationErrors []string
 }
 
 // NewConfigModel creates a new configuration model
@@ -132,7 +134,7 @@ func (m *ConfigModel) updateProjectDetailsInputs(msg tea.Msg) (tea.Model, tea.Cm
 			return m.goToPreviousStep()
 		case tea.KeyEnter:
 			if m.focusIndex == len(m.inputs)-1 {
-				if m.validateRequiredFields() {
+				if m.validateInputs() {
 					m.completeStep()
 				}
 				return m, nil
@@ -320,8 +322,18 @@ func (m *ConfigModel) initializeProjectDetailsDefaults() {
 	m.inputs[3].SetValue("./" + defaultProjectName)
 }
 
-func (m *ConfigModel) validateRequiredFields() bool {
-	return m.inputs[0].Value() != "" && m.inputs[1].Value() != "" && m.inputs[3].Value() != ""
+func (m *ConfigModel) validateInputs() bool {
+	cfg := &config.ProjectConfig{
+		ProjectName:  m.GetProjectName(),
+		ModulePath:   m.GetModulePath(),
+		OutputDir:    m.GetOutputDir(),
+		Framework:    m.framework,
+		Database:     m.database,
+		ORM:          m.orm,
+		Architecture: m.architecture,
+	}
+	m.validationErrors = config.ValidateProjectConfig(cfg)
+	return len(m.validationErrors) == 0
 }
 
 func (m *ConfigModel) renderConfigReview() string {
@@ -373,12 +385,17 @@ func (m *ConfigModel) renderProjectDetails() string {
 		b.WriteString("\n\n")
 	}
 
-	var validationMsg string
-	if !m.validateRequiredFields() {
-		validationMsg = styles.ErrorStyle.Render("⚠ Field yang ditandai * wajib diisi.")
+	if len(m.validationErrors) > 0 {
+		var errorContent strings.Builder
+		errorContent.WriteString(styles.ErrorTitleStyle.Render("Validation Errors:"))
+		for _, err := range m.validationErrors {
+			errorContent.WriteString("\n" + styles.ErrorStyle.Render("• "+err))
+		}
+		b.WriteString("\n" + errorContent.String() + "\n")
 	}
+
 	help := styles.HelpStyle.Render("↑/↓/tab: navigasi • enter: lanjut • esc: kembali • ctrl+c: keluar")
-	b.WriteString(validationMsg + "\n" + help)
+	b.WriteString("\n" + help)
 	return b.String()
 }
 
