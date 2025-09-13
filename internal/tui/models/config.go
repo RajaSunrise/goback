@@ -22,7 +22,7 @@ type ConfigStep int
 const (
 	StepFramework ConfigStep = iota
 	StepDatabase
-	StepORM
+	StepTool
 	StepArchitecture
 	StepDevOpsOptions
 	StepDevOpsTools
@@ -44,7 +44,7 @@ type ConfigModel struct {
 
 	framework           config.FrameworkChoice
 	database            config.DatabaseChoice
-	orm                 config.ORMChoice
+	tool                config.ToolChoice
 	architecture        config.ArchitectureChoice
 	devopsEnabled       bool
 	devopsTools         []string
@@ -221,8 +221,8 @@ func (m *ConfigModel) handleSelection() (tea.Model, tea.Cmd) {
 	case StepDatabase:
 		m.database = m.getDatabaseFromString(selected)
 		m.completeStep()
-	case StepORM:
-		m.orm = m.getORMFromString(selected)
+	case StepTool:
+		m.tool = m.getToolFromString(selected)
 		m.completeStep()
 	case StepArchitecture:
 		m.architecture = m.getArchitectureFromString(selected)
@@ -272,8 +272,8 @@ func (m *ConfigModel) View() string {
 		return m.renderFrameworkSelection()
 	case StepDatabase:
 		return m.renderDatabaseSelection()
-	case StepORM:
-		return m.renderORMSelection()
+	case StepTool:
+		return m.renderToolSelection()
 	case StepArchitecture:
 		return m.renderArchitectureSelection()
 	case StepDevOpsOptions:
@@ -296,8 +296,8 @@ func (m *ConfigModel) setupStep() {
 		m.choices = []string{"Go Fiber", "Go Gin", "Go Chi", "Go Echo"}
 	case StepDatabase:
 		m.choices = []string{"PostgreSQL", "MySQL", "SQLite"}
-	case StepORM:
-		m.choices = []string{"GORM", "SQLC", "SQLX"}
+	case StepTool:
+		m.choices = []string{"SQLX", "SQLC"}
 	case StepArchitecture:
 		m.choices = []string{"Simple Architecture", "Domain-Driven Design (DDD)", "Clean Architecture", "Hexagonal Architecture"}
 	case StepDevOpsOptions:
@@ -329,7 +329,7 @@ func (m *ConfigModel) validateInputs() bool {
 		OutputDir:    m.GetOutputDir(),
 		Framework:    m.framework,
 		Database:     m.database,
-		ORM:          m.orm,
+		Tool:         m.tool,
 		Architecture: m.architecture,
 	}
 	m.validationErrors = config.ValidateProjectConfig(cfg)
@@ -354,7 +354,7 @@ func (m *ConfigModel) renderConfigReview() string {
 	content.WriteString("\n")
 	addRow("🏗️ ", "Framework", m.framework.String())
 	addRow("🗄️ ", "Database", m.database.String())
-	addRow("🔗", "ORM", m.orm.String())
+	addRow("🔗", "Tool", m.tool.String())
 	addRow("🏛️ ", "Arsitektur", m.architecture.String())
 
 	if m.devopsEnabled && len(m.devopsTools) > 0 {
@@ -425,8 +425,8 @@ func (m *ConfigModel) renderDatabaseSelection() string {
 	return m.renderGenericChoiceView("🗄️  Pilih Database", "Database yang akan digunakan untuk proyek Anda.")
 }
 
-func (m *ConfigModel) renderORMSelection() string {
-	return m.renderGenericChoiceView("🔗 Pilih ORM/Database Tool", "Tool untuk berinteraksi dengan database.")
+func (m *ConfigModel) renderToolSelection() string {
+	return m.renderGenericChoiceView("🔗 Pilih Database Tool", "Tool untuk berinteraksi dengan database.")
 }
 
 func (m *ConfigModel) renderArchitectureSelection() string {
@@ -498,12 +498,14 @@ func (m *ConfigModel) getDatabaseFromString(s string) config.DatabaseChoice {
 	}
 }
 
-func (m *ConfigModel) getORMFromString(s string) config.ORMChoice {
+func (m *ConfigModel) getToolFromString(s string) config.ToolChoice {
 	switch s {
-	case "GORM": return config.ORMGorm
-	case "SQLC": return config.ORMSqlc
-	case "SQLX": return config.ORMSqlx
-	default: return ""
+	case "SQLC":
+		return config.ToolSqlc
+	case "SQLX":
+		return config.ToolSqlx
+	default:
+		return ""
 	}
 }
 
@@ -531,17 +533,24 @@ func (m *ConfigModel) IsConfirmed() bool { return m.confirmed }
 func (m *ConfigModel) IsCancelled() bool { return m.cancelled }
 func (m *ConfigModel) GetFrameworkChoice() config.FrameworkChoice { return m.framework }
 func (m *ConfigModel) GetDatabaseChoice() config.DatabaseChoice { return m.database }
-func (m *ConfigModel) GetORMChoice() config.ORMChoice { return m.orm }
-func (m *ConfigModel) GetArchitectureChoice() config.ArchitectureChoice { return m.architecture }
+func (m *ConfigModel) GetToolChoice() config.ToolChoice { return m.tool }
+func (m.ConfigModel) GetArchitectureChoice() config.ArchitectureChoice { return m.architecture }
 func (m *ConfigModel) GetDevOpsEnabled() bool { return m.devopsEnabled }
 func (m *ConfigModel) GetDevOpsConfig() config.DevOpsConfig {
-	cfg := config.DevOpsConfig{Tools: m.devopsTools}
+	cfg := config.DevOpsConfig{
+		Enabled: m.devopsEnabled,
+		Tools:   m.devopsTools,
+	}
 	for _, tool := range m.devopsTools {
 		switch tool {
-		case "kubernetes": cfg.Kubernetes = true
-		case "helm": cfg.Helm = true
-		case "terraform": cfg.Terraform = true
-		case "ansible": cfg.Ansible = true
+		case "kubernetes":
+			cfg.Kubernetes = true
+		case "helm":
+			cfg.Helm = true
+		case "terraform":
+			cfg.Terraform = true
+		case "ansible":
+			cfg.Ansible = true
 		}
 	}
 	return cfg

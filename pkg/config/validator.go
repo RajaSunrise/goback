@@ -30,8 +30,8 @@ func ValidateProjectConfig(config *ProjectConfig) []string {
 	if !IsValidDatabase(config.Database) {
 		errors = append(errors, "Invalid database choice.")
 	}
-	if !IsValidORM(config.ORM) {
-		errors = append(errors, "Invalid ORM choice.")
+	if !IsValidTool(config.Tool) {
+		errors = append(errors, "Invalid Tool choice.")
 	}
 	if !IsValidArchitecture(config.Architecture) {
 		errors = append(errors, "Invalid architecture choice.")
@@ -69,8 +69,8 @@ func formatValidationError(err validator.FieldError) string {
 		return "A framework selection is required."
 	case "Database":
 		return "A database selection is required."
-	case "ORM":
-		return "An ORM selection is required."
+	case "Tool":
+		return "A Tool selection is required."
 	case "Architecture":
 		return "An architecture selection is required."
 	}

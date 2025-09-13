@@ -61,7 +61,7 @@ func (m *VersionModel) View() string {
 		MarginBottom(2).
 		Render(`• Framework: Go Fiber, Gin, Chi, Echo
 • Database: PostgreSQL, MySQL, SQLite
-• ORM: GORM, SQLX, SQLC
+• Tools: SQLX, SQLC
 • Arsitektur: Simple, DDD, Clean, Hexagonal
 • DevOps: Kubernetes, Helm, Terraform, Ansible
 • Auto-generate: CRUD operations, config, docs
@@ -111,10 +111,10 @@ func (m *VersionModel) View() string {
 	)
 }
 
-func (m *VersionModel) IsSelected() bool {
+func (m *VersionModel) ShouldClose() bool {
 	return m.selected
 }
 
-func (m *VersionModel) ResetSelected() {
+func (m *VersionModel) Reset() {
 	m.selected = false
 }

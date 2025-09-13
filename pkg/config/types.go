@@ -15,7 +15,7 @@ type ProjectConfig struct {
 	OutputDir    string             `json:"output_dir" validate:"required"`
 	Framework    FrameworkChoice    `json:"framework" validate:"required"`
 	Database     DatabaseChoice     `json:"database" validate:"required"`
-	ORM          ORMChoice          `json:"orm" validate:"required"`
+	Tool         ToolChoice         `json:"tool" validate:"required"`
 	Architecture ArchitectureChoice `json:"architecture" validate:"required"`
 	DevOps       DevOpsConfig       `json:"devops"`
 	CreatedAt    time.Time          `json:"created_at"`
@@ -24,19 +24,19 @@ type ProjectConfig struct {
 
 // DevOpsConfig holds the DevOps tool configuration
 type DevOpsConfig struct {
-	Enabled     bool     `json:"enabled"`
-	Tools       []string `json:"tools"`
-	Kubernetes  bool     `json:"kubernetes"`
-	Helm        bool     `json:"helm"`
-	Terraform   bool     `json:"terraform"`
-	Ansible     bool     `json:"ansible"`
+	Enabled    bool     `json:"enabled"`
+	Tools      []string `json:"tools"`
+	Kubernetes bool     `json:"kubernetes"`
+	Helm       bool     `json:"helm"`
+	Terraform  bool     `json:"terraform"`
+	Ansible    bool     `json:"ansible"`
 }
 
 // Choice types for project configuration
 type (
 	FrameworkChoice    string
 	DatabaseChoice     string
-	ORMChoice          string
+	ToolChoice         string
 	ArchitectureChoice string
 )
 
@@ -55,11 +55,10 @@ const (
 	DatabaseSQLite     DatabaseChoice = "sqlite"
 )
 
-// ORM choices
+// Tool choices
 const (
-	ORMGorm ORMChoice = "gorm"
-	ORMSqlc ORMChoice = "sqlc"
-	ORMSqlx ORMChoice = "sqlx"
+	ToolSqlx ToolChoice = "sqlx"
+	ToolSqlc ToolChoice = "sqlc"
 )
 
 // Architecture choices
@@ -113,16 +112,15 @@ func IsValidDatabase(database DatabaseChoice) bool {
 	return false
 }
 
-// IsValidORM checks if ORM choice is valid
-func IsValidORM(orm ORMChoice) bool {
-	validORMs := []ORMChoice{
-		ORMGorm,
-		ORMSqlc,
-		ORMSqlx,
+// IsValidTool checks if Tool choice is valid
+func IsValidTool(tool ToolChoice) bool {
+	validTools := []ToolChoice{
+		ToolSqlx,
+		ToolSqlc,
 	}
 
-	for _, valid := range validORMs {
-		if orm == valid {
+	for _, valid := range validTools {
+		if tool == valid {
 			return true
 		}
 	}
@@ -182,12 +180,11 @@ func GetValidDatabases() []DatabaseChoice {
 	}
 }
 
-// GetValidORMs returns list of valid ORM choices
-func GetValidORMs() []ORMChoice {
-	return []ORMChoice{
-		ORMGorm,
-		ORMSqlc,
-		ORMSqlx,
+// GetValidTools returns list of valid Tool choices
+func GetValidTools() []ToolChoice {
+	return []ToolChoice{
+		ToolSqlx,
+		ToolSqlc,
 	}
 }
 
@@ -241,16 +238,14 @@ func (d DatabaseChoice) String() string {
 	}
 }
 
-func (o ORMChoice) String() string {
-	switch o {
-	case ORMGorm:
-		return "GORM"
-	case ORMSqlc:
+func (t ToolChoice) String() string {
+	switch t {
+	case ToolSqlc:
 		return "SQLC"
-	case ORMSqlx:
+	case ToolSqlx:
 		return "SQLX"
 	default:
-		return strings.ToUpper(string(o))
+		return strings.ToUpper(string(t))
 	}
 }
 
@@ -299,13 +294,11 @@ func (d DatabaseChoice) Description() string {
 	}
 }
 
-func (o ORMChoice) Description() string {
-	switch o {
-	case ORMGorm:
-		return "Feature-rich ORM with associations, hooks, and migrations"
-	case ORMSqlc:
+func (t ToolChoice) Description() string {
+	switch t {
+	case ToolSqlc:
 		return "Generate type-safe code from SQL"
-	case ORMSqlx:
+	case ToolSqlx:
 		return "Extensions on database/sql for easier usage"
 	default:
 		return ""
@@ -346,21 +339,21 @@ func GetDevOpsToolDescription(tool string) string {
 // Configuration compatibility matrix
 
 // IsCompatible checks if choices are compatible with each other
-func IsCompatible(framework FrameworkChoice, database DatabaseChoice, orm ORMChoice) bool {
+func IsCompatible(framework FrameworkChoice, database DatabaseChoice, tool ToolChoice) bool {
 	// All current combinations are compatible
 	// This can be extended in the future if certain combinations are not supported
-	return IsValidFramework(framework) && IsValidDatabase(database) && IsValidORM(orm)
+	return IsValidFramework(framework) && IsValidDatabase(database) && IsValidTool(tool)
 }
 
-// GetRecommendedORM returns recommended ORM for given database
-func GetRecommendedORM(database DatabaseChoice) ORMChoice {
+// GetRecommendedTool returns recommended Tool for given database
+func GetRecommendedTool(database DatabaseChoice) ToolChoice {
 	switch database {
 	case DatabasePostgreSQL, DatabaseMySQL:
-		return ORMGorm // GORM works well with PostgreSQL and MySQL
+		return ToolSqlx // SQLX works well with PostgreSQL and MySQL
 	case DatabaseSQLite:
-		return ORMGorm // GORM also supports SQLite
+		return ToolSqlx // SQLX also supports SQLite
 	default:
-		return ORMGorm // Default to GORM
+		return ToolSqlx // Default to SQLX
 	}
 }
 
@@ -380,28 +373,24 @@ func GetRecommendedArchitecture(complexity string) ArchitectureChoice {
 
 // Feature flags for choices
 
-// HasMigrations checks if the ORM supports migrations
-func (o ORMChoice) HasMigrations() bool {
-	switch o {
-	case ORMGorm:
-		return true
-	case ORMSqlc:
+// HasMigrations checks if the Tool supports migrations
+func (t ToolChoice) HasMigrations() bool {
+	switch t {
+	case ToolSqlc:
 		return false // SQLC uses external migration tools
-	case ORMSqlx:
+	case ToolSqlx:
 		return false // SQLX uses external migration tools
 	default:
 		return false
 	}
 }
 
-// HasCodeGeneration checks if the ORM generates code
-func (o ORMChoice) HasCodeGeneration() bool {
-	switch o {
-	case ORMGorm:
-		return false // GORM uses reflection
-	case ORMSqlc:
+// HasCodeGeneration checks if the Tool generates code
+func (t ToolChoice) HasCodeGeneration() bool {
+	switch t {
+	case ToolSqlc:
 		return true // SQLC generates Go code from SQL
-	case ORMSqlx:
+	case ToolSqlx:
 		return false // SQLX uses struct tags
 	default:
 		return false
