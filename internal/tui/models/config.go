@@ -534,7 +534,7 @@ func (m *ConfigModel) IsCancelled() bool { return m.cancelled }
 func (m *ConfigModel) GetFrameworkChoice() config.FrameworkChoice { return m.framework }
 func (m *ConfigModel) GetDatabaseChoice() config.DatabaseChoice { return m.database }
 func (m *ConfigModel) GetToolChoice() config.ToolChoice { return m.tool }
-func (m.ConfigModel) GetArchitectureChoice() config.ArchitectureChoice { return m.architecture }
+func (m *ConfigModel) GetArchitectureChoice() config.ArchitectureChoice { return m.architecture }
 func (m *ConfigModel) GetDevOpsEnabled() bool { return m.devopsEnabled }
 func (m *ConfigModel) GetDevOpsConfig() config.DevOpsConfig {
 	cfg := config.DevOpsConfig{

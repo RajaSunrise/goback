@@ -22,6 +22,8 @@ type AppConfig struct {
 	Theme               string `json:"theme" yaml:"theme"`
 }
 
+// Note: ProjectConfig and DevOpsConfig are defined in types.go
+
 // Default configuration values
 var (
 	defaultConfig = &AppConfig{
@@ -52,12 +54,19 @@ func NewProjectConfig() *ProjectConfig {
 	}
 
 	return &ProjectConfig{
-		ProjectName: defaultName,
-		ModulePath:  GetConfig().DefaultModulePrefix + "/" + defaultName,
-		OutputDir:   defaultOutputDir,
-		DevOps:      DevOpsConfig{},
-		CreatedAt:   now,
-		UpdatedAt:   now,
+		ProjectName:  defaultName,
+		ModulePath:   GetConfig().DefaultModulePrefix + "/" + defaultName,
+		OutputDir:    defaultOutputDir,
+		Framework:    FrameworkFiber,    // Default to Fiber
+		Database:     DatabasePostgreSQL, // Default to PostgreSQL
+		Tool:         ToolSqlx,           // Default to SQLX
+		Architecture: ArchitectureSimple, // Default to Simple
+		DevOps:       DevOpsConfig{
+			Enabled: false,
+			Tools:   []string{},
+		},
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 }
 
@@ -155,7 +164,7 @@ func SaveProjectConfig(cfg *ProjectConfig, filepath string) error {
 	v.Set("output_dir", cfg.OutputDir)
 	v.Set("framework", cfg.Framework)
 	v.Set("database", cfg.Database)
-	v.Set("orm", cfg.ORM)
+	v.Set("tools", cfg.Tool)
 	v.Set("architecture", cfg.Architecture)
 	v.Set("devops", cfg.DevOps)
 	v.Set("created_at", cfg.CreatedAt)

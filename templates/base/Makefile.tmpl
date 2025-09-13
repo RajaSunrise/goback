@@ -327,7 +327,7 @@ install-tools:
 	$(GOINSTALL) github.com/cosmtrek/air@latest
 	$(GOINSTALL) github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOINSTALL) github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
-{{- if eq .ORM "sqlc"}}
+{{- if eq .Tool "sqlc"}}
 	$(GOINSTALL) github.com/kyleconroy/sqlc/cmd/sqlc@latest
 {{- end}}
 
@@ -341,7 +341,7 @@ info:
 	@echo "Build Time: $(BUILD_TIME)"
 	@echo "Framework: {{.Framework}}"
 	@echo "Database: {{.Database}}"
-	@echo "ORM: {{.ORM}}"
+	@echo "Tool: {{.Tool}}"
 	@echo "Architecture: {{.Architecture}}"
 {{- if .DevOps.Enabled}}
 	@echo "DevOps: Enabled"

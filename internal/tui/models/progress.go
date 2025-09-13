@@ -214,7 +214,7 @@ func (m *ProgressModel) renderSuccess() string {
 		m.config.OutputDir,
 		m.config.Framework,
 		m.config.Database,
-		m.config.ORM,
+		m.config.Tool,
 		m.config.Architecture,
 	)
 
