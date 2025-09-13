@@ -7,7 +7,7 @@ BUILD_DIR=./bin
 GO_VERSION=$(shell go version | cut -d ' ' -f 3)
 GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
-VERSION={{.Config.ProjectDetails.Version}}
+VERSION=0.1.0
 
 # Go variables
 GOCMD=go
@@ -43,14 +43,14 @@ help:
 	@echo "  deps         Download dependencies"
 	@echo "  deps-update  Update dependencies"
 	@echo "  run          Run the application"
-{{- if .HasDevOps}}
+{{- if .DevOps.Enabled}}
 	@echo "  docker-build Build Docker image"
 	@echo "  docker-run   Run Docker container"
-{{- if .HasKubernetes}}
+{{- if .DevOps.Kubernetes}}
 	@echo "  k8s-deploy   Deploy to Kubernetes"
 	@echo "  k8s-delete   Delete from Kubernetes"
 {{- end}}
-{{- if .HasHelm}}
+{{- if .DevOps.Helm}}
 	@echo "  helm-install Install with Helm"
 	@echo "  helm-upgrade Upgrade with Helm"
 	@echo "  helm-delete  Delete Helm release"
@@ -213,7 +213,7 @@ sqlc-generate:
 
 {{- end}}
 
-{{- if .HasDevOps}}
+{{- if .DevOps.Enabled}}
 
 # Docker commands
 .PHONY: docker-build
@@ -233,7 +233,7 @@ docker-push:
 	# Add your registry here
 	# docker push your-registry/$(BINARY_NAME):$(VERSION)
 
-{{- if .HasKubernetes}}
+{{- if .DevOps.Kubernetes}}
 
 # Kubernetes commands
 .PHONY: k8s-deploy
@@ -253,7 +253,7 @@ k8s-logs:
 
 {{- end}}
 
-{{- if .HasHelm}}
+{{- if .DevOps.Helm}}
 
 # Helm commands
 .PHONY: helm-install
@@ -278,7 +278,7 @@ helm-status:
 
 {{- end}}
 
-{{- if .HasTerraform}}
+{{- if .DevOps.Terraform}}
 
 # Terraform commands
 .PHONY: tf-init
@@ -303,7 +303,7 @@ tf-destroy:
 
 {{- end}}
 
-{{- if .HasAnsible}}
+{{- if .DevOps.Ansible}}
 
 # Ansible commands
 .PHONY: ansible-deploy
@@ -343,7 +343,7 @@ info:
 	@echo "Database: {{.Database}}"
 	@echo "ORM: {{.ORM}}"
 	@echo "Architecture: {{.Architecture}}"
-{{- if .HasDevOps}}
+{{- if .DevOps.Enabled}}
 	@echo "DevOps: Enabled"
 {{- else}}
 	@echo "DevOps: Disabled"

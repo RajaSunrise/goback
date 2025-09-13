@@ -27,7 +27,7 @@ spec:
           value: "8080"
         - name: APP_ENV
           value: "production"
-        {{- if .Database.Enabled}}
+        {{- if .Database}}
         - name: DB_HOST
           valueFrom:
             secretKeyRef:
@@ -107,10 +107,10 @@ metadata:
   name: {{.ProjectName}}-secrets
 type: Opaque
 data:
-  {{- if .Database.Enabled}}
+  {{- if .Database}}
   # Base64 encoded values - replace with actual values
   db-host: bG9jYWxob3N0  # localhost
-  db-port: {{if eq .Database.Type "postgresql"}}NTQzMg==  # 5432{{else if eq .Database.Type "mysql"}}MzMwNg==  # 3306{{else}}  # sqlite{{end}}
+  db-port: {{if eq .Database "postgresql"}}NTQzMg==  # 5432{{else if eq .Database "mysql"}}MzMwNg==  # 3306{{else}}  # sqlite{{end}}
   db-username: dXNlcg==  # user
   db-password: cGFzc3dvcmQ=  # password
   db-name: {{printf "%s_db" .ProjectName | b64enc}}

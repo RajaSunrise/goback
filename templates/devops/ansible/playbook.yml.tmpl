@@ -19,14 +19,14 @@
     app_version: "{{ app_version | default('latest') }}"
     go_version: "{{ go_version | default('1.21.5') }}"
 
-    {{- if .Database.Enabled}}
+    {{- if .Database}}
     # Database configuration
-    {{- if eq .Database.Type "postgresql" }}
+    {{- if eq .Database "postgresql" }}
     db_type: "postgresql"
     db_port: "{{ db_port | default('5432') }}"
     db_package: "postgresql postgresql-contrib"
     db_service: "postgresql"
-    {{- else if eq .Database.Type "mysql" }}
+    {{- else if eq .Database "mysql" }}
     db_type: "mysql"
     db_port: "{{ db_port | default('3306') }}"
     db_package: "mysql-server"
@@ -131,7 +131,7 @@
             - 'export GOPATH=/usr/local/go'
             - 'export GOROOT=/usr/local/go'
 
-    {{- if .Database.Enabled}}
+    {{- if .Database}}
     - name: Install and configure database
       block:
         - name: Install database server
@@ -145,7 +145,7 @@
             state: started
             enabled: yes
 
-        {{- if eq .Database.Type "postgresql" }}
+        {{- if eq .Database "postgresql" }}
         - name: Install Python PostgreSQL adapter
           package:
             name: python3-psycopg2
@@ -164,7 +164,7 @@
             priv: "{{ db_name }}:ALL"
             state: present
           become_user: postgres
-        {{- else if eq .Database.Type "mysql" }}
+        {{- else if eq .Database "mysql" }}
         - name: Install Python MySQL adapter
           package:
             name: python3-pymysql

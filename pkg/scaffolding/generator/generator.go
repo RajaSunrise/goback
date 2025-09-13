@@ -3,6 +3,7 @@
 package generator
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"text/template"
 
 	"github.com/NarmadaWeb/goback/pkg/config"
+	"github.com/iancoleman/strcase"
 )
 
 // TemplateGenerator handles project generation from templates
@@ -100,8 +102,25 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 	}
 	defer outputFile.Close()
 
+	// Custom template functions
+	funcMap := template.FuncMap{
+		"title":     strings.ToTitle,
+		"toTitle":   strings.ToTitle,
+		"snakeCase": strcase.ToSnake,
+		"kebabCase": strcase.ToKebab,
+		"upper":      strings.ToUpper,
+		"replaceAll": func(s, old, new string) string { return strings.Replace(s, old, new, -1) },
+		"b64enc":     func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
+		"default": func(val string, def string) string {
+			if val == "" {
+				return def
+			}
+			return val
+		},
+	}
+
 	// Parse and execute template
-	tmpl, err := template.New(filepath.Base(templatePath)).Parse(string(templateContent))
+	tmpl, err := template.New(filepath.Base(templatePath)).Funcs(funcMap).Parse(string(templateContent))
 	if err != nil {
 		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)
 	}
@@ -144,7 +163,7 @@ func (tg *TemplateGenerator) generateBaseFiles() error {
 
 // generateFrameworkFiles generates the framework-specific files.
 func (tg *TemplateGenerator) generateFrameworkFiles() error {
-	framework := strings.ToLower(tg.Config.Framework.String())
+	framework := string(tg.Config.Framework)
 	if framework == "" {
 		return nil // No framework selected
 	}
@@ -184,7 +203,7 @@ func (tg *TemplateGenerator) generateFrameworkFiles() error {
 
 // generateDatabaseConfig generates the database configuration files.
 func (tg *TemplateGenerator) generateDatabaseConfig() error {
-	database := strings.ToLower(tg.Config.Database.String())
+	database := string(tg.Config.Database)
 	if database == "" {
 		return nil // No database selected
 	}
@@ -217,8 +236,6 @@ func (tg *TemplateGenerator) generateORMFiles() error {
 		templatePath := strings.TrimPrefix(file, "templates"+string(filepath.Separator))
 		var destPath string
 		switch filepath.Base(templatePath) {
-		case "migration.go.tmpl":
-			destPath = "internal/database/migration.go"
 		case "model.go.tmpl":
 			// This might be better suited within the architecture templates
 			destPath = "internal/models/base_model.go"
@@ -234,7 +251,7 @@ func (tg *TemplateGenerator) generateORMFiles() error {
 
 // generateArchitectureFiles generates the architecture-specific files recursively.
 func (tg *TemplateGenerator) generateArchitectureFiles() error {
-	architecture := strings.ToLower(tg.Config.Architecture.String())
+	architecture := string(tg.Config.Architecture)
 	if architecture == "" {
 		return nil
 	}

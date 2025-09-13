@@ -10,14 +10,14 @@ import (
 	{{- end}}
 	
 	// --- Import dinamis berdasarkan framework ---
-	{{- if eq .Framework "Fiber" }}
+	{{- if eq .Framework "fiber" }}
 	"github.com/gofiber/fiber/v2"
-	{{- else if eq .Framework "Gin" }}
+	{{- else if eq .Framework "gin" }}
 	"github.com/gin-gonic/gin"
-	{{- else if eq .Framework "Chi" }}
+	{{- else if eq .Framework "chi" }}
 	"encoding/json"
 	"github.com/go-chi/chi/v5"
-	{{- else if eq .Framework "Echo" }}
+	{{- else if eq .Framework "echo" }}
 	"github.com/labstack/echo/v4"
 	{{- end}}
 )
@@ -39,7 +39,7 @@ func handleServiceError(err error) (int, map[string]string) {
 }
 
 {{/* =================== BLOK KODE UNTUK GO FIBER =================== */}}
-{{- if eq .Framework "Fiber" }}
+{{- if eq .Framework "fiber" }}
 func (h *UserHandler) Create(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
 func (h *UserHandler) GetByID(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
 func (h *UserHandler) GetAll(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
@@ -48,7 +48,7 @@ func (h *UserHandler) Delete(c *fiber.Ctx) error { /* ... implementasi Fiber ...
 {{- end }}
 
 {{/* =================== BLOK KODE UNTUK GIN =================== */}}
-{{- if eq .Framework "Gin" }}
+{{- if eq .Framework "gin" }}
 func (h *UserHandler) Create(c *gin.Context) { /* ... implementasi Gin ... */ }
 func (h *UserHandler) GetByID(c *gin.Context) { /* ... implementasi Gin ... */ }
 func (h *UserHandler) GetAll(c *gin.Context) { /* ... implementasi Gin ... */ }
@@ -57,13 +57,13 @@ func (h *UserHandler) Delete(c *gin.Context) { /* ... implementasi Gin ... */ }
 {{- end }}
 
 {{/* =================== BLOK KODE UNTUK CHI =================== */}}
-{{- if eq .Framework "Chi" }}
+{{- if eq .Framework "chi" }}
 func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) { /* ... implementasi Chi ... */ }
 // ... dan seterusnya untuk Chi
 {{- end }}
 
 {{/* =================== BLOK KODE UNTUK ECHO =================== */}}
-{{- if eq .Framework "Echo" }}
+{{- if eq .Framework "echo" }}
 func (h *UserHandler) Create(c echo.Context) error { /* ... implementasi Echo ... */ }
 // ... dan seterusnya untuk Echo
 {{- end }}

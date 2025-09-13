@@ -3,7 +3,7 @@ package domain
 import (
 	"errors"
 	"time"
-	{{- if eq .Database.Type "postgresql" }}
+	{{- if eq .Database "postgresql" }}
 	"github.com/google/uuid"
 	{{- end}}
 	"golang.org/x/crypto/bcrypt"
@@ -11,7 +11,7 @@ import (
 
 // User represents the core domain entity in hexagonal architecture
 type User struct {
-	{{- if eq .Database.Type "postgresql" }}
+	{{- if eq .Database "postgresql" }}
 	ID        uuid.UUID `json:"id"`
 	{{- else}}
 	ID        uint      `json:"id"`
@@ -37,7 +37,7 @@ func NewUser(name, email, password string) (*User, error) {
 		UpdatedAt: time.Now(),
 	}
 
-	{{- if eq .Database.Type "postgresql" }}
+	{{- if eq .Database "postgresql" }}
 	user.ID = uuid.New()
 	{{- end}}
 

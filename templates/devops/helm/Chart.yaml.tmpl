@@ -14,21 +14,21 @@ keywords:
   - {{.ProjectName}}
   - go
   - {{.Framework}}
-  {{- if .Database.Enabled}}
-  - {{.Database.Type}}
+  {{- if .Database}}
+  - {{.Database}}
   {{- end}}
   - api
   - microservice
 annotations:
   category: Application
 dependencies:
-{{- if .Database.Enabled}}
-{{- if eq .Database.Type "postgresql" }}
+{{- if .Database}}
+{{- if eq .Database "postgresql" }}
   - name: postgresql
     version: 12.1.9
     repository: https://charts.bitnami.com/bitnami
     condition: postgresql.enabled
-{{- else if eq .Database.Type "mysql" }}
+{{- else if eq .Database "mysql" }}
   - name: mysql
     version: 9.4.6
     repository: https://charts.bitnami.com/bitnami

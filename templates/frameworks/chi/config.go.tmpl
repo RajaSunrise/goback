@@ -7,7 +7,7 @@ import (
 
 type Config struct {
 	Server   ServerConfig   `json:"server"`
-	{{- if .Database.Enabled}}
+	{{- if .Database}}
 	Database DatabaseConfig `json:"database"`
 	{{- end}}
 	App      AppConfig      `json:"app"`
@@ -21,9 +21,8 @@ type ServerConfig struct {
 	IdleTimeout  int    `json:"idle_timeout"`
 }
 
-{{- if .Database.Enabled}}
+{{- if .Database}}
 type DatabaseConfig struct {
-	Driver   string `json:"driver"`
 	Host     string `json:"host"`
 	Port     string `json:"port"`
 	Username string `json:"username"`
@@ -50,13 +49,18 @@ func Load() (*Config, error) {
 			WriteTimeout: getEnvAsInt("WRITE_TIMEOUT", 30),
 			IdleTimeout:  getEnvAsInt("IDLE_TIMEOUT", 60),
 		},
-		{{- if .Database.Enabled}}
+		{{- if .Database}}
 		Database: DatabaseConfig{
-			Driver:   getEnv("DB_DRIVER", "{{.Database.Type}}"),
 			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnv("DB_PORT", "{{.Database.Port}}"),
-			Username: getEnv("DB_USERNAME", "{{.Database.Username}}"),
-			Password: getEnv("DB_PASSWORD", "{{.Database.Password}}"),
+		{{- if eq .Database "postgresql"}}
+			Port:     getEnv("DB_PORT", "5432"),
+			Username: getEnv("DB_USERNAME", "postgres"),
+			Password: getEnv("DB_PASSWORD", "password"),
+		{{- else if eq .Database "mysql"}}
+			Port:     getEnv("DB_PORT", "3306"),
+			Username: getEnv("DB_USERNAME", "root"),
+			Password: getEnv("DB_PASSWORD", "password"),
+		{{- end}}
 			Name:     getEnv("DB_NAME", "{{.ProjectName}}_db"),
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 			Timezone: getEnv("DB_TIMEZONE", "UTC"),

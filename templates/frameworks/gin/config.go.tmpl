@@ -111,7 +111,7 @@ func Load() (*Config, error) {
 	}
 
 	// Override with environment variables
-	viper.SetEnvPrefix("{{.ProjectName | upper | replace "-" "_"}}")
+	viper.SetEnvPrefix("{{.ProjectName | upper | replaceAll "-" "_"}}")
 	viper.AutomaticEnv()
 
 	// Environment variable mappings

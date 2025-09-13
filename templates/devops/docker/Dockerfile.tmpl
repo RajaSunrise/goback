@@ -29,7 +29,7 @@ COPY --chown=appuser:appgroup . .
 # Build the application with optimizations
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -a -installsuffix cgo \
-    -ldflags="-w -s -extldflags '-static' -X main.version={{.ProjectDetails.Version | default "1.0.0"}} -X main.buildTime=$(date -u '+%Y-%m-%d_%H:%M:%S') -X main.gitCommit={{.GitCommit | default "unknown"}}" \
+    -ldflags="-w -s -extldflags '-static' -X main.version=1.0.0 -X main.buildTime=$(date -u '+%Y-%m-%d_%H:%M:%S') -X main.gitCommit=unknown" \
     -o {{.ProjectName}} \
     ./cmd/{{.ProjectName}}
 
@@ -56,7 +56,7 @@ COPY --from=builder --chown=nonroot:nonroot /app/configs ./configs 2>/dev/null |
 COPY --from=builder --chown=nonroot:nonroot /app/templates ./templates 2>/dev/null || true
 COPY --from=builder --chown=nonroot:nonroot /app/static ./static 2>/dev/null || true
 
-{{- if eq .Database.Type "sqlite"}}
+{{- if eq .Database "sqlite"}}
 # Create directory for SQLite database with proper permissions
 USER root
 RUN mkdir -p /app/data && chown nonroot:nonroot /app/data
@@ -79,7 +79,7 @@ ENV FIBER_PREFORK=false
 {{- else if eq .Framework "echo"}}
 ENV ECHO_DEBUG=false
 {{- end}}
-{{- if eq .Database.Type "sqlite"}}
+{{- if eq .Database "sqlite"}}
 ENV DB_PATH=/app/data/{{.ProjectName}}.db
 {{- end}}
 
@@ -90,7 +90,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 # Set security labels
 LABEL org.opencontainers.image.title="{{.ProjectName}}"
 LABEL org.opencontainers.image.description="{{.Description}}"
-LABEL org.opencontainers.image.version="{{.ProjectDetails.Version | default "1.0.0"}}"
+LABEL org.opencontainers.image.version="1.0.0"
 LABEL org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
 LABEL org.opencontainers.image.source="{{.ModulePath}}"
 LABEL org.opencontainers.image.vendor="{{.ProjectName}} Team"

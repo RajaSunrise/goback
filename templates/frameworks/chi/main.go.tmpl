@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/cors"
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/routes"
-	{{- if .Database.Enabled}}
+	{{- if .Database}}
 	"{{.ModulePath}}/internal/database"
 	{{- end}}
 )
@@ -23,7 +23,7 @@ func main() {
 		log.Fatal("Failed to load config:", err)
 	}
 
-	{{- if .Database.Enabled}}
+	{{- if .Database}}
 	// Initialize database
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
@@ -67,7 +67,7 @@ func main() {
 	})
 
 	// Setup routes
-	{{- if .Database.Enabled}}
+	{{- if .Database}}
 	routes.Setup(r, db)
 	{{- else}}
 	routes.Setup(r)
