@@ -1,20 +1,20 @@
 [web]
-{{.ProjectName}}-server-1 ansible_host=192.168.1.10
-{{.ProjectName}}-server-2 ansible_host=192.168.1.11
+<<.ProjectName>>-server-1 ansible_host=192.168.1.10
+<<.ProjectName>>-server-2 ansible_host=192.168.1.11
 
 [database]
-{{.ProjectName}}-db-1 ansible_host=192.168.1.20
+<<.ProjectName>>-db-1 ansible_host=192.168.1.20
 
 [all:vars]
 # It is recommended to use a non-root user with sudo privileges
 ansible_user=ansible
 ansible_ssh_private_key_file=~/.ssh/id_rsa
-project_name={{.ProjectName}}
+project_name=<<.ProjectName>>
 project_version=1.0.0
 app_port=8080
-db_port={{if eq .Database "postgresql"}}5432{{else if eq .Database "mysql"}}3306{{end}}
-db_name={{.ProjectName}}_db
-db_user={{.ProjectName}}_user
+db_port=<<if eq .Database "postgresql">>5432<<else if eq .Database "mysql">>3306<<end>>
+db_name=<<.ProjectName>>_db
+db_user=<<.ProjectName>>_user
 # It is strongly recommended to use Ansible Vault to store sensitive data like passwords.
 # Example command to run playbook with vault:
 # ansible-playbook -i inventory.ini playbook.yml --ask-vault-pass

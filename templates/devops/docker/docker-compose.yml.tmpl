@@ -40,9 +40,6 @@ services:
 {{- end}}
       - JWT_SECRET=${JWT_SECRET:-your-secret-key-change-in-production}
       - LOG_LEVEL=${LOG_LEVEL:-info}
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     volumes:
 {{- if eq .Database "sqlite"}}
       - {{.ProjectName}}_data:/app/data
@@ -57,8 +54,6 @@ services:
       mysql:
         condition: service_healthy
 {{- end}}
-      redis:
-        condition: service_healthy
     networks:
       - {{.ProjectName}}-network
     deploy:
@@ -118,30 +113,6 @@ services:
       timeout: 5s
       retries: 5
 {{- end}}
-
-  redis:
-    image: redis:7-alpine
-    container_name: {{.ProjectName}}-redis
-    restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-    volumes:
-      - redis_data:/data
-      - ./scripts/redis.conf:/usr/local/etc/redis/redis.conf:ro
-    networks:
-      - {{.ProjectName}}-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    command: >
-      redis-server /usr/local/etc/redis/redis.conf
-      --appendonly yes
-      --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
 
 {{- if .DevOps.Enabled}}
   nginx:
@@ -239,8 +210,6 @@ volumes:
   {{.ProjectName}}_data:
     driver: local
 {{- end}}
-  redis_data:
-    driver: local
 {{- if .DevOps.Enabled}}
   prometheus_data:
     driver: local
@@ -277,10 +246,6 @@ networks:
 # MYSQL_DATABASE={{.ProjectName}}_db
 # MYSQL_PORT=3306
 {{- end}}
-#
-# # Redis
-# REDIS_PORT=6379
-# REDIS_PASSWORD=
 #
 {{- if .DevOps.Enabled}}
 # # Monitoring

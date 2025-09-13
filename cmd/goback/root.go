@@ -200,7 +200,7 @@ func init() {
 	newCmd.Flags().StringP("module", "m", "", "Go module path")
 	newCmd.Flags().Bool("devops", false, "Include DevOps configurations")
 	newCmd.Flags().StringSlice("devops-tools", []string{},
-		"DevOps tools to include (kubernetes, helm, terraform, ansible)")
+		"DevOps tools to include (helm, terraform, ansible)")
 
 	// Bind flags to viper
 	_ = viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))

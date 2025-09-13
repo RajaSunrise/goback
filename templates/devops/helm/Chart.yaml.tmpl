@@ -1,50 +1,6 @@
 apiVersion: v2
 name: {{.ProjectName}}
-description: A Helm chart for {{.ProjectName}} - {{.Description}}
+description: A Helm chart for the {{.ProjectName}} application
 type: application
 version: 0.1.0
 appVersion: "1.0.0"
-home: https://github.com/{{.ModulePath}}
-sources:
-  - https://github.com/{{.ModulePath}}
-maintainers:
-  - name: {{.ProjectName}} Team
-    email: team@{{.ProjectName}}.com
-keywords:
-  - {{.ProjectName}}
-  - go
-  - {{.Framework}}
-  {{- if .Database}}
-  - {{.Database}}
-  {{- end}}
-  - api
-  - microservice
-annotations:
-  category: Application
-dependencies:
-# NOTE: The Bitnami chart repository is undergoing significant changes.
-# The charts below are pinned to older versions that are known to be free.
-# However, they will not receive security updates.
-# It is strongly recommended to review the Bitnami chart and image licensing
-# and update the versions and image repositories/tags in values.yaml accordingly.
-# The values.yaml file has been configured to use the official Docker images
-# instead of the Bitnami ones, which is a more secure and future-proof approach.
-{{- if .Database}}
-{{- if eq .Database "postgresql" }}
-  - name: postgresql
-    version: 12.1.9
-    repository: https://charts.bitnami.com/bitnami
-    condition: postgresql.enabled
-{{- else if eq .Database "mysql" }}
-  - name: mysql
-    version: 9.4.6
-    repository: https://charts.bitnami.com/bitnami
-    condition: mysql.enabled
-{{- end}}
-{{- end}}
-  - name: redis
-    version: 17.3.7
-    repository: https://charts.bitnami.com/bitnami
-    condition: redis.enabled
-    tags:
-      - cache

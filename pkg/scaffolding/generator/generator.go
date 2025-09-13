@@ -3,6 +3,7 @@
 package generator
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
 	"os"
@@ -10,9 +11,11 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/iancoleman/strcase"
-
 	"github.com/NarmadaWeb/goback/pkg/config"
+	"github.com/iancoleman/strcase"
+	"helm.sh/helm/v3/pkg/chart/loader"
+	"helm.sh/helm/v3/pkg/chartutil"
+	"helm.sh/helm/v3/pkg/engine"
 )
 
 // TemplateGenerator handles project generation from templates
@@ -76,7 +79,7 @@ func (tg *TemplateGenerator) Generate() error {
 // generateFileFromTemplate is the main helper function for processing templates.
 // It reads a template file, creates the destination directory if it doesn't exist,
 // executes the template with the config data, and writes the result.
-func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath string) error {
+func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath string, delims ...string) error {
 	// Remove .tmpl extension from destination path
 	destPath = strings.TrimSuffix(destPath, ".tmpl")
 
@@ -119,12 +122,16 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 	}
 
 	// Parse and execute template
-	tmpl, err := template.New(filepath.Base(templatePath)).Funcs(funcMap).Parse(string(templateContent))
+	tmpl := template.New(filepath.Base(templatePath)).Funcs(funcMap)
+	if len(delims) == 2 {
+		tmpl = tmpl.Delims(delims[0], delims[1])
+	}
+	parsedTmpl, err := tmpl.Parse(string(templateContent))
 	if err != nil {
 		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)
 	}
 
-	if err := tmpl.Execute(outputFile, tg.Config); err != nil {
+	if err := parsedTmpl.Execute(outputFile, tg.Config); err != nil {
 		return fmt.Errorf("failed to execute template %s: %w", templatePath, err)
 	}
 
@@ -294,11 +301,16 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 
 	for _, tool := range tg.Config.DevOps.Tools {
 		toolName := strings.ToLower(tool)
-		templateRootDir := filepath.Join("templates", "devops", toolName)
+		if toolName == "helm" {
+			if err := tg.generateHelmChart(); err != nil {
+				return fmt.Errorf("failed to generate files for DevOps tool %s: %w", toolName, err)
+			}
+			continue
+		}
 
-		// Check if the template directory for this tool exists
+		templateRootDir := filepath.Join("templates", "devops", toolName)
 		if _, err := os.Stat(templateRootDir); os.IsNotExist(err) {
-			continue // Continue to the next tool if it doesn't exist
+			continue
 		}
 
 		err := filepath.Walk(templateRootDir, func(path string, info os.FileInfo, err_ error) error {
@@ -309,16 +321,17 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 				return nil
 			}
 
-			// Create relative path
 			relPath, err := filepath.Rel(templateRootDir, path)
 			if err != nil {
 				return err
 			}
 
-			// Store in the 'devops/<tool>' directory
 			destPath := filepath.Join("devops", toolName, relPath)
 			templatePath := filepath.ToSlash(filepath.Join("devops", toolName, relPath))
 
+			if toolName == "ansible" {
+				return tg.generateFileFromTemplate(destPath, templatePath, "<<", ">>")
+			}
 			return tg.generateFileFromTemplate(destPath, templatePath)
 		})
 
@@ -326,6 +339,92 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 			return fmt.Errorf("failed to generate files for DevOps tool %s: %w", toolName, err)
 		}
 	}
+	return nil
+}
+
+func (tg *TemplateGenerator) generateHelmChart() error {
+	chartPath := "templates/devops/helm"
+	chartYamlPath := filepath.Join(chartPath, "Chart.yaml")
+
+	// Manually render Chart.yaml.tmpl to a temporary Chart.yaml
+	chartTmplContent, err := os.ReadFile(filepath.Join(chartPath, "Chart.yaml.tmpl"))
+	if err != nil {
+		return fmt.Errorf("failed to read Chart.yaml.tmpl: %w", err)
+	}
+	chartTmpl, err := template.New("Chart.yaml").Parse(string(chartTmplContent))
+	if err != nil {
+		return fmt.Errorf("failed to parse Chart.yaml.tmpl: %w", err)
+	}
+	var chartBytes bytes.Buffer
+	if err := chartTmpl.Execute(&chartBytes, tg.Config); err != nil {
+		return fmt.Errorf("failed to execute Chart.yaml.tmpl: %w", err)
+	}
+	if err := os.WriteFile(chartYamlPath, chartBytes.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write temporary Chart.yaml: %w", err)
+	}
+	defer os.Remove(chartYamlPath)
+
+	chart, err := loader.Load(chartPath)
+	if err != nil {
+		return fmt.Errorf("failed to load helm chart from %s: %w", chartPath, err)
+	}
+
+	// First, render values.yaml.tmpl to a buffer
+	var valuesBytes bytes.Buffer
+	valuesTemplatePath := filepath.Join(chartPath, "values.yaml.tmpl")
+	valuesContent, err := os.ReadFile(valuesTemplatePath)
+	if err != nil {
+		return fmt.Errorf("failed to read values.yaml.tmpl: %w", err)
+	}
+	tmpl, err := template.New("values").Parse(string(valuesContent))
+	if err != nil {
+		return fmt.Errorf("failed to parse values.yaml.tmpl: %w", err)
+	}
+	if err := tmpl.Execute(&valuesBytes, tg.Config); err != nil {
+		return fmt.Errorf("failed to execute values.yaml.tmpl: %w", err)
+	}
+
+	// Now, get the values as a map
+	values, err := chartutil.ReadValues(valuesBytes.Bytes())
+	if err != nil {
+		return fmt.Errorf("failed to read rendered values: %w", err)
+	}
+
+	// Set up release options
+	releaseOptions := chartutil.ReleaseOptions{
+		Name:      tg.Config.ProjectName,
+		Namespace: "default",
+		Revision:  1,
+		IsInstall: true,
+	}
+
+	// Coalesce values to simulate a real Helm install
+	finalValues, err := chartutil.ToRenderValues(chart, values, releaseOptions, nil)
+	if err != nil {
+		return fmt.Errorf("failed to coalesce values: %w", err)
+	}
+
+	// Render the chart templates
+	renderedFiles, err := engine.Render(chart, finalValues)
+	if err != nil {
+		return fmt.Errorf("failed to render helm chart: %w", err)
+	}
+
+	// Write the rendered files to the output directory
+	for path, content := range renderedFiles {
+		// Don't render empty files, notes.txt, or tests
+		if content == "" || strings.HasSuffix(path, "NOTES.txt") || strings.Contains(path, "/tests/") {
+			continue
+		}
+		destPath := filepath.Join(tg.OutputDir, "devops/helm", filepath.Base(path))
+		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
+			return fmt.Errorf("failed to create directory for %s: %w", destPath, err)
+		}
+		if err := os.WriteFile(destPath, []byte(content), 0644); err != nil {
+			return fmt.Errorf("failed to write rendered file %s: %w", destPath, err)
+		}
+	}
+
 	return nil
 }
 
