@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-
 // AppConfig represents application-level configuration
 type AppConfig struct {
 	DefaultOutputDir    string `json:"default_output_dir" yaml:"default_output_dir"`
@@ -57,11 +56,11 @@ func NewProjectConfig() *ProjectConfig {
 		ProjectName:  defaultName,
 		ModulePath:   GetConfig().DefaultModulePrefix + "/" + defaultName,
 		OutputDir:    defaultOutputDir,
-		Framework:    FrameworkFiber,    // Default to Fiber
+		Framework:    FrameworkFiber,     // Default to Fiber
 		Database:     DatabasePostgreSQL, // Default to PostgreSQL
 		Tool:         ToolSqlx,           // Default to SQLX
 		Architecture: ArchitectureSimple, // Default to Simple
-		DevOps:       DevOpsConfig{
+		DevOps: DevOpsConfig{
 			Enabled: false,
 			Tools:   []string{},
 		},
@@ -77,9 +76,7 @@ func GetConfig() *AppConfig {
 		*appConfig = *defaultConfig // Copy defaults
 
 		// Load from viper
-		if err := viper.Unmarshal(appConfig); err == nil {
-			// Successfully loaded from config file
-		}
+		_ = viper.Unmarshal(appConfig)
 	}
 	return appConfig
 }
@@ -110,7 +107,7 @@ func createDefaultConfigFile() {
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		// Create default config file
 		viper.SetConfigFile(configPath)
-		viper.WriteConfig()
+		_ = viper.WriteConfig()
 	}
 }
 
@@ -124,8 +121,6 @@ func UpdateConfig(key string, value interface{}) error {
 	viper.Set(key, value)
 	return SaveConfig()
 }
-
-
 
 // GetProjectConfigDefaults returns default values for project configuration
 func GetProjectConfigDefaults() map[string]interface{} {

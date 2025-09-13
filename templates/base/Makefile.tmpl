@@ -186,7 +186,7 @@ clean:
 	rm -rf $(BUILD_DIR)
 	rm -f coverage.out coverage.html
 
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 
 # Database migrations (GORM)
 .PHONY: migrate
@@ -199,7 +199,7 @@ migrate-down:
 	@echo "Rolling back database migrations..."
 	$(GOCMD) run cmd/migrate/main.go -down
 
-{{- else if eq .ORM "sqlc"}}
+{{- else if eq .Tool "sqlc"}}
 
 # Generate SQLC code
 .PHONY: sqlc-generate

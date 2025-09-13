@@ -5,8 +5,8 @@ package tui
 import (
 	"fmt"
 
-    "github.com/NarmadaWeb/goback/pkg/config"
 	"github.com/NarmadaWeb/goback/internal/tui/models"
+	"github.com/NarmadaWeb/goback/pkg/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

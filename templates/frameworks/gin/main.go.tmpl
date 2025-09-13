@@ -25,9 +25,9 @@ import (
 	"{{.ModulePath}}/internal/routes"
 
 	"github.com/gin-gonic/gin"
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	"gorm.io/gorm"
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	"github.com/jmoiron/sqlx"
 {{- end}}
 )
@@ -49,18 +49,18 @@ func main() {
 	gin.SetMode(cfg.Server.Mode)
 
 	// Initialize database
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	db, err := database.Connect(&cfg.Database)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-{{- else if eq .ORM "sqlx"}}
+{{- else if eq .Tool "sqlx"}}
 	db, err := database.Connect(&cfg.Database)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer db.Close()
-{{- else if eq .ORM "sqlc"}}
+{{- else if eq .Tool "sqlc"}}
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -130,7 +130,7 @@ func main() {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-{{- if eq .ORM "gorm"}}
+{{- if eq .Tool "gorm"}}
 	// Close database connection
 	sqlDB, err := db.DB()
 	if err == nil {

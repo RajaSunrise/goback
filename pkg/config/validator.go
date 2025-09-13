@@ -14,7 +14,7 @@ func ValidateProjectConfig(config *ProjectConfig) []string {
 	validate := validator.New()
 
 	// Register custom validation for module path
-	validate.RegisterValidation("modulepath", validateModulePath)
+	_ = validate.RegisterValidation("modulepath", validateModulePath)
 
 	err := validate.Struct(config)
 	if err != nil {

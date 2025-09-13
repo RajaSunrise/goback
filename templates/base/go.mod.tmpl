@@ -22,7 +22,7 @@ require (
 {{- else if eq .Database "sqlite" }}
 	github.com/mattn/go-sqlite3 v1.14.17
 {{- end }}
-{{- if eq .ORM "gorm" }}
+{{- if eq .Tool "gorm" }}
 	gorm.io/gorm v1.25.5
 {{- if eq .Database "postgresql" }}
 	gorm.io/driver/postgres v1.5.4
@@ -31,9 +31,9 @@ require (
 {{- else if eq .Database "sqlite" }}
 	gorm.io/driver/sqlite v1.5.4
 {{- end }}
-{{- else if eq .ORM "sqlx" }}
+{{- else if eq .Tool "sqlx" }}
 	github.com/jmoiron/sqlx v1.3.5
-{{- else if eq .ORM "sqlc" }}
+{{- else if eq .Tool "sqlc" }}
 	github.com/sqlc-dev/sqlc v1.24.0
 {{- end }}
 {{- end }}

@@ -10,8 +10,9 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/NarmadaWeb/goback/pkg/config"
 	"github.com/iancoleman/strcase"
+
+	"github.com/NarmadaWeb/goback/pkg/config"
 )
 
 // TemplateGenerator handles project generation from templates
@@ -77,9 +78,7 @@ func (tg *TemplateGenerator) Generate() error {
 // executes the template with the config data, and writes the result.
 func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath string) error {
 	// Remove .tmpl extension from destination path
-	if strings.HasSuffix(destPath, ".tmpl") {
-		destPath = strings.TrimSuffix(destPath, ".tmpl")
-	}
+	destPath = strings.TrimSuffix(destPath, ".tmpl")
 
 	fullDestPath := filepath.Join(tg.OutputDir, destPath)
 	fullTemplatePath := filepath.Join("templates", templatePath)
@@ -91,8 +90,8 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 	}
 
 	// Create destination directory if it doesn't exist
-	if err := os.MkdirAll(filepath.Dir(fullDestPath), 0755); err != nil {
-		return fmt.Errorf("failed to create directory for %s: %w", fullDestPath, err)
+	if err2 := os.MkdirAll(filepath.Dir(fullDestPath), 0755); err2 != nil {
+		return fmt.Errorf("failed to create directory for %s: %w", fullDestPath, err2)
 	}
 
 	// Create destination file
@@ -104,10 +103,10 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 
 	// Custom template functions
 	funcMap := template.FuncMap{
-		"title":     strings.ToTitle,
-		"toTitle":   strings.ToTitle,
-		"snakeCase": strcase.ToSnake,
-		"kebabCase": strcase.ToKebab,
+		"title":      strings.ToTitle,
+		"toTitle":    strings.ToTitle,
+		"snakeCase":  strcase.ToSnake,
+		"kebabCase":  strcase.ToKebab,
 		"upper":      strings.ToUpper,
 		"replaceAll": func(s, old, new string) string { return strings.Replace(s, old, new, -1) },
 		"b64enc":     func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
@@ -151,6 +150,7 @@ func (tg *TemplateGenerator) generateBaseFiles() error {
 		".env":           "base/.env.tmpl",
 		".env.example":   "base/env.example.tmpl",
 		"cmd/migrate.go": "base/cmd/migrate.go.tmpl",
+		".golangci.yml":  "base/.golangci.yml.tmpl",
 	}
 
 	for dest, src := range baseTemplates {
@@ -208,7 +208,13 @@ func (tg *TemplateGenerator) generateDatabaseConfig() error {
 		return nil // No database selected
 	}
 
-	templatePath := filepath.Join("databases", database, "connection.go.tmpl")
+	var templatePath string
+	if tg.Config.Tool == config.ToolGorm {
+		templatePath = filepath.Join("tools", "gorm", "connection.go.tmpl")
+	} else {
+		templatePath = filepath.Join("databases", database, "connection.go.tmpl")
+	}
+
 	destPath := "internal/database/connection.go"
 
 	// Check if the template file exists
@@ -260,9 +266,9 @@ func (tg *TemplateGenerator) generateArchitectureFiles() error {
 
 	templateRootDir := filepath.Join("templates", "architectures", architecture)
 
-	return filepath.Walk(templateRootDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	return filepath.Walk(templateRootDir, func(path string, info os.FileInfo, err_ error) error {
+		if err_ != nil {
+			return err_
 		}
 		if info.IsDir() || !strings.HasSuffix(path, ".tmpl") {
 			return nil
@@ -296,9 +302,9 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 			continue // Continue to the next tool if it doesn't exist
 		}
 
-		err := filepath.Walk(templateRootDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return err
+		err := filepath.Walk(templateRootDir, func(path string, info os.FileInfo, err_ error) error {
+			if err_ != nil {
+				return err_
 			}
 			if info.IsDir() || !strings.HasSuffix(path, ".tmpl") {
 				return nil

@@ -47,7 +47,9 @@ func (m *VersionModel) View() string {
 	description := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("250")).
 		MarginBottom(2).
-		Render("GoBack adalah TUI (Terminal User Interface) yang dibangun dengan Bubble Tea\nuntuk memudahkan developer backend dalam membuat project backend dengan\nberbagai pilihan framework, database, ORM, arsitektur, dan DevOps tools.")
+		Render("GoBack adalah TUI (Terminal User Interface) yang dibangun dengan Bubble Tea\n" +
+			"untuk memudahkan developer backend dalam membuat project backend dengan\n" +
+			"berbagai pilihan framework, database, ORM, arsitektur, dan DevOps tools.")
 
 	features := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("86")).

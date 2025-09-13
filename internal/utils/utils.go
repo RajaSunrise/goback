@@ -107,8 +107,8 @@ func CopyFile(src, dst string) error {
 	defer srcFile.Close()
 
 	dstDir := filepath.Dir(dst)
-	if err := CreateDir(dstDir); err != nil {
-		return fmt.Errorf("failed to create destination directory %s: %w", dstDir, err)
+	if err2 := CreateDir(dstDir); err2 != nil {
+		return fmt.Errorf("failed to create destination directory %s: %w", dstDir, err2)
 	}
 
 	dstFile, err := os.Create(dst)
