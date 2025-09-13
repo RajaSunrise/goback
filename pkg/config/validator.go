@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"errors"
 
 	"github.com/go-playground/validator/v10"
 )
 
 // ValidateProjectConfig validates the project configuration using struct tags
 func ValidateProjectConfig(config *ProjectConfig) []string {
-	var errors []string
+	var error []string
 	validate := validator.New()
 
 	// Register custom validation for module path
@@ -18,34 +19,38 @@ func ValidateProjectConfig(config *ProjectConfig) []string {
 
 	err := validate.Struct(config)
 	if err != nil {
-		for _, err := range err.(validator.ValidationErrors) {
-			errors = append(errors, formatValidationError(err))
+		for _, err := range func() validator.ValidationErrors {
+			var target validator.ValidationErrors
+			_ = errors.As(err, &target)
+			return target
+		}() {
+			error = append(error, formatValidationError(err))
 		}
 	}
 
 	// Additional custom validations
 	if !IsValidFramework(config.Framework) {
-		errors = append(errors, "Invalid framework choice.")
+		error = append(error, "Invalid framework choice.")
 	}
 	if !IsValidDatabase(config.Database) {
-		errors = append(errors, "Invalid database choice.")
+		error = append(error, "Invalid database choice.")
 	}
 	if !IsValidTool(config.Tool) {
-		errors = append(errors, "Invalid Tool choice.")
+		error = append(error, "Invalid Tool choice.")
 	}
 	if !IsValidArchitecture(config.Architecture) {
-		errors = append(errors, "Invalid architecture choice.")
+		error = append(error, "Invalid architecture choice.")
 	}
 
 	if config.DevOps.Enabled && len(config.DevOps.Tools) == 0 {
-		errors = append(errors, "At least one DevOps tool must be selected when DevOps is enabled.")
+		error = append(error, "At least one DevOps tool must be selected when DevOps is enabled.")
 	}
 
 	if !isValidPath(config.OutputDir) {
-		errors = append(errors, "Invalid output directory path.")
+		error = append(error, "Invalid output directory path.")
 	}
 
-	return errors
+	return error
 }
 
 // formatValidationError creates a user-friendly error message

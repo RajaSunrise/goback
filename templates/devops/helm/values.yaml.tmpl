@@ -194,7 +194,7 @@ volumeMounts:
 volumes:
   - name: config
     configMap:
-      name: "{{ include \"{{.ProjectName}}.fullname\" . }}-config"
+      name: "{{ "{{.ProjectName}}.fullname" }}-config"
 
 # Horizontal Pod Autoscaler
 hpa:
