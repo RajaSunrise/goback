@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "{{.ProjectName}}.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  selector:
+    matchLabels:
+      {{- include "{{.ProjectName}}.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "{{.ProjectName}}.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          envFrom:
+            - secretRef:
+                name: {{ .Release.Name }}-secrets
+            - configMapRef:
+                name: {{ .Release.Name }}-config
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  labels:
+    {{- include "{{.ProjectName}}.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.service.port | quote }}
+  APP_ENV: {{ .Values.env.appEnv | quote }}
+  GIN_MODE: {{ .Values.env.ginMode | quote }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-secrets
+  labels:
+    {{- include "{{.ProjectName}}.labels" . | nindent 4 }}
+type: Opaque
+data:
+  JWT_SECRET: {{ .Values.secrets.jwtSecret | b64enc }}
+  {{- if .Values.database.enabled }}
+  DB_HOST: {{ .Values.database.host | b64enc }}
+  DB_PORT: {{ .Values.database.port | b64enc }}
+  DB_USERNAME: {{ .Values.database.username | b64enc }}
+  DB_PASSWORD: {{ .Values.database.password | b64enc }}
+  DB_NAME: {{ .Values.database.name | b64enc }}
+  {{- end }}

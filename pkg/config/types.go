@@ -72,7 +72,6 @@ const (
 
 // DevOps tool choices
 const (
-	DevOpsKubernetes = "kubernetes"
 	DevOpsHelm       = "helm"
 	DevOpsTerraform  = "terraform"
 	DevOpsAnsible    = "ansible"
@@ -149,7 +148,6 @@ func IsValidArchitecture(architecture ArchitectureChoice) bool {
 // IsValidDevOpsTool checks if DevOps tool is valid
 func IsValidDevOpsTool(tool string) bool {
 	validTools := []string{
-		DevOpsKubernetes,
 		DevOpsHelm,
 		DevOpsTerraform,
 		DevOpsAnsible,
@@ -204,7 +202,6 @@ func GetValidArchitectures() []ArchitectureChoice {
 // GetValidDevOpsTools returns list of valid DevOps tools
 func GetValidDevOpsTools() []string {
 	return []string{
-		DevOpsKubernetes,
 		DevOpsHelm,
 		DevOpsTerraform,
 		DevOpsAnsible,
@@ -330,8 +327,6 @@ func (a ArchitectureChoice) Description() string {
 // GetDevOpsToolDescription returns description for DevOps tools
 func GetDevOpsToolDescription(tool string) string {
 	switch tool {
-	case DevOpsKubernetes:
-		return "Container orchestration platform"
 	case DevOpsHelm:
 		return "Kubernetes package manager"
 	case DevOpsTerraform:

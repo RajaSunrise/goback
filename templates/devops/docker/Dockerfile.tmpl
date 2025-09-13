@@ -32,7 +32,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -a -installsuffix cgo \
     -ldflags="-w -s -extldflags '-static' -X main.version=1.0.0 -X main.buildTime=$(date -u '+%Y-%m-%d_%H:%M:%S') -X main.gitCommit=unknown" \
     -o {{.ProjectName}} \
-    ./cmd/{{.ProjectName}}
+    ./cmd/api
 
 # Final stage - use distroless for minimal attack surface
 FROM gcr.io/distroless/static-debian12:nonroot AS final
@@ -52,10 +52,10 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 # Copy binary from builder stage
 COPY --from=builder /app/{{.ProjectName}} .
 
-# Copy configuration files if they exist
-COPY --from=builder --chown=nonroot:nonroot /app/configs ./configs 2>/dev/null || true
-COPY --from=builder --chown=nonroot:nonroot /app/templates ./templates 2>/dev/null || true
-COPY --from=builder --chown=nonroot:nonroot /app/static ./static 2>/dev/null || true
+# Copy configuration and static files if they exist, and set correct ownership
+COPY --chown=nonroot:nonroot configs ./configs
+COPY --chown=nonroot:nonroot templates ./templates
+COPY --chown=nonroot:nonroot static ./static
 
 {{- if eq .Database "sqlite"}}
 # Create directory for SQLite database with proper permissions

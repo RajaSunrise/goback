@@ -1,47 +1,47 @@
 ---
-# Ansible Playbook for {{.ProjectName}} deployment
-# This playbook sets up and deploys the {{.ProjectName}} Go application
+# Ansible Playbook for <<.ProjectName>> deployment
+# This playbook sets up and deploys the <<.ProjectName>> Go application
 
-- name: Deploy {{.ProjectName}} Application
+- name: Deploy <<.ProjectName>> Application
   hosts: "{{ target_hosts | default('webservers') }}"
   become: yes
   gather_facts: yes
   vars:
-    app_name: "{{.ProjectName}}"
-    app_user: "{{.ProjectName}}"
-    app_group: "{{.ProjectName}}"
+    app_name: "<<.ProjectName>>"
+    app_user: "<<.ProjectName>>"
+    app_group: "<<.ProjectName>>"
     app_port: "{{ app_port | default('8080') }}"
     app_env: "{{ app_environment | default('production') }}"
-    app_dir: "/opt/{{.ProjectName}}"
-    app_log_dir: "/var/log/{{.ProjectName}}"
-    app_data_dir: "/var/lib/{{.ProjectName}}"
-    app_config_dir: "/etc/{{.ProjectName}}"
+    app_dir: "/opt/<<.ProjectName>>"
+    app_log_dir: "/var/log/<<.ProjectName>>"
+    app_data_dir: "/var/lib/<<.ProjectName>>"
+    app_config_dir: "/etc/<<.ProjectName>>"
     app_version: "{{ app_version | default('latest') }}"
     go_version: "{{ go_version | default('1.22') }}"
 
-    {{- if .Database}}
+    <<- if .Database>>
     # Database configuration
-    {{- if eq .Database "postgresql" }}
+    <<- if eq .Database "postgresql" >>
     db_type: "postgresql"
     db_port: "{{ db_port | default('5432') }}"
     db_package: "postgresql postgresql-contrib"
     db_service: "postgresql"
-    {{- else if eq .Database "mysql" }}
+    <<- else if eq .Database "mysql" >>
     db_type: "mysql"
     db_port: "{{ db_port | default('3306') }}"
     db_package: "mysql-server"
     db_service: "mysql"
-    {{- end}}
+    <<- end>>
     db_host: "{{ db_host | default('localhost') }}"
-    db_name: "{{ db_name | default('{{.ProjectName}}_db') }}"
-    db_user: "{{ db_user | default('{{.ProjectName}}_user') }}"
+    db_name: "{{ db_name | default('<<.ProjectName>>_db') }}"
+    db_user: "{{ db_user | default('<<.ProjectName>>_user') }}"
     db_password: "{{ db_password }}"
-    {{- end}}
+    <<- end>>
 
     # SSL/TLS configuration
     ssl_enabled: "{{ ssl_enabled | default(false) }}"
-    ssl_cert_path: "/etc/ssl/certs/{{.ProjectName}}.crt"
-    ssl_key_path: "/etc/ssl/private/{{.ProjectName}}.key"
+    ssl_cert_path: "/etc/ssl/certs/<<.ProjectName>>.crt"
+    ssl_key_path: "/etc/ssl/private/<<.ProjectName>>.key"
 
   tasks:
     - name: Update package cache
@@ -131,7 +131,7 @@
             - 'export GOPATH=/usr/local/go'
             - 'export GOROOT=/usr/local/go'
 
-    {{- if .Database}}
+    <<- if .Database>>
     - name: Install and configure database
       block:
         - name: Install database server
@@ -145,7 +145,7 @@
             state: started
             enabled: yes
 
-        {{- if eq .Database "postgresql" }}
+        <<- if eq .Database "postgresql" >>
         - name: Install Python PostgreSQL adapter
           package:
             name: python3-psycopg2
@@ -164,7 +164,7 @@
             priv: "{{ db_name }}:ALL"
             state: present
           become_user: postgres
-        {{- else if eq .Database "mysql" }}
+        <<- else if eq .Database "mysql" >>
         - name: Install Python MySQL adapter
           package:
             name: python3-pymysql
@@ -181,21 +181,21 @@
             password: "{{ db_password }}"
             priv: "{{ db_name }}.*:ALL"
             state: present
-        {{- end}}
-    {{- end}}
+        <<- end>>
+    <<- end>>
 
     - name: Backup current application binary
       copy:
-        src: "{{ app_dir }}/bin/{{.ProjectName}}"
-        dest: "{{ app_dir }}/bin/{{.ProjectName}}.bak-{{ ansible_date_time.iso8601_basic }}"
+        src: "{{ app_dir }}/bin/<<.ProjectName>>"
+        dest: "{{ app_dir }}/bin/<<.ProjectName>>.bak-{{ ansible_date_time.iso8601_basic }}"
         remote_src: yes
         force: no
-      when: "'{{ app_dir }}/bin/{{.ProjectName}}' is a file"
+      when: "'{{ app_dir }}/bin/<<.ProjectName>>' is a file"
 
     - name: Download application binary
       get_url:
         url: "{{ app_binary_url }}"
-        dest: "{{ app_dir }}/bin/{{.ProjectName}}"
+        dest: "{{ app_dir }}/bin/<<.ProjectName>>"
         mode: '0755'
         owner: "{{ app_user }}"
         group: "{{ app_group }}"
@@ -215,7 +215,7 @@
           shell: |
             cd {{ app_dir }}/src
             /usr/local/go/bin/go mod download
-            /usr/local/go/bin/go build -o {{ app_dir }}/bin/{{.ProjectName}} ./cmd/{{.ProjectName}}
+            /usr/local/go/bin/go build -o {{ app_dir }}/bin/<<.ProjectName>> ./cmd/<<.ProjectName>>
           environment:
             GOPATH: /usr/local/go
             GOROOT: /usr/local/go
@@ -245,7 +245,7 @@
     - name: Create systemd service file
       template:
         src: app.service.j2
-        dest: "/etc/systemd/system/{{.ProjectName}}.service"
+        dest: "/etc/systemd/system/<<.ProjectName>>.service"
         mode: '0644'
       notify:
         - reload systemd
@@ -261,14 +261,14 @@
         - name: Create Nginx configuration
           template:
             src: nginx.conf.j2
-            dest: "/etc/nginx/sites-available/{{.ProjectName}}"
+            dest: "/etc/nginx/sites-available/<<.ProjectName>>"
             mode: '0644'
           notify: restart nginx
 
         - name: Enable Nginx site
           file:
-            src: "/etc/nginx/sites-available/{{.ProjectName}}"
-            dest: "/etc/nginx/sites-enabled/{{.ProjectName}}"
+            src: "/etc/nginx/sites-available/<<.ProjectName>>"
+            dest: "/etc/nginx/sites-enabled/<<.ProjectName>>"
             state: link
           notify: restart nginx
 
@@ -285,7 +285,7 @@
     - name: Configure log rotation
       template:
         src: logrotate.j2
-        dest: "/etc/logrotate.d/{{.ProjectName}}"
+        dest: "/etc/logrotate.d/<<.ProjectName>>"
         mode: '0644'
 
     - name: Configure firewall
@@ -337,7 +337,7 @@
 
     - name: Start and enable application
       systemd:
-        name: "{{.ProjectName}}"
+        name: "<<.ProjectName>>"
         state: started
         enabled: yes
         daemon_reload: yes
@@ -353,7 +353,7 @@
 
     - name: Display deployment status
       debug:
-        msg: "{{.ProjectName}} deployed successfully! Health check: {{ health_check.status }}"
+        msg: "<<.ProjectName>> deployed successfully! Health check: {{ health_check.status }}"
 
   handlers:
     - name: reload systemd
@@ -362,7 +362,7 @@
 
     - name: restart application
       systemd:
-        name: "{{.ProjectName}}"
+        name: "<<.ProjectName>>"
         state: restarted
 
     - name: restart nginx
@@ -371,30 +371,30 @@
         state: restarted
 
 # Rollback playbook
-- name: Rollback {{.ProjectName}} Application
+- name: Rollback <<.ProjectName>> Application
   hosts: "{{ target_hosts | default('webservers') }}"
   become: yes
   vars:
-    app_name: "{{.ProjectName}}"
-    app_dir: "/opt/{{.ProjectName}}"
-    backup_dir: "/opt/{{.ProjectName}}/backup"
+    app_name: "<<.ProjectName>>"
+    app_dir: "/opt/<<.ProjectName>>"
+    backup_dir: "/opt/<<.ProjectName>>/backup"
   tasks:
     - name: Stop application service
       systemd:
-        name: "{{.ProjectName}}"
+        name: "<<.ProjectName>>"
         state: stopped
 
     - name: Restore previous version
       copy:
-        src: "{{ backup_dir }}/{{.ProjectName}}.backup"
-        dest: "{{ app_dir }}/bin/{{.ProjectName}}"
+        src: "{{ backup_dir }}/<<.ProjectName>>.backup"
+        dest: "{{ app_dir }}/bin/<<.ProjectName>>"
         remote_src: yes
         mode: '0755'
       when: rollback is defined and rollback
 
     - name: Start application service
       systemd:
-        name: "{{.ProjectName}}"
+        name: "<<.ProjectName>>"
         state: started
       when: rollback is defined and rollback
 
