@@ -23,7 +23,7 @@ var rootCmd = &cobra.Command{
 	Short: "GoBack - TUI Backend Project Scaffolding Tool",
 	Long: `GoBack adalah TUI (Terminal User Interface) yang dibangun dengan Bubble Tea
 untuk memudahkan developer backend dalam membuat project backend dengan berbagai
-pilihan framework, database, ORM, arsitektur, dan DevOps tools.
+pilihan framework, database, Tool, arsitektur, dan DevOps tools.
 
 Gunakan tanpa argumen untuk membuka interface TUI interaktif, atau gunakan
 subcommands untuk operasi CLI langsung.`,
@@ -58,7 +58,7 @@ var newCmd = &cobra.Command{
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available frameworks, databases, and architectures",
-	Long:  `Menampilkan daftar framework, database, ORM, dan arsitektur yang tersedia`,
+	Long:  `Menampilkan daftar framework, database, Tool, dan arsitektur yang tersedia`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("GoBack offers the following options for your project:")
 
@@ -70,9 +70,9 @@ var listCmd = &cobra.Command{
 		fmt.Println("\n🗄️ Databases:")
 		printChoiceList(config.GetValidDatabases())
 
-		// ORMs
-		fmt.Println("\n🔗 ORMs:")
-		printChoiceList(config.GetValidORMs())
+		// Tools
+		fmt.Println("\n🔗 Tools:")
+		printChoiceList(config.GetValidTools())
 
 		// Architectures
 		fmt.Println("\n🏛️ Architectures:")
@@ -108,7 +108,7 @@ func printChoiceList[T any](items []T) {
 			choiceItem = v
 		case config.DatabaseChoice:
 			choiceItem = v
-		case config.ORMChoice:
+		case config.ToolChoice:
 			choiceItem = v
 		case config.ArchitectureChoice:
 			choiceItem = v
@@ -194,7 +194,7 @@ func init() {
 	// New command flags
 	newCmd.Flags().StringP("framework", "f", "", "Framework to use (fiber, gin, chi, echo)")
 	newCmd.Flags().StringP("database", "d", "", "Database to use (postgresql, mysql, sqlite)")
-	newCmd.Flags().StringP("orm", "o", "", "ORM to use (gorm, sqlc, sqlx)")
+	newCmd.Flags().StringP("tool", "t", "", "Tool to use (sqlx, sqlc)")
 	newCmd.Flags().StringP("architecture", "a", "", "Architecture pattern (simple, ddd, clean, hexagonal)")
 	newCmd.Flags().StringP("output", "O", "", "Output directory")
 	newCmd.Flags().StringP("module", "m", "", "Go module path")
@@ -205,7 +205,7 @@ func init() {
 	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
 	viper.BindPFlag("framework", newCmd.Flags().Lookup("framework"))
 	viper.BindPFlag("database", newCmd.Flags().Lookup("database"))
-	viper.BindPFlag("orm", newCmd.Flags().Lookup("orm"))
+	viper.BindPFlag("tool", newCmd.Flags().Lookup("tool"))
 	viper.BindPFlag("architecture", newCmd.Flags().Lookup("architecture"))
 	viper.BindPFlag("output", newCmd.Flags().Lookup("output"))
 	viper.BindPFlag("module", newCmd.Flags().Lookup("module"))
@@ -272,7 +272,7 @@ func createProjectViaCLI(cmd *cobra.Command, args []string) {
 	// Get flags
 	framework, _ := cmd.Flags().GetString("framework")
 	database, _ := cmd.Flags().GetString("database")
-	orm, _ := cmd.Flags().GetString("orm")
+	tool, _ := cmd.Flags().GetString("tool")
 	architecture, _ := cmd.Flags().GetString("architecture")
 	output, _ := cmd.Flags().GetString("output")
 	module, _ := cmd.Flags().GetString("module")
@@ -295,7 +295,7 @@ func createProjectViaCLI(cmd *cobra.Command, args []string) {
 		OutputDir:    output,
 		Framework:    config.FrameworkChoice(framework),
 		Database:     config.DatabaseChoice(database),
-		ORM:          config.ORMChoice(orm),
+		Tool:         config.ToolChoice(tool),
 		Architecture: config.ArchitectureChoice(architecture),
 		DevOps: config.DevOpsConfig{
 			Enabled: devops,
@@ -309,7 +309,7 @@ func createProjectViaCLI(cmd *cobra.Command, args []string) {
 		for _, err := range validationErrors {
 			fmt.Printf("  - %s\n", err)
 		}
-		fmt.Println("\nPlease provide all required flags: --framework, --database, --orm, --architecture")
+		fmt.Println("\nPlease provide all required flags: --framework, --database, --tool, --architecture")
 		os.Exit(1)
 	}
 

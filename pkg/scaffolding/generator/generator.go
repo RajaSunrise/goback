@@ -53,7 +53,7 @@ func (tg *TemplateGenerator) Generate() error {
 		{"Generating base files", tg.generateBaseFiles},
 		{"Generating framework files", tg.generateFrameworkFiles},
 		{"Generating database config", tg.generateDatabaseConfig},
-		{"Generating ORM files", tg.generateORMFiles},
+		{"Generating Tool files", tg.generateToolFiles},
 		{"Generating architecture files", tg.generateArchitectureFiles},
 		{"Generating DevOps files", tg.generateDevOpsFiles},
 	}
@@ -219,15 +219,15 @@ func (tg *TemplateGenerator) generateDatabaseConfig() error {
 	return tg.generateFileFromTemplate(destPath, templatePath)
 }
 
-// generateORMFiles generates the ORM-specific files.
-func (tg *TemplateGenerator) generateORMFiles() error {
-	orm := strings.ToLower(tg.Config.ORM.String())
-	if orm == "" {
+// generateToolFiles generates the Tool-specific files.
+func (tg *TemplateGenerator) generateToolFiles() error {
+	tool := strings.ToLower(tg.Config.Tool.String())
+	if tool == "" {
 		return nil
 	}
 
-	ormDir := filepath.Join("orm", orm)
-	files, err := filepath.Glob(filepath.Join("templates", ormDir, "*.tmpl"))
+	toolDir := filepath.Join("tools", tool)
+	files, err := filepath.Glob(filepath.Join("templates", toolDir, "*.tmpl"))
 	if err != nil || len(files) == 0 {
 		return err // atau return nil jika tidak ada file adalah normal
 	}
@@ -239,11 +239,13 @@ func (tg *TemplateGenerator) generateORMFiles() error {
 		case "model.go.tmpl":
 			// This might be better suited within the architecture templates
 			destPath = "internal/models/base_model.go"
+		case "sqlc.yaml.tmpl":
+			destPath = "sqlc.yaml"
 		default:
-			destPath = strings.TrimPrefix(templatePath, ormDir+string(filepath.Separator))
+			destPath = strings.TrimPrefix(templatePath, toolDir+string(filepath.Separator))
 		}
 		if err := tg.generateFileFromTemplate(destPath, templatePath); err != nil {
-			return fmt.Errorf("failed to generate ORM file from %s: %w", templatePath, err)
+			return fmt.Errorf("failed to generate Tool file from %s: %w", templatePath, err)
 		}
 	}
 	return nil

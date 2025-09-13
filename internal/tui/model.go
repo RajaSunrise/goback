@@ -20,7 +20,7 @@ const (
 	StateMainMenu
 	StateFrameworkSelection
 	StateDatabaseSelection
-	StateORMSelection
+	StateToolSelection
 	StateArchitectureSelection
 	StateDevOpsOptions
 	StateDevOpsToolsSelection
@@ -30,6 +30,7 @@ const (
 	StateProgress
 	StateSuccess
 	StateError
+	StateVersion
 )
 
 // ConfigStep represents the current step in the configuration process
@@ -38,7 +39,7 @@ type ConfigStep int
 const (
 	StepFramework ConfigStep = iota
 	StepDatabase
-	StepORM
+	StepTool
 	StepArchitecture
 	StepDevOpsOptions
 	StepDevOpsTools
@@ -54,6 +55,7 @@ type MainModel struct {
 	// Sub-models
 	SplashModel   *models.SplashModel
 	MenuModel     *models.MenuModel
+	VersionModel  *models.VersionModel
 	ConfigModel   *models.ConfigModel
 	ProgressModel *models.ProgressModel
 
@@ -69,6 +71,7 @@ func NewMainModel() *MainModel {
 		Config:        config.NewProjectConfig(),
 		SplashModel:   models.NewSplashModel(),
 		MenuModel:     models.NewMenuModel(),
+		VersionModel:  models.NewVersionModel(),
 		ConfigModel:   models.NewConfigModel(),
 		ProgressModel: models.NewProgressModel(),
 	}
@@ -110,12 +113,8 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "Mulai Proyek Baru":
 				m.State = StateFrameworkSelection
 				m.ConfigModel.SetStep(models.StepFramework)
-			case "Buka Proyek":
-				// TODO: Implement project management
-				fmt.Println("Fitur buka proyek belum diimplementasikan")
-			case "Lihat Pengaturan":
-				// TODO: Implement settings menu
-				fmt.Println("Fitur pengaturan belum diimplementasikan")
+			case "Version":
+				m.State = StateVersion
 			case "Keluar":
 				return m, tea.Quit
 			}
@@ -139,17 +138,17 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		if m.ConfigModel.IsStepComplete(models.StepDatabase) {
 			m.Config.Database = m.ConfigModel.GetDatabaseChoice()
-			m.State = StateORMSelection
+			m.State = StateToolSelection
 			// ConfigModel automatically moves to next step
 		}
 
-	case StateORMSelection:
+	case StateToolSelection:
 		var model tea.Model
 		model, cmd = m.ConfigModel.Update(msg)
 		m.ConfigModel = model.(*models.ConfigModel)
 
-		if m.ConfigModel.IsStepComplete(models.StepORM) {
-			m.Config.ORM = m.ConfigModel.GetORMChoice()
+		if m.ConfigModel.IsStepComplete(models.StepTool) {
+			m.Config.Tool = m.ConfigModel.GetToolChoice()
 			m.State = StateArchitectureSelection
 			// ConfigModel automatically moves to next step
 		}
@@ -254,6 +253,15 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.Error = nil
 			}
 		}
+	case StateVersion:
+		var model tea.Model
+		model, cmd = m.VersionModel.Update(msg)
+		m.VersionModel = model.(*models.VersionModel)
+
+		if m.VersionModel.ShouldClose() {
+			m.State = StateMainMenu
+			m.VersionModel.Reset()
+		}
 	}
 
 	// Handle global quit
@@ -277,7 +285,7 @@ func (m *MainModel) View() string {
 		view = m.MenuModel.View()
 	case StateFrameworkSelection,
 		StateDatabaseSelection,
-		StateORMSelection,
+		StateToolSelection,
 		StateArchitectureSelection,
 		StateDevOpsOptions,
 		StateDevOpsToolsSelection,
@@ -290,6 +298,8 @@ func (m *MainModel) View() string {
 		view = m.renderSuccessView()
 	case StateError:
 		view = m.renderErrorView()
+	case StateVersion:
+		view = m.VersionModel.View()
 	default:
 		view = "State tidak dikenal"
 	}
