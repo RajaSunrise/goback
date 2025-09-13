@@ -1,0 +1,122 @@
+package main
+
+import (
+	"log"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
+	"{{.ModulePath}}/internal/config"
+	"{{.ModulePath}}/internal/routes"
+	{{- if .Database.Enabled}}
+	"{{.ModulePath}}/internal/database"
+	{{- end}}
+)
+
+func main() {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal("Failed to load config:", err)
+	}
+
+	{{- if .Database.Enabled}}
+	// Initialize database
+	db, err := database.Connect(cfg.Database)
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+	defer database.Close(db)
+
+	// Auto-migrate database tables
+	if err := database.Migrate(db); err != nil {
+		log.Fatal("Failed to migrate database:", err)
+	}
+	{{- end}}
+
+	// Create Echo instance
+	e := echo.New()
+
+	// Hide Echo banner
+	e.HideBanner = true
+
+	// Middleware
+	e.Use(middleware.Logger())
+	e.Use(middleware.Recover())
+	e.Use(middleware.RequestID())
+	e.Use(middleware.Secure())
+	e.Use(middleware.Gzip())
+
+	// CORS middleware
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowOrigins: []string{"*"},
+		AllowMethods: []string{echo.GET, echo.POST, echo.PUT, echo.DELETE, echo.OPTIONS},
+		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+	}))
+
+	// Timeout middleware
+	e.Use(middleware.TimeoutWithConfig(middleware.TimeoutConfig{
+		Timeout: 60 * time.Second,
+	}))
+
+	// Rate limiting middleware
+	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20)))
+
+	// Custom error handler
+	e.HTTPErrorHandler = customErrorHandler
+
+	// Health check endpoint
+	e.GET("/health", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]string{
+			"status":  "healthy",
+			"service": "{{.ProjectName}}",
+		})
+	})
+
+	// Setup routes
+	{{- if .Database.Enabled}}
+	routes.Setup(e, db)
+	{{- else}}
+	routes.Setup(e)
+	{{- end}}
+
+	// Get port from environment or use default
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = cfg.Server.Port
+	}
+
+	log.Printf("🚀 Server starting on port %s", port)
+	log.Printf("📖 API Documentation: http://localhost:%s/docs", port)
+
+	// Start server
+	if err := e.Start(":" + port); err != nil && err != http.ErrServerClosed {
+		log.Fatal("Failed to start server:", err)
+	}
+}
+
+func customErrorHandler(err error, c echo.Context) {
+	code := http.StatusInternalServerError
+	message := "Internal Server Error"
+
+	if he, ok := err.(*echo.HTTPError); ok {
+		code = he.Code
+		message = he.Message.(string)
+	}
+
+	// Log error
+	log.Printf("HTTP Error %d: %s", code, message)
+
+	// Send JSON error response
+	if !c.Response().Committed {
+		if err := c.JSON(code, map[string]interface{}{
+			"error":   true,
+			"message": message,
+			"code":    code,
+		}); err != nil {
+			log.Printf("Failed to send error response: %v", err)
+		}
+	}
+}

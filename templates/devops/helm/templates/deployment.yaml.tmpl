@@ -1,0 +1,164 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "{{.ProjectName}}.fullname" . }}
+  labels:
+    {{- include "{{.ProjectName}}.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "{{.ProjectName}}.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "{{.ProjectName}}.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "{{.ProjectName}}.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.app.port }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "{{ .Values.app.port }}"
+            - name: APP_NAME
+              value: "{{ .Values.app.name }}"
+            - name: APP_VERSION
+              value: "{{ .Values.app.version }}"
+            - name: APP_ENV
+              value: "{{ .Values.app.environment }}"
+            - name: DEBUG
+              value: "{{ .Values.app.debug }}"
+            {{- if .Values.Database.Enabled }}
+            {{- if .Values.postgresql.enabled }}
+            - name: DB_HOST
+              value: "{{ include "{{.ProjectName}}.postgresql.fullname" . }}"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USERNAME
+              value: "{{ .Values.postgresql.auth.username }}"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ include "{{.ProjectName}}.postgresql.secretName" . }}"
+                  key: "password"
+            - name: DB_NAME
+              value: "{{ .Values.postgresql.auth.database }}"
+            {{- else if .Values.mysql.enabled }}
+            - name: DB_HOST
+              value: "{{ include "{{.ProjectName}}.mysql.fullname" . }}"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_USERNAME
+              value: "{{ .Values.mysql.auth.username }}"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ include "{{.ProjectName}}.mysql.secretName" . }}"
+                  key: "mysql-password"
+            - name: DB_NAME
+              value: "{{ .Values.mysql.auth.database }}"
+            {{- else }}
+            - name: DB_HOST
+              value: "{{ .Values.externalDatabase.host }}"
+            - name: DB_PORT
+              value: "{{ .Values.externalDatabase.port }}"
+            - name: DB_USERNAME
+              value: "{{ .Values.externalDatabase.username }}"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalDatabase.existingSecret | default (printf "%s-external-db" (include "{{.ProjectName}}.fullname" .)) }}
+                  key: {{ .Values.externalDatabase.existingSecretPasswordKey | default "password" }}
+            - name: DB_NAME
+              value: "{{ .Values.externalDatabase.database }}"
+            {{- end }}
+            {{- end }}
+            {{- if .Values.redis.enabled }}
+            - name: REDIS_HOST
+              value: "{{ include "{{.ProjectName}}.redis.fullname" . }}-master"
+            - name: REDIS_PORT
+              value: "6379"
+            {{- if .Values.redis.auth.enabled }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "{{ include "{{.ProjectName}}.redis.secretName" . }}"
+                  key: "redis-password"
+            {{- end }}
+            {{- else if .Values.externalRedis.host }}
+            - name: REDIS_HOST
+              value: "{{ .Values.externalRedis.host }}"
+            - name: REDIS_PORT
+              value: "{{ .Values.externalRedis.port }}"
+            {{- if .Values.externalRedis.password }}
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.externalRedis.existingSecret | default (printf "%s-external-redis" (include "{{.ProjectName}}.fullname" .)) }}
+                  key: {{ .Values.externalRedis.existingSecretPasswordKey | default "password" }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.healthCheck.enabled }}
+          livenessProbe:
+            {{- toYaml .Values.healthCheck.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.healthCheck.readinessProbe | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- with .Values.sidecars }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

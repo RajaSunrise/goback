@@ -1,0 +1,88 @@
+package main
+
+import (
+	"log"
+	"net/http"
+	"os"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+	"{{.ModulePath}}/internal/config"
+	"{{.ModulePath}}/internal/routes"
+	{{- if .Database.Enabled}}
+	"{{.ModulePath}}/internal/database"
+	{{- end}}
+)
+
+func main() {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatal("Failed to load config:", err)
+	}
+
+	{{- if .Database.Enabled}}
+	// Initialize database
+	db, err := database.Connect(cfg.Database)
+	if err != nil {
+		log.Fatal("Failed to connect to database:", err)
+	}
+	defer database.Close(db)
+
+	// Auto-migrate database tables
+	if err := database.Migrate(db); err != nil {
+		log.Fatal("Failed to migrate database:", err)
+	}
+	{{- end}}
+
+	// Create Chi router
+	r := chi.NewRouter()
+
+	// Add middleware
+	r.Use(middleware.RequestID)
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.Compress(5))
+
+	// CORS middleware
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
+
+	// Set timeout for requests
+	r.Use(middleware.Timeout(60 * time.Second))
+
+	// Health check endpoint
+	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	// Setup routes
+	{{- if .Database.Enabled}}
+	routes.Setup(r, db)
+	{{- else}}
+	routes.Setup(r)
+	{{- end}}
+
+	// Get port from environment or use default
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = cfg.Server.Port
+	}
+
+	log.Printf("🚀 Server starting on port %s", port)
+	log.Printf("📖 API Documentation: http://localhost:%s/docs", port)
+
+	if err := http.ListenAndServe(":"+port, r); err != nil {
+		log.Fatal("Failed to start server:", err)
+	}
+}

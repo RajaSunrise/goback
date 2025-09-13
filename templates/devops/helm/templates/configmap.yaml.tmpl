@@ -1,0 +1,126 @@
+{{- if .Values.configMap.create }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "{{.ProjectName}}.fullname" . }}-config
+  labels:
+    {{- include "{{.ProjectName}}.labels" . | nindent 4 }}
+data:
+  app.yaml: |
+    server:
+      port: {{ .Values.app.port }}
+      host: "0.0.0.0"
+      read_timeout: 30s
+      write_timeout: 30s
+      idle_timeout: 120s
+      shutdown_timeout: 30s
+
+    app:
+      name: {{ .Values.app.name | quote }}
+      version: {{ .Values.app.version | quote }}
+      environment: {{ .Values.app.environment | quote }}
+      debug: {{ .Values.app.debug }}
+      log_level: {{ .Values.app.environment | eq "production" | ternary "info" "debug" }}
+
+    {{- if .Values.Database.Enabled }}
+    database:
+      {{- if eq .Values.Database.Type "postgresql" }}
+      driver: "postgres"
+      {{- if .Values.postgresql.enabled }}
+      host: {{ include "{{.ProjectName}}.postgresql.fullname" . | quote }}
+      port: 5432
+      database: {{ .Values.postgresql.auth.database | quote }}
+      username: {{ .Values.postgresql.auth.username | quote }}
+      {{- else }}
+      host: {{ .Values.externalDatabase.host | quote }}
+      port: {{ .Values.externalDatabase.port }}
+      database: {{ .Values.externalDatabase.database | quote }}
+      username: {{ .Values.externalDatabase.username | quote }}
+      {{- end }}
+      {{- else if eq .Values.Database.Type "mysql" }}
+      driver: "mysql"
+      {{- if .Values.mysql.enabled }}
+      host: {{ include "{{.ProjectName}}.mysql.fullname" . | quote }}
+      port: 3306
+      database: {{ .Values.mysql.auth.database | quote }}
+      username: {{ .Values.mysql.auth.username | quote }}
+      {{- else }}
+      host: {{ .Values.externalDatabase.host | quote }}
+      port: {{ .Values.externalDatabase.port }}
+      database: {{ .Values.externalDatabase.database | quote }}
+      username: {{ .Values.externalDatabase.username | quote }}
+      {{- end }}
+      {{- end }}
+      max_open_connections: 25
+      max_idle_connections: 5
+      connection_max_lifetime: 300s
+      connection_max_idle_time: 60s
+    {{- end }}
+
+    {{- if or .Values.redis.enabled .Values.externalRedis.host }}
+    redis:
+      {{- if .Values.redis.enabled }}
+      host: {{ include "{{.ProjectName}}.redis.fullname" . }}-master
+      port: 6379
+      {{- else }}
+      host: {{ .Values.externalRedis.host | quote }}
+      port: {{ .Values.externalRedis.port }}
+      {{- end }}
+      database: 0
+      pool_size: 10
+      min_idle_connections: 5
+      dial_timeout: 5s
+      read_timeout: 3s
+      write_timeout: 3s
+      pool_timeout: 4s
+      idle_timeout: 300s
+      idle_check_frequency: 60s
+    {{- end }}
+
+    metrics:
+      enabled: true
+      path: "/metrics"
+
+    health:
+      path: "/health"
+      timeout: 10s
+
+    cors:
+      allowed_origins:
+        - "*"
+      allowed_methods:
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+        - "PATCH"
+        - "OPTIONS"
+      allowed_headers:
+        - "Content-Type"
+        - "Authorization"
+        - "X-Requested-With"
+      allow_credentials: true
+      max_age: 86400
+
+    rate_limit:
+      enabled: true
+      requests_per_minute: 100
+      burst: 50
+
+    security:
+      jwt:
+        secret_key_env: "JWT_SECRET"
+        expiration: 24h
+        refresh_expiration: 168h
+      bcrypt:
+        cost: 12
+
+    logging:
+      level: {{ .Values.app.environment | eq "production" | ternary "info" "debug" }}
+      format: "json"
+      output: "stdout"
+
+  {{- with .Values.configMap.data }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

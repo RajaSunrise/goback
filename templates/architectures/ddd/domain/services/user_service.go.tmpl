@@ -1,0 +1,232 @@
+package application
+
+import (
+	"context"
+	"errors"
+	"math"
+	"time"
+
+	"{{.ModulePath}}/domain/entities"
+	"{{.ModulePath}}/domain/repositories"
+	"golang.org/x/crypto/bcrypt"
+)
+
+// UserApplicationService mengelola semua use case terkait user.
+type UserApplicationService struct {
+	userRepo repositories.UserRepository
+}
+
+// NewUserApplicationService adalah constructor.
+func NewUserApplicationService(userRepo repositories.UserRepository) *UserApplicationService {
+	return &UserApplicationService{userRepo: userRepo}
+}
+
+// --- DTOs (Data Transfer Objects) untuk komunikasi dengan dunia luar ---
+
+type CreateUserRequest struct {
+	Name     string `json:"name" validate:"required"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=6"`
+}
+
+type UpdateUserRequest struct {
+	Name     *string `json:"name" validate:"omitempty,min=1"`
+	Email    *string `json:"email" validate:"omitempty,email"`
+	Password *string `json:"password" validate:"omitempty,min=6"`
+	IsActive *bool   `json:"is_active"`
+}
+
+type ChangePasswordRequest struct {
+	OldPassword string `json:"old_password" validate:"required"`
+	NewPassword string `json:"new_password" validate:"required,min=6"`
+}
+
+type UserResponse struct {
+	ID        entities.UserID `json:"id"`
+	Name      string          `json:"name"`
+	Email     string          `json:"email"`
+	IsActive  bool            `json:"is_active"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+type PaginatedUsersResponse struct {
+	Users      []UserResponse `json:"users"`
+	Total      int64          `json:"total"`
+	Page       int            `json:"page"`
+	PerPage    int            `json:"per_page"`
+	TotalPages int            `json:"total_pages"`
+}
+
+// --- Use Cases (CRUD) ---
+
+// Create adalah use case untuk membuat user baru.
+func (s *UserApplicationService) Create(ctx context.Context, req CreateUserRequest) (*UserResponse, error) {
+	// 1. Validasi bisnis (melalui repository)
+	exists, err := s.userRepo.ExistsByEmail(ctx, req.Email)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, errors.New("email is already in use")
+	}
+
+	// 2. Operasi terkait infrastruktur (hashing)
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, err
+	}
+
+	// 3. Buat entitas domain
+	user, err := entities.NewUser(req.Name, req.Email, string(hashedPassword))
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. Simpan melalui repository
+	if err := s.userRepo.Save(ctx, user); err != nil {
+		return nil, err
+	}
+
+	return toUserResponse(user), nil
+}
+
+// GetByID adalah use case untuk mengambil satu user.
+func (s *UserApplicationService) GetByID(ctx context.Context, id entities.UserID) (*UserResponse, error) {
+	user, err := s.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+	return toUserResponse(user), nil
+}
+
+// GetAll adalah use case untuk mengambil semua user dengan paginasi.
+func (s *UserApplicationService) GetAll(ctx context.Context, page, perPage int) (*PaginatedUsersResponse, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 {
+		perPage = 10
+	}
+	
+	users, total, err := s.userRepo.FindAll(ctx, page, perPage)
+	if err != nil {
+		return nil, err
+	}
+
+	responses := make([]UserResponse, len(users))
+	for i, user := range users {
+		responses[i] = *toUserResponse(&user)
+	}
+
+	return &PaginatedUsersResponse{
+		Users:      responses,
+		Total:      total,
+		Page:       page,
+		PerPage:    perPage,
+		TotalPages: int(math.Ceil(float64(total) / float64(perPage))),
+	}, nil
+}
+
+// Update adalah use case untuk memperbarui user.
+func (s *UserApplicationService) Update(ctx context.Context, id entities.UserID, req UpdateUserRequest) (*UserResponse, error) {
+	user, err := s.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	// Update fields jika disediakan
+	if req.Name != nil {
+		user.Name = *req.Name
+	}
+	if req.IsActive != nil {
+		user.IsActive = *req.IsActive
+	}
+	if req.Email != nil && *req.Email != user.Email {
+		// Periksa apakah email baru sudah digunakan
+		exists, err := s.userRepo.ExistsByEmail(ctx, *req.Email)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			return nil, errors.New("email is already in use")
+		}
+		user.Email = *req.Email
+	}
+	if req.Password != nil {
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, err
+		}
+		user.Password = string(hashedPassword)
+	}
+
+	user.UpdatedAt = time.Now().UTC()
+
+	// Simpan perubahan
+	if err := s.userRepo.Save(ctx, user); err != nil {
+		return nil, err
+	}
+	
+	return toUserResponse(user), nil
+}
+
+// Delete adalah use case untuk menghapus user.
+func (s *UserApplicationService) Delete(ctx context.Context, id entities.UserID) error {
+	// Verifikasi user ada sebelum menghapus
+	user, err := s.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	return s.userRepo.Delete(ctx, id)
+}
+
+// ChangePassword adalah use case untuk mengubah password user.
+func (s *UserApplicationService) ChangePassword(ctx context.Context, id entities.UserID, req ChangePasswordRequest) error {
+	user, err := s.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	// Verifikasi password lama
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.OldPassword)); err != nil {
+		return errors.New("invalid old password")
+	}
+
+	// Hash password baru
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+
+	// Update password
+	user.Password = string(hashedPassword)
+	user.UpdatedAt = time.Now().UTC()
+
+	return s.userRepo.Save(ctx, user)
+}
+
+// toUserResponse adalah helper untuk mapping dari Entitas ke DTO.
+func toUserResponse(u *entities.User) *UserResponse {
+	return &UserResponse{
+		ID:        u.ID,
+		Name:      u.Name,
+		Email:     u.Email,
+		IsActive:  u.IsActive,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
+	}
+}

@@ -1,0 +1,190 @@
+package routes
+
+import (
+	"encoding/json"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	{{- if .Database.Enabled}}
+	"{{.ModulePath}}/internal/handlers"
+	{{- if eq .Architecture "ddd" }}
+	"{{.ModulePath}}/internal/domain/services"
+	"{{.ModulePath}}/internal/infrastructure/repositories"
+	{{- else if eq .Architecture "clean" }}
+	"{{.ModulePath}}/internal/usecases"
+	"{{.ModulePath}}/internal/interface_adapters/repositories"
+	{{- else if eq .Architecture "hexagonal" }}
+	"{{.ModulePath}}/internal/domain/services"
+	"{{.ModulePath}}/internal/adapters/repositories"
+	{{- else}}
+	"{{.ModulePath}}/internal/services"
+	"{{.ModulePath}}/internal/repositories"
+	{{- end}}
+	{{- end}}
+	{{- if .Database.Enabled}}
+	"gorm.io/gorm"
+	{{- end}}
+)
+
+{{- if .Database.Enabled}}
+func Setup(r chi.Router, db *gorm.DB) {
+	// Initialize repositories
+	{{- if eq .Architecture "ddd" }}
+	userRepo := repositories.NewUserRepository(db)
+	{{- else if eq .Architecture "clean" }}
+	userRepo := repositories.NewUserRepository(db)
+	{{- else if eq .Architecture "hexagonal" }}
+	userRepo := repositories.NewUserRepository(db)
+	{{- else}}
+	userRepo := repositories.NewUserRepository(db)
+	{{- end}}
+
+	// Initialize services
+	{{- if eq .Architecture "ddd" }}
+	userService := services.NewUserService(userRepo)
+	{{- else if eq .Architecture "clean" }}
+	userUsecase := usecases.NewUserUsecase(userRepo)
+	{{- else if eq .Architecture "hexagonal" }}
+	userService := services.NewUserService(userRepo)
+	{{- else}}
+	userService := services.NewUserService(userRepo)
+	{{- end}}
+
+	// Initialize handlers
+	{{- if eq .Architecture "clean" }}
+	userHandler := handlers.NewUserHandler(userUsecase)
+	{{- else}}
+	userHandler := handlers.NewUserHandler(userService)
+	{{- end}}
+
+	// API routes
+	r.Route("/api/v1", func(r chi.Router) {
+		// User routes
+		r.Route("/users", func(r chi.Router) {
+			r.Get("/", userHandler.GetUsers)
+			r.Post("/", userHandler.CreateUser)
+			r.Get("/{id}", userHandler.GetUser)
+			r.Put("/{id}", userHandler.UpdateUser)
+			r.Delete("/{id}", userHandler.DeleteUser)
+		})
+
+		// Health check
+		r.Get("/health", healthCheckHandler)
+	})
+{{- else}}
+func Setup(r chi.Router) {
+	// API routes
+	r.Route("/api/v1", func(r chi.Router) {
+		// Hello World endpoint
+		r.Get("/hello", helloHandler)
+
+		// Health check
+		r.Get("/health", healthCheckHandler)
+	})
+{{- end}}
+
+	// Serve static files (if any)
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
+
+	// Documentation route
+	r.Get("/docs", docsHandler)
+}
+
+{{- if not .Database.Enabled}}
+func helloHandler(w http.ResponseWriter, r *http.Request) {
+	response := map[string]interface{}{
+		"message": "Hello from {{.ProjectName}}!",
+		"status":  "success",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+{{- end}}
+
+func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	response := map[string]interface{}{
+		"status":  "healthy",
+		"service": "{{.ProjectName}}",
+		"version": "1.0.0",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+func docsHandler(w http.ResponseWriter, r *http.Request) {
+	html := `
+	<!DOCTYPE html>
+	<html>
+	<head>
+		<title>{{.ProjectName}} API Documentation</title>
+		<style>
+			body { font-family: Arial, sans-serif; margin: 40px; }
+			h1 { color: #333; }
+			.endpoint { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+			.method { font-weight: bold; padding: 2px 8px; border-radius: 3px; color: white; }
+			.get { background-color: #61affe; }
+			.post { background-color: #49cc90; }
+			.put { background-color: #fca130; }
+			.delete { background-color: #f93e3e; }
+		</style>
+	</head>
+	<body>
+		<h1>{{.ProjectName}} API Documentation</h1>
+		<p>Welcome to the API documentation for {{.ProjectName}}.</p>
+
+		<h2>Available Endpoints:</h2>
+
+		<div class="endpoint">
+			<span class="method get">GET</span>
+			<strong>/api/v1/health</strong>
+			<p>Health check endpoint</p>
+		</div>
+
+		{{- if .Database.Enabled}}
+		<div class="endpoint">
+			<span class="method get">GET</span>
+			<strong>/api/v1/users</strong>
+			<p>Get all users</p>
+		</div>
+
+		<div class="endpoint">
+			<span class="method post">POST</span>
+			<strong>/api/v1/users</strong>
+			<p>Create a new user</p>
+		</div>
+
+		<div class="endpoint">
+			<span class="method get">GET</span>
+			<strong>/api/v1/users/{id}</strong>
+			<p>Get user by ID</p>
+		</div>
+
+		<div class="endpoint">
+			<span class="method put">PUT</span>
+			<strong>/api/v1/users/{id}</strong>
+			<p>Update user by ID</p>
+		</div>
+
+		<div class="endpoint">
+			<span class="method delete">DELETE</span>
+			<strong>/api/v1/users/{id}</strong>
+			<p>Delete user by ID</p>
+		</div>
+		{{- else}}
+		<div class="endpoint">
+			<span class="method get">GET</span>
+			<strong>/api/v1/hello</strong>
+			<p>Hello World endpoint</p>
+		</div>
+		{{- end}}
+	</body>
+	</html>`
+
+	w.Header().Set("Content-Type", "text/html")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(html))
+}

@@ -1,0 +1,157 @@
+{{/*
+Expand the name of the chart.
+*/}}
+{{- define "{{.ProjectName}}.name" -}}
+{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Create a default fully qualified app name.
+We truncate at 63 chars because some Kubernetes name fields are limited to this (by the DNS naming spec).
+If release name contains chart name it will be used as a full name.
+*/}}
+{{- define "{{.ProjectName}}.fullname" -}}
+{{- if .Values.fullnameOverride }}
+{{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- if contains $name .Release.Name }}
+{{- .Release.Name | trunc 63 | trimSuffix "-" }}
+{{- else }}
+{{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/*
+Create chart name and version as used by the chart label.
+*/}}
+{{- define "{{.ProjectName}}.chart" -}}
+{{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
+Common labels
+*/}}
+{{- define "{{.ProjectName}}.labels" -}}
+helm.sh/chart: {{ include "{{.ProjectName}}.chart" . }}
+{{ include "{{.ProjectName}}.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end }}
+
+{{/*
+Selector labels
+*/}}
+{{- define "{{.ProjectName}}.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "{{.ProjectName}}.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+
+{{/*
+Create the name of the service account to use
+*/}}
+{{- define "{{.ProjectName}}.serviceAccountName" -}}
+{{- if .Values.serviceAccount.create }}
+{{- default (include "{{.ProjectName}}.fullname" .) .Values.serviceAccount.name }}
+{{- else }}
+{{- default "default" .Values.serviceAccount.name }}
+{{- end }}
+{{- end }}
+
+{{/*
+Create the name of the PostgreSQL dependency
+*/}}
+{{- define "{{.ProjectName}}.postgresql.fullname" -}}
+{{- include "postgresql.primary.fullname" .Subcharts.postgresql }}
+{{- end }}
+
+{{/*
+Create the PostgreSQL secret name
+*/}}
+{{- define "{{.ProjectName}}.postgresql.secretName" -}}
+{{- if .Values.postgresql.auth.existingSecret }}
+{{- .Values.postgresql.auth.existingSecret }}
+{{- else }}
+{{- include "{{.ProjectName}}.postgresql.fullname" . }}
+{{- end }}
+{{- end }}
+
+{{/*
+Create the name of the MySQL dependency
+*/}}
+{{- define "{{.ProjectName}}.mysql.fullname" -}}
+{{- include "mysql.primary.fullname" .Subcharts.mysql }}
+{{- end }}
+
+{{/*
+Create the MySQL secret name
+*/}}
+{{- define "{{.ProjectName}}.mysql.secretName" -}}
+{{- if .Values.mysql.auth.existingSecret }}
+{{- .Values.mysql.auth.existingSecret }}
+{{- else }}
+{{- include "{{.ProjectName}}.mysql.fullname" . }}
+{{- end }}
+{{- end }}
+
+{{/*
+Create the name of the Redis dependency
+*/}}
+{{- define "{{.ProjectName}}.redis.fullname" -}}
+{{- include "redis.fullname" .Subcharts.redis }}
+{{- end }}
+
+{{/*
+Create the Redis secret name
+*/}}
+{{- define "{{.ProjectName}}.redis.secretName" -}}
+{{- if .Values.redis.auth.existingSecret }}
+{{- .Values.redis.auth.existingSecret }}
+{{- else }}
+{{- include "{{.ProjectName}}.redis.fullname" . }}
+{{- end }}
+{{- end }}
+
+{{/*
+Database connection string for PostgreSQL
+*/}}
+{{- define "{{.ProjectName}}.postgresql.connectionString" -}}
+{{- if .Values.postgresql.enabled }}
+postgres://{{ .Values.postgresql.auth.username }}:{{ .Values.postgresql.auth.password }}@{{ include "{{.ProjectName}}.postgresql.fullname" . }}:5432/{{ .Values.postgresql.auth.database }}?sslmode=disable
+{{- else }}
+postgres://{{ .Values.externalDatabase.username }}:{{ .Values.externalDatabase.password }}@{{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }}/{{ .Values.externalDatabase.database }}?sslmode=disable
+{{- end }}
+{{- end }}
+
+{{/*
+Database connection string for MySQL
+*/}}
+{{- define "{{.ProjectName}}.mysql.connectionString" -}}
+{{- if .Values.mysql.enabled }}
+{{ .Values.mysql.auth.username }}:{{ .Values.mysql.auth.password }}@tcp({{ include "{{.ProjectName}}.mysql.fullname" . }}:3306)/{{ .Values.mysql.auth.database }}?charset=utf8mb4&parseTime=True&loc=Local
+{{- else }}
+{{ .Values.externalDatabase.username }}:{{ .Values.externalDatabase.password }}@tcp({{ .Values.externalDatabase.host }}:{{ .Values.externalDatabase.port }})/{{ .Values.externalDatabase.database }}?charset=utf8mb4&parseTime=True&loc=Local
+{{- end }}
+{{- end }}
+
+{{/*
+Redis connection string
+*/}}
+{{- define "{{.ProjectName}}.redis.connectionString" -}}
+{{- if .Values.redis.enabled }}
+{{- if .Values.redis.auth.enabled }}
+redis://:{{ .Values.redis.auth.password }}@{{ include "{{.ProjectName}}.redis.fullname" . }}-master:6379/0
+{{- else }}
+redis://{{ include "{{.ProjectName}}.redis.fullname" . }}-master:6379/0
+{{- end }}
+{{- else if .Values.externalRedis.host }}
+{{- if .Values.externalRedis.password }}
+redis://:{{ .Values.externalRedis.password }}@{{ .Values.externalRedis.host }}:{{ .Values.externalRedis.port }}/0
+{{- else }}
+redis://{{ .Values.externalRedis.host }}:{{ .Values.externalRedis.port }}/0
+{{- end }}
+{{- end }}
+{{- end }}

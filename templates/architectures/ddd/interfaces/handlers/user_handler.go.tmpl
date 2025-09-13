@@ -1,0 +1,69 @@
+package handlers
+
+import (
+	"{{.ModulePath}}/application"
+	"net/http"
+	"strconv"
+	
+	{{- if eq .Database "postgresql" }}
+	"github.com/google/uuid"
+	{{- end}}
+	
+	// --- Import dinamis berdasarkan framework ---
+	{{- if eq .Framework "Fiber" }}
+	"github.com/gofiber/fiber/v2"
+	{{- else if eq .Framework "Gin" }}
+	"github.com/gin-gonic/gin"
+	{{- else if eq .Framework "Chi" }}
+	"encoding/json"
+	"github.com/go-chi/chi/v5"
+	{{- else if eq .Framework "Echo" }}
+	"github.com/labstack/echo/v4"
+	{{- end}}
+)
+
+// UserHandler adalah 'Adapter' yang menerjemahkan request HTTP ke panggilan Application Service.
+type UserHandler struct {
+	appService *application.UserApplicationService
+}
+
+func NewUserHandler(appService *application.UserApplicationService) *UserHandler { return &UserHandler{appService: appService} }
+
+// --- Helper untuk response ---
+func handleServiceError(err error) (int, map[string]string) {
+	// Di sini Anda bisa memetakan error spesifik ke status code HTTP yang berbeda
+	if err.Error() == "user not found" {
+		return http.StatusNotFound, map[string]string{"error": err.Error()}
+	}
+	return http.StatusInternalServerError, map[string]string{"error": err.Error()}
+}
+
+{{/* =================== BLOK KODE UNTUK GO FIBER =================== */}}
+{{- if eq .Framework "Fiber" }}
+func (h *UserHandler) Create(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
+func (h *UserHandler) GetByID(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
+func (h *UserHandler) GetAll(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
+func (h *UserHandler) Update(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
+func (h *UserHandler) Delete(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
+{{- end }}
+
+{{/* =================== BLOK KODE UNTUK GIN =================== */}}
+{{- if eq .Framework "Gin" }}
+func (h *UserHandler) Create(c *gin.Context) { /* ... implementasi Gin ... */ }
+func (h *UserHandler) GetByID(c *gin.Context) { /* ... implementasi Gin ... */ }
+func (h *UserHandler) GetAll(c *gin.Context) { /* ... implementasi Gin ... */ }
+func (h *UserHandler) Update(c *gin.Context) { /* ... implementasi Gin ... */ }
+func (h *UserHandler) Delete(c *gin.Context) { /* ... implementasi Gin ... */ }
+{{- end }}
+
+{{/* =================== BLOK KODE UNTUK CHI =================== */}}
+{{- if eq .Framework "Chi" }}
+func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) { /* ... implementasi Chi ... */ }
+// ... dan seterusnya untuk Chi
+{{- end }}
+
+{{/* =================== BLOK KODE UNTUK ECHO =================== */}}
+{{- if eq .Framework "Echo" }}
+func (h *UserHandler) Create(c echo.Context) error { /* ... implementasi Echo ... */ }
+// ... dan seterusnya untuk Echo
+{{- end }}

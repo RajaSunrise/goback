@@ -1,0 +1,147 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"{{.ModulePath}}/internal/config"
+	"{{.ModulePath}}/internal/database"
+{{- if eq .Architecture "simple"}}
+	"{{.ModulePath}}/internal/handlers"
+{{- else if eq .Architecture "ddd"}}
+	"{{.ModulePath}}/internal/interfaces/http"
+{{- else if eq .Architecture "clean"}}
+	"{{.ModulePath}}/internal/frameworks_drivers/web"
+{{- else if eq .Architecture "hexagonal"}}
+	"{{.ModulePath}}/internal/adapters/input/http"
+{{- end}}
+	"{{.ModulePath}}/internal/middleware"
+	"{{.ModulePath}}/internal/routes"
+
+	"github.com/gin-gonic/gin"
+{{- if eq .ORM "gorm"}}
+	"gorm.io/gorm"
+{{- else if eq .ORM "sqlx"}}
+	"github.com/jmoiron/sqlx"
+{{- end}}
+)
+
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildTime = "unknown"
+)
+
+func main() {
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Set Gin mode
+	gin.SetMode(cfg.Server.Mode)
+
+	// Initialize database
+{{- if eq .ORM "gorm"}}
+	db, err := database.Connect(cfg.Database)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+
+	// Auto-migrate database
+	if err := database.Migrate(db); err != nil {
+		log.Fatalf("Failed to run database migrations: %v", err)
+	}
+{{- else if eq .ORM "sqlx"}}
+	db, err := database.Connect(cfg.Database)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+{{- else if eq .ORM "sqlc"}}
+	db, err := database.Connect(cfg.Database)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+{{- end}}
+
+	// Create Gin router
+	router := gin.New()
+
+	// Add middleware
+	router.Use(gin.Logger())
+	router.Use(gin.Recovery())
+	router.Use(middleware.CORS())
+	router.Use(middleware.RequestID())
+
+	// Setup routes
+{{- if eq .Architecture "simple"}}
+	routes.Setup(router, &routes.Dependencies{
+		DB:     db,
+		Config: cfg,
+	})
+{{- else if eq .Architecture "ddd"}}
+	httpHandler := http.NewHandler(db, cfg)
+	routes.Setup(router, httpHandler)
+{{- else if eq .Architecture "clean"}}
+	webFramework := web.NewGinFramework(router)
+	routes.Setup(webFramework, db, cfg)
+{{- else if eq .Architecture "hexagonal"}}
+	httpAdapter := http.NewAdapter(db, cfg)
+	routes.Setup(router, httpAdapter)
+{{- end}}
+
+	// Create HTTP server
+	server := &http.Server{
+		Addr:           fmt.Sprintf(":%s", cfg.Server.Port),
+		Handler:        router,
+		ReadTimeout:    time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		WriteTimeout:   time.Duration(cfg.Server.WriteTimeout) * time.Second,
+		IdleTimeout:    time.Duration(cfg.Server.IdleTimeout) * time.Second,
+		MaxHeaderBytes: cfg.Server.MaxHeaderBytes,
+	}
+
+	// Start server in goroutine
+	go func() {
+		log.Printf("Starting server on port %s", cfg.Server.Port)
+		log.Printf("Version: %s, Commit: %s, Build Time: %s", version, commit, buildTime)
+
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
+
+	// Create a deadline for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Shutdown server
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
+	}
+
+{{- if eq .ORM "gorm"}}
+	// Close database connection
+	sqlDB, err := db.DB()
+	if err == nil {
+		sqlDB.Close()
+	}
+{{- end}}
+
+	log.Println("Server exited")
+}

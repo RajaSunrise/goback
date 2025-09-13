@@ -1,0 +1,52 @@
+# {{.ProjectName | title}}
+
+{{if .Description}}{{.Description}}{{else}}A modern backend application built with Go.{{end}}
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Go 1.21+
+{{- if .Database}}
+- {{.Database | toTitle}} Database Server
+{{- end}}
+- Docker (optional, for containerization)
+- Make (optional, for automation)
+
+### Installation
+
+1.  **Clone the repository:**
+    ```bash
+    git clone {{.GitRepo | default (printf "https://github.com/your-username/%s.git" .ProjectName)}}
+    cd {{.ProjectName}}
+    ```
+
+2.  **Set up environment variables:**
+    ```bash
+    cp .env.example .env
+    ```
+    *Update the `.env` file with your configuration, especially database credentials.*
+
+3.  **Install dependencies:**
+    ```bash
+    go mod tidy
+    ```
+
+{{- if .Database}}
+
+4.  **Run database migrations:**
+    *Ensure your database server is running and the credentials in `.env` are correct.*
+    ```bash
+    make migrate
+    ```
+{{- end}}
+
+5.  **Run the application:**
+    ```bash
+    make dev
+    ```
+    The server will start on `http://localhost:8080` (or the port specified in `.env`).
+
+## 📁 Project Structure
+
+A brief overview of the project structure based on the **{{.Architecture | title}} Architecture**:

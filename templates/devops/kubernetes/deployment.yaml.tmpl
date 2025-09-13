@@ -1,0 +1,117 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.ProjectName}}
+  labels:
+    app: {{.ProjectName}}
+    version: v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: {{.ProjectName}}
+  template:
+    metadata:
+      labels:
+        app: {{.ProjectName}}
+        version: v1
+    spec:
+      containers:
+      - name: {{.ProjectName}}
+        image: {{.ProjectName}}:latest
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: PORT
+          value: "8080"
+        - name: APP_ENV
+          value: "production"
+        {{- if .Database.Enabled}}
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: {{.ProjectName}}-secrets
+              key: db-host
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: {{.ProjectName}}-secrets
+              key: db-port
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{.ProjectName}}-secrets
+              key: db-username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{.ProjectName}}-secrets
+              key: db-password
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: {{.ProjectName}}-secrets
+              key: db-name
+        {{- end}}
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: {{.ProjectName}}-config
+      imagePullSecrets:
+      - name: {{.ProjectName}}-registry-secret
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{.ProjectName}}-config
+data:
+  app.yaml: |
+    server:
+      port: 8080
+      host: 0.0.0.0
+      read_timeout: 30
+      write_timeout: 30
+    app:
+      name: {{.ProjectName}}
+      version: 1.0.0
+      environment: production
+      debug: false
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{.ProjectName}}-secrets
+type: Opaque
+data:
+  {{- if .Database.Enabled}}
+  # Base64 encoded values - replace with actual values
+  db-host: bG9jYWxob3N0  # localhost
+  db-port: {{if eq .Database.Type "postgresql"}}NTQzMg==  # 5432{{else if eq .Database.Type "mysql"}}MzMwNg==  # 3306{{else}}  # sqlite{{end}}
+  db-username: dXNlcg==  # user
+  db-password: cGFzc3dvcmQ=  # password
+  db-name: {{printf "%s_db" .ProjectName | b64enc}}
+  {{- end}}

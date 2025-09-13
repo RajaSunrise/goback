@@ -1,0 +1,86 @@
+package entities
+
+import (
+	"errors"
+	"time"
+
+	{{- if eq .Database "postgresql" }}
+	"github.com/google/uuid"
+	{{- end}}
+)
+
+// Tipe ID dinamis untuk domain.
+{{- if eq .Database "postgresql" }}
+type UserID = uuid.UUID
+{{- else}}
+type UserID = uint
+{{- end}}
+
+// User adalah Agregat Root dari domain pengguna.
+// Hanya berisi state dan logika bisnis murni.
+type User struct {
+	ID        UserID    `json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Password  string    `json:"-"` // Hash dari password
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// NewUser adalah 'factory' untuk membuat User baru dengan validasi.
+func NewUser(name, email, hashedPassword string) (*User, error) {
+	if name == "" { 
+		return nil, errors.New("user name is required") 
+	}
+	if email == "" { 
+		return nil, errors.New("user email is required") 
+	}
+	if hashedPassword == "" {
+		return nil, errors.New("hashed password is required")
+	}
+	
+	id := generateUserID()
+	now := time.Now().UTC()
+
+	return &User{
+		ID:        id,
+		Name:      name,
+		Email:     email,
+		Password:  hashedPassword,
+		IsActive:  true,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}, nil
+}
+
+// ChangeDetails memperbarui nama dan keaktifan user.
+func (u *User) ChangeDetails(newName string, isActive bool) error {
+	if newName == "" { 
+		return errors.New("user name cannot be empty") 
+	}
+	u.Name = newName
+	u.IsActive = isActive
+	u.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// ChangePassword memperbarui hash password.
+func (u *User) ChangePassword(newHashedPassword string) error {
+	if newHashedPassword == "" {
+		return errors.New("hashed password cannot be empty")
+	}
+	u.Password = newHashedPassword
+	u.UpdatedAt = time.Now().UTC()
+	return nil
+}
+
+// generateUserID adalah helper untuk membuat ID baru.
+func generateUserID() UserID {
+	{{- if eq .Database "postgresql" }}
+	return uuid.New()
+	{{- else}}
+	// Dalam kasus non-UUID, database yang akan menetapkan ID.
+	return 0
+	{{- end}}
+}

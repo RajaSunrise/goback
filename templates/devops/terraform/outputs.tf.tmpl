@@ -1,0 +1,236 @@
+# Outputs for {{.ProjectName}} Terraform configuration
+
+# VPC Outputs
+output "vpc_id" {
+  description = "ID of the VPC"
+  value       = aws_vpc.main.id
+}
+
+output "vpc_cidr_block" {
+  description = "CIDR block of the VPC"
+  value       = aws_vpc.main.cidr_block
+}
+
+# Subnet Outputs
+output "public_subnet_ids" {
+  description = "IDs of the public subnets"
+  value       = aws_subnet.public[*].id
+}
+
+output "private_subnet_ids" {
+  description = "IDs of the private subnets"
+  value       = aws_subnet.private[*].id
+}
+
+{{- if .Database.Enabled}}
+output "database_subnet_ids" {
+  description = "IDs of the database subnets"
+  value       = aws_subnet.database[*].id
+}
+{{- end}}
+
+# Security Group Outputs
+output "app_security_group_id" {
+  description = "ID of the application security group"
+  value       = aws_security_group.app.id
+}
+
+{{- if .Database.Enabled}}
+output "database_security_group_id" {
+  description = "ID of the database security group"
+  value       = aws_security_group.database.id
+}
+
+# Database Outputs
+output "database_endpoint" {
+  description = "RDS instance endpoint"
+  value       = aws_db_instance.main.endpoint
+  sensitive   = true
+}
+
+output "database_port" {
+  description = "RDS instance port"
+  value       = aws_db_instance.main.port
+}
+
+output "database_name" {
+  description = "RDS instance database name"
+  value       = aws_db_instance.main.db_name
+}
+
+output "database_username" {
+  description = "RDS instance master username"
+  value       = aws_db_instance.main.username
+  sensitive   = true
+}
+
+output "database_password_secret_arn" {
+  description = "ARN of the database password secret in AWS Secrets Manager"
+  value       = aws_secretsmanager_secret.db_password.arn
+  sensitive   = true
+}
+{{- end}}
+
+# Load Balancer Outputs
+output "load_balancer_arn" {
+  description = "ARN of the load balancer"
+  value       = aws_lb.main.arn
+}
+
+output "load_balancer_dns_name" {
+  description = "DNS name of the load balancer"
+  value       = aws_lb.main.dns_name
+}
+
+output "load_balancer_hosted_zone_id" {
+  description = "Hosted zone ID of the load balancer"
+  value       = aws_lb.main.zone_id
+}
+
+output "target_group_arn" {
+  description = "ARN of the target group"
+  value       = aws_lb_target_group.main.arn
+}
+
+# ECS Outputs
+output "ecs_cluster_id" {
+  description = "ID of the ECS cluster"
+  value       = aws_ecs_cluster.main.id
+}
+
+output "ecs_cluster_name" {
+  description = "Name of the ECS cluster"
+  value       = aws_ecs_cluster.main.name
+}
+
+output "ecs_service_id" {
+  description = "ID of the ECS service"
+  value       = aws_ecs_service.main.id
+}
+
+output "ecs_service_name" {
+  description = "Name of the ECS service"
+  value       = aws_ecs_service.main.name
+}
+
+output "ecs_task_definition_arn" {
+  description = "ARN of the ECS task definition"
+  value       = aws_ecs_task_definition.main.arn
+}
+
+# ECR Outputs
+output "ecr_repository_url" {
+  description = "URL of the ECR repository"
+  value       = aws_ecr_repository.main.repository_url
+}
+
+output "ecr_repository_name" {
+  description = "Name of the ECR repository"
+  value       = aws_ecr_repository.main.name
+}
+
+# CloudWatch Outputs
+output "cloudwatch_log_group_name" {
+  description = "Name of the CloudWatch log group"
+  value       = aws_cloudwatch_log_group.ecs.name
+}
+
+output "cloudwatch_log_group_arn" {
+  description = "ARN of the CloudWatch log group"
+  value       = aws_cloudwatch_log_group.ecs.arn
+}
+
+# IAM Outputs
+output "ecs_task_execution_role_arn" {
+  description = "ARN of the ECS task execution role"
+  value       = aws_iam_role.ecs_task_execution.arn
+}
+
+output "ecs_task_role_arn" {
+  description = "ARN of the ECS task role"
+  value       = aws_iam_role.ecs_task.arn
+}
+
+# Application URLs
+output "application_url" {
+  description = "URL of the application"
+  value       = "http://${aws_lb.main.dns_name}"
+}
+
+output "health_check_url" {
+  description = "Health check URL of the application"
+  value       = "http://${aws_lb.main.dns_name}/health"
+}
+
+output "api_documentation_url" {
+  description = "API documentation URL"
+  value       = "http://${aws_lb.main.dns_name}/docs"
+}
+
+# Connection Information
+output "connection_info" {
+  description = "Connection information for the application"
+  value = {
+    load_balancer_dns = aws_lb.main.dns_name
+    {{- if .Database.Enabled}}
+    database_endpoint = aws_db_instance.main.endpoint
+    {{- end}}
+    ecr_repository    = aws_ecr_repository.main.repository_url
+    ecs_cluster      = aws_ecs_cluster.main.name
+  }
+}
+
+# Environment Configuration
+output "environment_variables" {
+  description = "Environment variables for the application"
+  value = {
+    AWS_REGION    = var.aws_region
+    APP_ENV       = var.environment
+    {{- if .Database.Enabled}}
+    DB_HOST       = aws_db_instance.main.endpoint
+    DB_PORT       = "{{if eq .Database.Type "postgresql"}}5432{{else if eq .Database.Type "mysql"}}3306{{else}}3306{{end}}"
+    DB_NAME       = aws_db_instance.main.db_name
+    DB_USERNAME   = aws_db_instance.main.username
+    {{- end}}
+  }
+  sensitive = true
+}
+
+# Deployment Information
+output "deployment_info" {
+  description = "Information needed for deployment"
+  value = {
+    ecr_repository_url = aws_ecr_repository.main.repository_url
+    ecs_cluster_name   = aws_ecs_cluster.main.name
+    ecs_service_name   = aws_ecs_service.main.name
+    task_definition_family = aws_ecs_task_definition.main.family
+    target_group_arn   = aws_lb_target_group.main.arn
+  }
+}
+
+# Resource Summary
+output "resource_summary" {
+  description = "Summary of created resources"
+  value = {
+    vpc_id              = aws_vpc.main.id
+    public_subnets      = length(aws_subnet.public)
+    private_subnets     = length(aws_subnet.private)
+    {{- if .Database.Enabled}}
+    database_subnets    = length(aws_subnet.database)
+    database_instance   = aws_db_instance.main.identifier
+    {{- end}}
+    ecs_cluster         = aws_ecs_cluster.main.name
+    load_balancer       = aws_lb.main.name
+    ecr_repository      = aws_ecr_repository.main.name
+  }
+}
+
+# Tags Applied
+output "common_tags" {
+  description = "Common tags applied to resources"
+  value = {
+    Project     = "{{.ProjectName}}"
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+  }
+}

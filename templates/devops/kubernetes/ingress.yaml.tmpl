@@ -1,0 +1,109 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{.ProjectName}}-ingress
+  labels:
+    app: {{.ProjectName}}
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  tls:
+  - hosts:
+    - {{.ProjectName}}.example.com
+    - api.{{.ProjectName}}.example.com
+    secretName: {{.ProjectName}}-tls
+  rules:
+  - host: {{.ProjectName}}.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{.ProjectName}}-service
+            port:
+              number: 80
+  - host: api.{{.ProjectName}}.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{.ProjectName}}-service
+            port:
+              number: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{.ProjectName}}-ingress-traefik
+  labels:
+    app: {{.ProjectName}}
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
+    traefik.ingress.kubernetes.io/router.middlewares: default-ratelimit@kubernetescrd
+spec:
+  tls:
+  - hosts:
+    - {{.ProjectName}}.example.com
+    - api.{{.ProjectName}}.example.com
+  rules:
+  - host: {{.ProjectName}}.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{.ProjectName}}-service
+            port:
+              number: 80
+  - host: api.{{.ProjectName}}.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{.ProjectName}}-service
+            port:
+              number: 80
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: ratelimit
+spec:
+  rateLimit:
+    burst: 100
+    average: 50
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: cors
+spec:
+  headers:
+    accessControlAllowMethods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    accessControlAllowHeaders:
+      - "*"
+    accessControlAllowOriginList:
+      - "https://{{.ProjectName}}.example.com"
+      - "https://api.{{.ProjectName}}.example.com"
+    accessControlMaxAge: 100
+    addVaryHeader: true

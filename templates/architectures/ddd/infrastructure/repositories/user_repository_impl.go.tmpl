@@ -1,0 +1,554 @@
+package repositories
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"time"
+
+	"{{.ModulePath}}/domain/entities"
+	"{{.ModulePath}}/domain/repositories"
+	
+	{{- if eq .Database "postgresql" }}
+	"github.com/google/uuid"
+	{{- end}}
+	
+	{{- if eq .ORM "Gorm" }}
+	"gorm.io/gorm"
+	{{- else if eq .ORM "Sqlx" }}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .ORM "Sqlc" }}
+	"{{.ModulePath}}/infrastructure/database/sqlc" // Asumsi paket yang dihasilkan sqlc
+	{{- end}}
+)
+
+// --- MODEL PERSISTENSI & MAPPING ---
+// Model ini dipetakan ke tabel database, terpisah dari entitas domain.
+type UserPersistenceModel struct {
+	{{- if eq .Database "postgresql" }}
+	ID        uuid.UUID `{{if eq .ORM "Gorm"}}gorm:"type:uuid;primary_key"{{else}}db:"id"{{end}}`
+	{{- else}}
+	ID        uint      `{{if eq .ORM "Gorm"}}gorm:"primary_key;autoIncrement"{{else}}db:"id"{{end}}`
+	{{- end}}
+	Name      string    `{{if eq .ORM "Gorm"}}{{else}}db:"name"{{end}}`
+	Email     string    `{{if eq .ORM "Gorm"}}gorm:"uniqueIndex"{{else}}db:"email"{{end}}`
+	Password  string    `{{if eq .ORM "Gorm"}}{{else}}db:"password"{{end}}`
+	IsActive  bool      `{{if eq .ORM "Gorm"}}{{else}}db:"is_active"{{end}}`
+	CreatedAt time.Time `{{if eq .ORM "Gorm"}}{{else}}db:"created_at"{{end}}`
+	UpdatedAt time.Time `{{if eq .ORM "Gorm"}}{{else}}db:"updated_at"{{end}}`
+}
+
+{{ if eq .ORM "Gorm" }}
+func (UserPersistenceModel) TableName() string { return "users" }
+{{ end }}
+
+// Mapping functions
+func toEntity(p *UserPersistenceModel) *entities.User {
+	{{- if eq .Database "postgresql" }}
+	return &entities.User{
+		ID:        p.ID,
+		Name:      p.Name,
+		Email:     p.Email,
+		Password:  p.Password,
+		IsActive:  p.IsActive,
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+	}
+	{{- else}}
+	return &entities.User{
+		ID:        entities.UserID(p.ID),
+		Name:      p.Name,
+		Email:     p.Email,
+		Password:  p.Password,
+		IsActive:  p.IsActive,
+		CreatedAt: p.CreatedAt,
+		UpdatedAt: p.UpdatedAt,
+	}
+	{{- end}}
+}
+
+func fromEntity(e *entities.User) *UserPersistenceModel {
+	{{- if eq .Database "postgresql" }}
+	return &UserPersistenceModel{
+		ID:        e.ID.(uuid.UUID),
+		Name:      e.Name,
+		Email:     e.Email,
+		Password:  e.Password,
+		IsActive:  e.IsActive,
+		CreatedAt: e.CreatedAt,
+		UpdatedAt: e.UpdatedAt,
+	}
+	{{- else}}
+	return &UserPersistenceModel{
+		ID:        uint(e.ID),
+		Name:      e.Name,
+		Email:     e.Email,
+		Password:  e.Password,
+		IsActive:  e.IsActive,
+		CreatedAt: e.CreatedAt,
+		UpdatedAt: e.UpdatedAt,
+	}
+	{{- end}}
+}
+
+
+{{/* =================== IMPLEMENTASI UNTUK GORM =================== */}}
+{{ if eq .ORM "Gorm" }}
+type GormUserRepository struct { 
+	db *gorm.DB 
+}
+
+func NewGormUserRepository(db *gorm.DB) repositories.UserRepository { 
+	return &GormUserRepository{db: db} 
+}
+
+func (r *GormUserRepository) Save(ctx context.Context, user *entities.User) error {
+	model := fromEntity(user)
+	result := r.db.WithContext(ctx).Save(model)
+	if result.Error != nil {
+		return result.Error
+	}
+	
+	// Update the entity with the generated ID if it's a new user
+	{{ if ne .Database "postgresql" }}
+	if user.ID == 0 {
+		user.ID = entities.UserID(model.ID)
+	}
+	{{ end }}
+	
+	return nil
+}
+
+func (r *GormUserRepository) FindByID(ctx context.Context, id entities.UserID) (*entities.User, error) {
+	var model UserPersistenceModel
+	
+	{{ if eq .Database "postgresql" }}
+	result := r.db.WithContext(ctx).First(&model, "id = ?", id)
+	{{ else }}
+	result := r.db.WithContext(ctx).First(&model, id)
+	{{ end }}
+	
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	
+	return toEntity(&model), nil
+}
+
+func (r *GormUserRepository) FindByEmail(ctx context.Context, email string) (*entities.User, error) {
+	var model UserPersistenceModel
+	result := r.db.WithContext(ctx).First(&model, "email = ?", email)
+	
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	
+	return toEntity(&model), nil
+}
+
+func (r *GormUserRepository) FindAll(ctx context.Context, page, perPage int) ([]entities.User, int64, error) {
+	var models []UserPersistenceModel
+	var total int64
+	
+	// Count total records
+	if err := r.db.WithContext(ctx).Model(&UserPersistenceModel{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	
+	// Get paginated results
+	offset := (page - 1) * perPage
+	result := r.db.WithContext(ctx).Offset(offset).Limit(perPage).Find(&models)
+	if result.Error != nil {
+		return nil, 0, result.Error
+	}
+	
+	// Convert to entities
+	users := make([]entities.User, len(models))
+	for i, model := range models {
+		users[i] = *toEntity(&model)
+	}
+	
+	return users, total, nil
+}
+
+func (r *GormUserRepository) Delete(ctx context.Context, id entities.UserID) error {
+	{{ if eq .Database "postgresql" }}
+	result := r.db.WithContext(ctx).Delete(&UserPersistenceModel{}, "id = ?", id)
+	{{ else }}
+	result := r.db.WithContext(ctx).Delete(&UserPersistenceModel{}, id)
+	{{ end }}
+	
+	if result.Error != nil {
+		return result.Error
+	}
+	
+	if result.RowsAffected == 0 {
+		return errors.New("user not found")
+	}
+	
+	return nil
+}
+
+func (r *GormUserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+	var count int64
+	result := r.db.WithContext(ctx).Model(&UserPersistenceModel{}).Where("email = ?", email).Count(&count)
+	return count > 0, result.Error
+}
+{{ end }}
+
+
+{{/* =================== IMPLEMENTASI UNTUK SQLX =================== */}}
+{{ if eq .ORM "Sqlx" }}
+type SqlxUserRepository struct { 
+	db *sqlx.DB 
+}
+
+func NewSqlxUserRepository(db *sqlx.DB) repositories.UserRepository { 
+	return &SqlxUserRepository{db: db} 
+}
+
+func (r *SqlxUserRepository) Save(ctx context.Context, user *entities.User) error {
+	model := fromEntity(user)
+	
+	{{ if eq .Database "postgresql" }}
+	if user.ID == uuid.Nil { // New user
+		query := `INSERT INTO users (name, email, password, is_active, created_at, updated_at) 
+				  VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`
+		return r.db.GetContext(ctx, &model.ID, query, 
+			model.Name, model.Email, model.Password, model.IsActive, model.CreatedAt, model.UpdatedAt)
+	} else { // Update existing user
+		query := `UPDATE users SET name=$1, email=$2, password=$3, is_active=$4, updated_at=$5 WHERE id=$6`
+		_, err := r.db.ExecContext(ctx, query, 
+			model.Name, model.Email, model.Password, model.IsActive, model.UpdatedAt, model.ID)
+		return err
+	}
+	{{ else }}
+	if user.ID == 0 { // New user
+		query := `INSERT INTO users (name, email, password, is_active, created_at, updated_at) 
+				  VALUES (?, ?, ?, ?, ?, ?)`
+		result, err := r.db.ExecContext(ctx, query, 
+			model.Name, model.Email, model.Password, model.IsActive, model.CreatedAt, model.UpdatedAt)
+		if err != nil {
+			return err
+		}
+		
+		id, err := result.LastInsertId()
+		if err != nil {
+			return err
+		}
+		user.ID = entities.UserID(id)
+	} else { // Update existing user
+		query := `UPDATE users SET name=?, email=?, password=?, is_active=?, updated_at=? WHERE id=?`
+		_, err := r.db.ExecContext(ctx, query, 
+			model.Name, model.Email, model.Password, model.IsActive, model.UpdatedAt, model.ID)
+		return err
+	}
+	{{ end }}
+	
+	return nil
+}
+
+func (r *SqlxUserRepository) FindByID(ctx context.Context, id entities.UserID) (*entities.User, error) {
+	var model UserPersistenceModel
+	
+	{{ if eq .Database "postgresql" }}
+	query := `SELECT * FROM users WHERE id = $1`
+	err := r.db.GetContext(ctx, &model, query, id)
+	{{ else }}
+	query := `SELECT * FROM users WHERE id = ?`
+	err := r.db.GetContext(ctx, &model, query, id)
+	{{ end }}
+	
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	
+	return toEntity(&model), nil
+}
+
+func (r *SqlxUserRepository) FindByEmail(ctx context.Context, email string) (*entities.User, error) {
+	var model UserPersistenceModel
+	
+	{{ if eq .Database "postgresql" }}
+	query := `SELECT * FROM users WHERE email = $1`
+	err := r.db.GetContext(ctx, &model, query, email)
+	{{ else }}
+	query := `SELECT * FROM users WHERE email = ?`
+	err := r.db.GetContext(ctx, &model, query, email)
+	{{ end }}
+	
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	
+	return toEntity(&model), nil
+}
+
+func (r *SqlxUserRepository) FindAll(ctx context.Context, page, perPage int) ([]entities.User, int64, error) {
+	var models []UserPersistenceModel
+	var total int64
+	
+	// Count total records
+	countQuery := `SELECT COUNT(*) FROM users`
+	err := r.db.GetContext(ctx, &total, countQuery)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	// Get paginated results
+	offset := (page - 1) * perPage
+	
+	{{ if eq .Database "postgresql" }}
+	query := `SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2`
+	err = r.db.SelectContext(ctx, &models, query, perPage, offset)
+	{{ else }}
+	query := `SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?`
+	err = r.db.SelectContext(ctx, &models, query, perPage, offset)
+	{{ end }}
+	
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	// Convert to entities
+	users := make([]entities.User, len(models))
+	for i, model := range models {
+		users[i] = *toEntity(&model)
+	}
+	
+	return users, total, nil
+}
+
+func (r *SqlxUserRepository) Delete(ctx context.Context, id entities.UserID) error {
+	{{ if eq .Database "postgresql" }}
+	query := `DELETE FROM users WHERE id = $1`
+	result, err := r.db.ExecContext(ctx, query, id)
+	{{ else }}
+	query := `DELETE FROM users WHERE id = ?`
+	result, err := r.db.ExecContext(ctx, query, id)
+	{{ end }}
+	
+	if err != nil {
+		return err
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	
+	if rowsAffected == 0 {
+		return errors.New("user not found")
+	}
+	
+	return nil
+}
+
+func (r *SqlxUserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+	var count int
+	
+	{{ if eq .Database "postgresql" }}
+	query := `SELECT COUNT(*) FROM users WHERE email = $1`
+	err := r.db.GetContext(ctx, &count, query, email)
+	{{ else }}
+	query := `SELECT COUNT(*) FROM users WHERE email = ?`
+	err := r.db.GetContext(ctx, &count, query, email)
+	{{ end }}
+	
+	return count > 0, err
+}
+{{ end }}
+
+
+{{/* =================== IMPLEMENTASI UNTUK SQLC =================== */}}
+{{ if eq .ORM "Sqlc" }}
+type SqlcUserRepository struct { 
+	queries *sqlc.Queries 
+}
+
+func NewSqlcUserRepository(db *sql.DB) repositories.UserRepository { 
+	return &SqlcUserRepository{queries: sqlc.New(db)} 
+}
+
+func (r *SqlcUserRepository) Save(ctx context.Context, user *entities.User) error {
+	model := fromEntity(user)
+	
+	{{ if eq .Database "postgresql" }}
+	if user.ID == uuid.Nil { // New user
+		params := sqlc.CreateUserParams{
+			Name:      model.Name,
+			Email:     model.Email,
+			Password:  model.Password,
+			IsActive:  model.IsActive,
+			CreatedAt: model.CreatedAt,
+			UpdatedAt: model.UpdatedAt,
+		}
+		result, err := r.queries.CreateUser(ctx, params)
+		if err != nil {
+			return err
+		}
+		user.ID = result.ID
+	} else { // Update existing user
+		params := sqlc.UpdateUserParams{
+			ID:        model.ID,
+			Name:      model.Name,
+			Email:     model.Email,
+			Password:  model.Password,
+			IsActive:  model.IsActive,
+			UpdatedAt: model.UpdatedAt,
+		}
+		return r.queries.UpdateUser(ctx, params)
+	}
+	{{ else }}
+	if user.ID == 0 { // New user
+		params := sqlc.CreateUserParams{
+			Name:      model.Name,
+			Email:     model.Email,
+			Password:  model.Password,
+			IsActive:  model.IsActive,
+			CreatedAt: model.CreatedAt,
+			UpdatedAt: model.UpdatedAt,
+		}
+		result, err := r.queries.CreateUser(ctx, params)
+		if err != nil {
+			return err
+		}
+		user.ID = entities.UserID(result.ID)
+	} else { // Update existing user
+		params := sqlc.UpdateUserParams{
+			ID:        int64(model.ID),
+			Name:      model.Name,
+			Email:     model.Email,
+			Password:  model.Password,
+			IsActive:  model.IsActive,
+			UpdatedAt: model.UpdatedAt,
+		}
+		return r.queries.UpdateUser(ctx, params)
+	}
+	{{ end }}
+	
+	return nil
+}
+
+func (r *SqlcUserRepository) FindByID(ctx context.Context, id entities.UserID) (*entities.User, error) {
+	{{ if eq .Database "postgresql" }}
+	user, err := r.queries.GetUserByID(ctx, id)
+	{{ else }}
+	user, err := r.queries.GetUserByID(ctx, int64(id))
+	{{ end }}
+	
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	
+	model := &UserPersistenceModel{
+		{{ if eq .Database "postgresql" }}
+		ID:        user.ID,
+		{{ else }}
+		ID:        uint(user.ID),
+		{{ end }}
+		Name:      user.Name,
+		Email:     user.Email,
+		Password:  user.Password,
+		IsActive:  user.IsActive,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+	
+	return toEntity(model), nil
+}
+
+func (r *SqlcUserRepository) FindByEmail(ctx context.Context, email string) (*entities.User, error) {
+	user, err := r.queries.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	
+	model := &UserPersistenceModel{
+		{{ if eq .Database "postgresql" }}
+		ID:        user.ID,
+		{{ else }}
+		ID:        uint(user.ID),
+		{{ end }}
+		Name:      user.Name,
+		Email:     user.Email,
+		Password:  user.Password,
+		IsActive:  user.IsActive,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+	}
+	
+	return toEntity(model), nil
+}
+
+func (r *SqlcUserRepository) FindAll(ctx context.Context, page, perPage int) ([]entities.User, int64, error) {
+	offset := (page - 1) * perPage
+	params := sqlc.GetUsersParams{
+		Limit:  int32(perPage),
+		Offset: int32(offset),
+	}
+	
+	users, err := r.queries.GetUsers(ctx, params)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	total, err := r.queries.CountUsers(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+	
+	// Convert to entities
+	entities := make([]entities.User, len(users))
+	for i, user := range users {
+		model := &UserPersistenceModel{
+			{{ if eq .Database "postgresql" }}
+			ID:        user.ID,
+			{{ else }}
+			ID:        uint(user.ID),
+			{{ end }}
+			Name:      user.Name,
+			Email:     user.Email,
+			Password:  user.Password,
+			IsActive:  user.IsActive,
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
+		}
+		entities[i] = *toEntity(model)
+	}
+	
+	return entities, total, nil
+}
+
+func (r *SqlcUserRepository) Delete(ctx context.Context, id entities.UserID) error {
+	{{ if eq .Database "postgresql" }}
+	return r.queries.DeleteUser(ctx, id)
+	{{ else }}
+	return r.queries.DeleteUser(ctx, int64(id))
+	{{ end }}
+}
+
+func (r *SqlcUserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+	count, err := r.queries.CountUsersByEmail(ctx, email)
+	return count > 0, err
+}
+{{ end }}

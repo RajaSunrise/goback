@@ -1,0 +1,256 @@
+# Default values for {{.ProjectName}}.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 3
+
+image:
+  repository: {{.ProjectName}}
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 2000
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+    # nginx.ingress.kubernetes.io/rate-limit: "100"
+    # nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+  hosts:
+    - host: {{.ProjectName}}.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+  tls: []
+  #  - secretName: {{.ProjectName}}-tls
+  #    hosts:
+  #      - {{.ProjectName}}.local
+
+resources:
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 250m
+    memory: 64Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Application specific configuration
+app:
+  name: {{.ProjectName}}
+  version: "1.0.0"
+  environment: production
+  debug: false
+  port: 8080
+
+# Health check configuration
+healthCheck:
+  enabled: true
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8080
+    initialDelaySeconds: 5
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 3
+
+{{- if .Database.Enabled}}
+# Database configuration
+{{- if eq .Database.Type "postgresql" }}
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "changeme"
+    username: "{{.ProjectName}}"
+    password: "changeme"
+    database: "{{.ProjectName}}_db"
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+  metrics:
+    enabled: false
+{{- else if eq .Database.Type "mysql" }}
+mysql:
+  enabled: true
+  auth:
+    rootPassword: "changeme"
+    username: "{{.ProjectName}}"
+    password: "changeme"
+    database: "{{.ProjectName}}_db"
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+  metrics:
+    enabled: false
+{{- end}}
+
+# External database configuration (when not using built-in database)
+externalDatabase:
+  host: ""
+  port: {{if eq .Database.Type "postgresql"}}5432{{else if eq .Database.Type "mysql"}}3306{{end}}
+  username: "{{.ProjectName}}"
+  password: ""
+  database: "{{.ProjectName}}_db"
+  existingSecret: ""
+  existingSecretPasswordKey: ""
+{{- end}}
+
+# Redis configuration for caching
+redis:
+  enabled: false
+  auth:
+    enabled: false
+    password: ""
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+# External Redis configuration
+externalRedis:
+  host: ""
+  port: 6379
+  password: ""
+  existingSecret: ""
+  existingSecretPasswordKey: ""
+
+# ConfigMap configuration
+configMap:
+  create: true
+  data: {}
+
+# Secret configuration
+secret:
+  create: true
+  data: {}
+
+# Volume mounts
+volumeMounts:
+  - name: config
+    mountPath: /app/config
+    readOnly: true
+
+# Volumes
+volumes:
+  - name: config
+    configMap:
+      name: "{{ include \"{{.ProjectName}}.fullname\" . }}-config"
+
+# Horizontal Pod Autoscaler
+hpa:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1
+
+# Network Policy
+networkPolicy:
+  enabled: false
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress: []
+
+# Service Monitor for Prometheus
+serviceMonitor:
+  enabled: false
+  namespace: ""
+  interval: 30s
+  scrapeTimeout: 10s
+  labels: {}
+  targetLabels: []
+  metricRelabelings: []
+  relabelings: []
+
+# Prometheus Rule
+prometheusRule:
+  enabled: false
+  namespace: ""
+  labels: {}
+  rules: []
+
+# Init containers
+initContainers: []
+
+# Sidecar containers
+sidecars: []
+
+# Extra environment variables
+extraEnv: []
+  # - name: EXTRA_VAR
+  #   value: "extra-value"
+
+# Extra environment variables from secrets/configmaps
+extraEnvFrom: []
+  # - secretRef:
+  #     name: secret-name
+  # - configMapRef:
+  #     name: configmap-name

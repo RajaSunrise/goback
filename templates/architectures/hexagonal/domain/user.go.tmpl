@@ -1,0 +1,195 @@
+package domain
+
+import (
+	"errors"
+	"time"
+	{{- if eq .Database.Type "postgresql" }}
+	"github.com/google/uuid"
+	{{- end}}
+	"golang.org/x/crypto/bcrypt"
+)
+
+// User represents the core domain entity in hexagonal architecture
+type User struct {
+	{{- if eq .Database.Type "postgresql" }}
+	ID        uuid.UUID `json:"id"`
+	{{- else}}
+	ID        uint      `json:"id"`
+	{{- end}}
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Password  string    `json:"-"`
+	Age       *int      `json:"age,omitempty"`
+	Phone     *string   `json:"phone,omitempty"`
+	Address   *string   `json:"address,omitempty"`
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// NewUser creates a new user entity with domain validation
+func NewUser(name, email, password string) (*User, error) {
+	user := &User{
+		Name:      name,
+		Email:     email,
+		IsActive:  true,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	{{- if eq .Database.Type "postgresql" }}
+	user.ID = uuid.New()
+	{{- end}}
+
+	if err := user.validateName(); err != nil {
+		return nil, err
+	}
+
+	if err := user.validateEmail(); err != nil {
+		return nil, err
+	}
+
+	if err := user.setPassword(password); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// UpdateName updates the user's name with validation
+func (u *User) UpdateName(name string) error {
+	u.Name = name
+	u.UpdatedAt = time.Now()
+	return u.validateName()
+}
+
+// UpdateEmail updates the user's email with validation
+func (u *User) UpdateEmail(email string) error {
+	u.Email = email
+	u.UpdatedAt = time.Now()
+	return u.validateEmail()
+}
+
+// UpdatePassword updates the user's password with validation and hashing
+func (u *User) UpdatePassword(password string) error {
+	u.UpdatedAt = time.Now()
+	return u.setPassword(password)
+}
+
+// UpdateAge updates the user's age with validation
+func (u *User) UpdateAge(age int) error {
+	if err := u.validateAge(age); err != nil {
+		return err
+	}
+	u.Age = &age
+	u.UpdatedAt = time.Now()
+	return nil
+}
+
+// UpdatePhone updates the user's phone number
+func (u *User) UpdatePhone(phone string) {
+	if phone == "" {
+		u.Phone = nil
+	} else {
+		u.Phone = &phone
+	}
+	u.UpdatedAt = time.Now()
+}
+
+// UpdateAddress updates the user's address
+func (u *User) UpdateAddress(address string) {
+	if address == "" {
+		u.Address = nil
+	} else {
+		u.Address = &address
+	}
+	u.UpdatedAt = time.Now()
+}
+
+// Activate activates the user account
+func (u *User) Activate() {
+	u.IsActive = true
+	u.UpdatedAt = time.Now()
+}
+
+// Deactivate deactivates the user account
+func (u *User) Deactivate() {
+	u.IsActive = false
+	u.UpdatedAt = time.Now()
+}
+
+// CheckPassword verifies if the provided password matches the user's password
+func (u *User) CheckPassword(password string) bool {
+	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(password))
+	return err == nil
+}
+
+// CanBeDeleted checks if the user can be deleted (business rule)
+func (u *User) CanBeDeleted() bool {
+	return !u.IsActive
+}
+
+// Domain validation methods
+func (u *User) validateName() error {
+	if len(u.Name) < 2 {
+		return errors.New("name must be at least 2 characters long")
+	}
+	if len(u.Name) > 100 {
+		return errors.New("name must be no more than 100 characters long")
+	}
+	return nil
+}
+
+func (u *User) validateEmail() error {
+	if u.Email == "" {
+		return errors.New("email is required")
+	}
+	// Basic email validation
+	if len(u.Email) < 3 || !contains(u.Email, "@") || !contains(u.Email, ".") {
+		return errors.New("invalid email format")
+	}
+	if len(u.Email) > 255 {
+		return errors.New("email must be no more than 255 characters long")
+	}
+	return nil
+}
+
+func (u *User) validateAge(age int) error {
+	if age <= 0 || age > 150 {
+		return errors.New("age must be between 1 and 150")
+	}
+	return nil
+}
+
+func (u *User) setPassword(password string) error {
+	if err := u.validatePassword(password); err != nil {
+		return err
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.New("failed to hash password")
+	}
+
+	u.Password = string(hashedPassword)
+	return nil
+}
+
+func (u *User) validatePassword(password string) error {
+	if len(password) < 6 {
+		return errors.New("password must be at least 6 characters long")
+	}
+	if len(password) > 255 {
+		return errors.New("password must be no more than 255 characters long")
+	}
+	return nil
+}
+
+func contains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

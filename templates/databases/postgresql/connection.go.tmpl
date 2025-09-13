@@ -1,0 +1,157 @@
+package database
+
+import (
+	"database/sql"
+	"fmt"
+	"time"
+
+	"{{.ModulePath}}/internal/config"
+{{- if eq .ORM "gorm"}}
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
+{{- else if eq .ORM "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
+{{- else if eq .ORM "sqlc"}}
+	_ "github.com/lib/pq"
+{{- end}}
+)
+
+{{- if eq .ORM "gorm"}}
+// Connect establishes a connection to PostgreSQL using GORM
+func Connect(cfg config.DatabaseConfig) (*gorm.DB, error) {
+	dsn := cfg.GetDSN()
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Get underlying sql.DB to set connection pool settings
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+
+	// Set connection pool settings
+	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	// Test the connection
+	if err := sqlDB.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	return db, nil
+}
+
+{{- else if eq .ORM "sqlx"}}
+// Connect establishes a connection to PostgreSQL using SQLX
+func Connect(cfg config.DatabaseConfig) (*sqlx.DB, error) {
+	dsn := cfg.GetDSN()
+
+	db, err := sqlx.Connect("postgres", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// Set connection pool settings
+	db.SetMaxOpenConns(cfg.MaxOpenConns)
+	db.SetMaxIdleConns(cfg.MaxIdleConns)
+	db.SetConnMaxLifetime(time.Hour)
+
+	// Test the connection
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	return db, nil
+}
+
+{{- else if eq .ORM "sqlc"}}
+// Connect establishes a connection to PostgreSQL using database/sql
+func Connect(cfg config.DatabaseConfig) (*sql.DB, error) {
+	dsn := cfg.GetDSN()
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Set connection pool settings
+	db.SetMaxOpenConns(cfg.MaxOpenConns)
+	db.SetMaxIdleConns(cfg.MaxIdleConns)
+	db.SetConnMaxLifetime(time.Hour)
+
+	// Test the connection
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	return db, nil
+}
+{{- end}}
+
+// HealthCheck checks if the database is accessible
+{{- if eq .ORM "gorm"}}
+func HealthCheck(db *gorm.DB) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+
+	return sqlDB.Ping()
+}
+{{- else if eq .ORM "sqlx"}}
+func HealthCheck(db *sqlx.DB) error {
+	return db.Ping()
+}
+{{- else if eq .ORM "sqlc"}}
+func HealthCheck(db *sql.DB) error {
+	return db.Ping()
+}
+{{- end}}
+
+// GetStats returns database connection statistics
+{{- if eq .ORM "gorm"}}
+func GetStats(db *gorm.DB) (sql.DBStats, error) {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return sql.DBStats{}, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+
+	return sqlDB.Stats(), nil
+}
+{{- else if eq .ORM "sqlx"}}
+func GetStats(db *sqlx.DB) sql.DBStats {
+	return db.Stats()
+}
+{{- else if eq .ORM "sqlc"}}
+func GetStats(db *sql.DB) sql.DBStats {
+	return db.Stats()
+}
+{{- end}}
+
+// Close closes the database connection
+{{- if eq .ORM "gorm"}}
+func Close(db *gorm.DB) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get underlying sql.DB: %w", err)
+	}
+
+	return sqlDB.Close()
+}
+{{- else if eq .ORM "sqlx"}}
+func Close(db *sqlx.DB) error {
+	return db.Close()
+}
+{{- else if eq .ORM "sqlc"}}
+func Close(db *sql.DB) error {
+	return db.Close()
+}
+{{- end}}

@@ -1,0 +1,17 @@
+package repositories
+
+import (
+	"context"
+	"{{.ModulePath}}/domain/entities"
+)
+
+// UserRepository mendefinisikan kontrak untuk persistensi data User.
+// Ini adalah 'Driven Port' dalam arsitektur Hexagonal/DDD.
+type UserRepository interface {
+	Save(ctx context.Context, user *entities.User) error
+	FindByID(ctx context.Context, id entities.UserID) (*entities.User, error)
+	FindByEmail(ctx context.Context, email string) (*entities.User, error)
+	FindAll(ctx context.Context, page, perPage int) ([]entities.User, int64, error)
+	Delete(ctx context.Context, id entities.UserID) error
+	ExistsByEmail(ctx context.Context, email string) (bool, error)
+}

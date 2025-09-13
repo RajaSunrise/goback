@@ -1,0 +1,290 @@
+package usecases
+
+import (
+	"errors"
+	"{{.ModulePath}}/internal/entities"
+	{{- if eq .Database.Type "postgresql" }}
+	"github.com/google/uuid"
+	{{- end}}
+)
+
+// UserRepository defines the contract for user data access in use cases
+type UserRepository interface {
+	{{- if eq .Database.Type "postgresql" }}
+	GetByID(id uuid.UUID) (*entities.User, error)
+	{{- else}}
+	GetByID(id uint) (*entities.User, error)
+	{{- end}}
+	GetByEmail(email string) (*entities.User, error)
+	GetAll(page, perPage int) ([]*entities.User, int64, error)
+	Create(user *entities.User) error
+	{{- if eq .Database.Type "postgresql" }}
+	Update(id uuid.UUID, user *entities.User) error
+	Delete(id uuid.UUID) error
+	{{- else}}
+	Update(id uint, user *entities.User) error
+	Delete(id uint) error
+	{{- end}}
+	Search(query string, page, perPage int) ([]*entities.User, int64, error)
+	ExistsByEmail(email string) (bool, error)
+}
+
+// UserUsecase contains the application business rules
+type UserUsecase struct {
+	userRepo UserRepository
+}
+
+// NewUserUsecase creates a new user usecase
+func NewUserUsecase(userRepo UserRepository) *UserUsecase {
+	return &UserUsecase{
+		userRepo: userRepo,
+	}
+}
+
+// CreateUser use case for creating a new user
+func (uc *UserUsecase) CreateUser(name, email, password string) (*entities.User, error) {
+	// Check if user already exists
+	exists, err := uc.userRepo.ExistsByEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, errors.New("user with this email already exists")
+	}
+
+	// Create new user entity
+	user, err := entities.NewUser(name, email, password)
+	if err != nil {
+		return nil, err
+	}
+
+	// Save user
+	if err := uc.userRepo.Create(user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+// GetUser use case for retrieving a user by ID
+{{- if eq .Database.Type "postgresql" }}
+func (uc *UserUsecase) GetUser(id uuid.UUID) (*entities.User, error) {
+{{- else}}
+func (uc *UserUsecase) GetUser(id uint) (*entities.User, error) {
+{{- end}}
+	user, err := uc.userRepo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+	return user, nil
+}
+
+// GetUserByEmail use case for retrieving a user by email
+func (uc *UserUsecase) GetUserByEmail(email string) (*entities.User, error) {
+	user, err := uc.userRepo.GetByEmail(email)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+	return user, nil
+}
+
+// GetAllUsers use case for retrieving all users with pagination
+func (uc *UserUsecase) GetAllUsers(page, perPage int) ([]*entities.User, int64, error) {
+	// Apply business rules for pagination
+	if page <= 0 {
+		page = 1
+	}
+	if perPage <= 0 {
+		perPage = 10
+	}
+	if perPage > 100 {
+		perPage = 100
+	}
+
+	return uc.userRepo.GetAll(page, perPage)
+}
+
+// SearchUsers use case for searching users
+func (uc *UserUsecase) SearchUsers(query string, page, perPage int) ([]*entities.User, int64, error) {
+	if query == "" {
+		return uc.GetAllUsers(page, perPage)
+	}
+
+	// Apply business rules for pagination
+	if page <= 0 {
+		page = 1
+	}
+	if perPage <= 0 {
+		perPage = 10
+	}
+	if perPage > 100 {
+		perPage = 100
+	}
+
+	return uc.userRepo.Search(query, page, perPage)
+}
+
+// UpdateUser use case for updating user information
+{{- if eq .Database.Type "postgresql" }}
+func (uc *UserUsecase) UpdateUser(id uuid.UUID, name, email, password *string, age *int, phone, address *string, isActive *bool) (*entities.User, error) {
+{{- else}}
+func (uc *UserUsecase) UpdateUser(id uint, name, email, password *string, age *int, phone, address *string, isActive *bool) (*entities.User, error) {
+{{- end}}
+	// Get existing user
+	user, err := uc.userRepo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if user == nil {
+		return nil, errors.New("user not found")
+	}
+
+	// Update name if provided
+	if name != nil {
+		if err := user.UpdateName(*name); err != nil {
+			return nil, err
+		}
+	}
+
+	// Update email if provided and different
+	if email != nil && *email != user.Email {
+		// Check if new email is already taken
+		exists, err := uc.userRepo.ExistsByEmail(*email)
+		if err != nil {
+			return nil, err
+		}
+		if exists {
+			return nil, errors.New("email already taken")
+		}
+
+		if err := user.UpdateEmail(*email); err != nil {
+			return nil, err
+		}
+	}
+
+	// Update password if provided
+	if password != nil {
+		if err := user.UpdatePassword(*password); err != nil {
+			return nil, err
+		}
+	}
+
+	// Update age if provided
+	if age != nil {
+		if err := user.UpdateAge(*age); err != nil {
+			return nil, err
+		}
+	}
+
+	// Update phone if provided
+	if phone != nil {
+		user.UpdatePhone(*phone)
+	}
+
+	// Update address if provided
+	if address != nil {
+		user.UpdateAddress(*address)
+	}
+
+	// Update active status if provided
+	if isActive != nil {
+		if *isActive {
+			user.Activate()
+		} else {
+			user.Deactivate()
+		}
+	}
+
+	// Save updated user
+	if err := uc.userRepo.Update(id, user); err != nil {
+		return nil, err
+	}
+
+	// Return updated user
+	return uc.userRepo.GetByID(id)
+}
+
+// DeleteUser use case for deleting a user
+{{- if eq .Database.Type "postgresql" }}
+func (uc *UserUsecase) DeleteUser(id uuid.UUID) error {
+{{- else}}
+func (uc *UserUsecase) DeleteUser(id uint) error {
+{{- end}}
+	// Check if user exists
+	user, err := uc.userRepo.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	// Business rule: Deactivate user before deletion
+	if user.IsActive {
+		user.Deactivate()
+		if err := uc.userRepo.Update(id, user); err != nil {
+			return err
+		}
+	}
+
+	return uc.userRepo.Delete(id)
+}
+
+// ActivateUser use case for activating a user account
+{{- if eq .Database.Type "postgresql" }}
+func (uc *UserUsecase) ActivateUser(id uuid.UUID) error {
+{{- else}}
+func (uc *UserUsecase) ActivateUser(id uint) error {
+{{- end}}
+	user, err := uc.userRepo.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	user.Activate()
+	return uc.userRepo.Update(id, user)
+}
+
+// DeactivateUser use case for deactivating a user account
+{{- if eq .Database.Type "postgresql" }}
+func (uc *UserUsecase) DeactivateUser(id uuid.UUID) error {
+{{- else}}
+func (uc *UserUsecase) DeactivateUser(id uint) error {
+{{- end}}
+	user, err := uc.userRepo.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if user == nil {
+		return errors.New("user not found")
+	}
+
+	user.Deactivate()
+	return uc.userRepo.Update(id, user)
+}
+
+// VerifyUserPassword use case for password verification
+{{- if eq .Database.Type "postgresql" }}
+func (uc *UserUsecase) VerifyUserPassword(id uuid.UUID, password string) (bool, error) {
+{{- else}}
+func (uc *UserUsecase) VerifyUserPassword(id uint, password string) (bool, error) {
+{{- end}}
+	user, err := uc.userRepo.GetByID(id)
+	if err != nil {
+		return false, err
+	}
+	if user == nil {
+		return false, errors.New("user not found")
+	}
+
+	return user.ValidatePassword(password), nil
+}

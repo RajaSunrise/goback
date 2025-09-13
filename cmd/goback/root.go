@@ -1,0 +1,293 @@
+// cmd/goback/root.go
+
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/NarmadaWeb/goback/internal/tui"
+	"github.com/NarmadaWeb/goback/pkg/config"
+	"github.com/NarmadaWeb/goback/pkg/scaffolding/generator"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+)
+
+var cfgFile string
+
+// rootCmd represents the base command when called without any subcommands
+var rootCmd = &cobra.Command{
+	Use:   "goback",
+	Short: "GoBack - TUI Backend Project Scaffolding Tool",
+	Long: `GoBack adalah TUI (Terminal User Interface) yang dibangun dengan Bubble Tea
+untuk memudahkan developer backend dalam membuat project backend dengan berbagai
+pilihan framework, database, ORM, arsitektur, dan DevOps tools.
+
+Gunakan tanpa argumen untuk membuka interface TUI interaktif, atau gunakan
+subcommands untuk operasi CLI langsung.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		// Default behavior: start TUI
+		startTUI()
+	},
+}
+
+// tuiCmd starts the interactive TUI
+var tuiCmd = &cobra.Command{
+	Use:   "tui",
+	Short: "Start interactive TUI interface",
+	Long:  `Memulai antarmuka TUI interaktif untuk membuat proyek backend`,
+	Run: func(cmd *cobra.Command, args []string) {
+		startTUI()
+	},
+}
+
+// newCmd creates a new project via CLI
+var newCmd = &cobra.Command{
+	Use:   "new [project-name]",
+	Short: "Create a new backend project",
+	Long:  `Membuat proyek backend baru dengan konfigurasi yang ditentukan via flags`,
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		createProjectViaCLI(cmd, args)
+	},
+}
+
+// listCmd lists available templates and options
+var listCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List available frameworks, databases, and architectures",
+	Long:  `Menampilkan daftar framework, database, ORM, dan arsitektur yang tersedia`,
+	Run: func(cmd *cobra.Command, args []string) {
+		// TODO: Implement list functionality
+		fmt.Println("Available options:")
+		fmt.Println("Frameworks: fiber, gin, chi, echo")
+		fmt.Println("Databases: postgresql, mysql, sqlite")
+		fmt.Println("ORMs: gorm, sqlc, sqlx")
+		fmt.Println("Architectures: simple, ddd, clean, hexagonal")
+	},
+}
+
+// configCmd manages configuration
+var configCmd = &cobra.Command{
+	Use:   "config",
+	Short: "Manage GoBack configuration",
+	Long:  `Mengelola konfigurasi GoBack, termasuk pengaturan default dan preferensi`,
+}
+
+var configShowCmd = &cobra.Command{
+	Use:   "show",
+	Short: "Show current configuration",
+	Run: func(cmd *cobra.Command, args []string) {
+		cfg := config.GetConfig()
+		fmt.Printf("Configuration file: %s\n", viper.ConfigFileUsed())
+		fmt.Printf("Default output directory: %s\n", cfg.DefaultOutputDir)
+		fmt.Printf("Default module prefix: %s\n", cfg.DefaultModulePrefix)
+	},
+}
+
+var configSetCmd = &cobra.Command{
+	Use:   "set [key] [value]",
+	Short: "Set configuration value",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		key, value := args[0], args[1]
+		viper.Set(key, value)
+		if err := viper.WriteConfig(); err != nil {
+			fmt.Printf("Error saving configuration: %v\n", err)
+			return
+		}
+		fmt.Printf("Set %s = %s\n", key, value)
+	},
+}
+
+// versionCmd shows version information
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "Show version information",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("GoBack v0.1.0")
+		fmt.Println("TUI Backend Project Scaffolding Tool")
+	},
+}
+
+// Execute adds all child commands to the root command and sets flags appropriately.
+func Execute() {
+	err := rootCmd.Execute()
+	if err != nil {
+		os.Exit(1)
+	}
+}
+
+func init() {
+	cobra.OnInitialize(initConfig)
+
+	// Global flags
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.goback.yaml)")
+	rootCmd.PersistentFlags().Bool("verbose", false, "verbose output")
+
+	// Add subcommands
+	rootCmd.AddCommand(tuiCmd)
+	rootCmd.AddCommand(newCmd)
+	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(configCmd)
+	rootCmd.AddCommand(versionCmd)
+
+	// Config subcommands
+	configCmd.AddCommand(configShowCmd)
+	configCmd.AddCommand(configSetCmd)
+
+	// New command flags
+	newCmd.Flags().StringP("framework", "f", "", "Framework to use (fiber, gin, chi, echo)")
+	newCmd.Flags().StringP("database", "d", "", "Database to use (postgresql, mysql, sqlite)")
+	newCmd.Flags().StringP("orm", "o", "", "ORM to use (gorm, sqlc, sqlx)")
+	newCmd.Flags().StringP("architecture", "a", "", "Architecture pattern (simple, ddd, clean, hexagonal)")
+	newCmd.Flags().StringP("output", "O", "", "Output directory")
+	newCmd.Flags().StringP("module", "m", "", "Go module path")
+	newCmd.Flags().Bool("devops", false, "Include DevOps configurations")
+	newCmd.Flags().StringSlice("devops-tools", []string{}, "DevOps tools to include (kubernetes, helm, terraform, ansible)")
+
+	// Bind flags to viper
+	viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
+	viper.BindPFlag("framework", newCmd.Flags().Lookup("framework"))
+	viper.BindPFlag("database", newCmd.Flags().Lookup("database"))
+	viper.BindPFlag("orm", newCmd.Flags().Lookup("orm"))
+	viper.BindPFlag("architecture", newCmd.Flags().Lookup("architecture"))
+	viper.BindPFlag("output", newCmd.Flags().Lookup("output"))
+	viper.BindPFlag("module", newCmd.Flags().Lookup("module"))
+	viper.BindPFlag("devops", newCmd.Flags().Lookup("devops"))
+	viper.BindPFlag("devops-tools", newCmd.Flags().Lookup("devops-tools"))
+}
+
+// initConfig reads in config file and ENV variables.
+func initConfig() {
+	if cfgFile != "" {
+		// Use config file from the flag.
+		viper.SetConfigFile(cfgFile)
+	} else {
+		// Find home directory.
+		home, err := os.UserHomeDir()
+		cobra.CheckErr(err)
+
+		// Search config in home directory with name ".goback" (without extension).
+		viper.AddConfigPath(home)
+		viper.AddConfigPath(".")
+		viper.SetConfigType("yaml")
+		viper.SetConfigName(".goback")
+	}
+
+	viper.AutomaticEnv() // read in environment variables that match
+
+	// If a config file is found, read it in.
+	if err := viper.ReadInConfig(); err == nil {
+		if viper.GetBool("verbose") {
+			fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+		}
+	}
+
+	// Initialize default configuration
+	config.InitDefaults()
+}
+
+// startTUI initializes and runs the TUI application
+func startTUI() {
+	model := tui.NewMainModel()
+	p := tea.NewProgram(
+		model,
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	)
+
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Alas, there's been an error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// createProjectViaCLI creates a project using CLI flags
+func createProjectViaCLI(cmd *cobra.Command, args []string) {
+	var projectName string
+	if len(args) > 0 {
+		projectName = args[0]
+	} else {
+		fmt.Println("Error: project name is required")
+		fmt.Println("Usage: goback new [project-name]")
+		os.Exit(1)
+	}
+
+	// Get flags
+	framework, _ := cmd.Flags().GetString("framework")
+	database, _ := cmd.Flags().GetString("database")
+	orm, _ := cmd.Flags().GetString("orm")
+	architecture, _ := cmd.Flags().GetString("architecture")
+	output, _ := cmd.Flags().GetString("output")
+	module, _ := cmd.Flags().GetString("module")
+	devops, _ := cmd.Flags().GetBool("devops")
+	devopsTools, _ := cmd.Flags().GetStringSlice("devops-tools")
+
+	// Set defaults
+	if framework == "" {
+		framework = "fiber"
+	}
+	if database == "" {
+		database = "postgresql"
+	}
+	if orm == "" {
+		orm = "gorm"
+	}
+	if architecture == "" {
+		architecture = "simple"
+	}
+	if output == "" {
+		output = "./" + projectName
+	}
+	if module == "" {
+		module = "github.com/user/" + projectName
+	}
+
+	// Create configuration
+	cfg := &config.ProjectConfig{
+		ProjectName:  projectName,
+		ModulePath:   module,
+		Description:  fmt.Sprintf("%s backend API", projectName),
+		OutputDir:    output,
+		Framework:    config.FrameworkChoice(framework),
+		Database:     config.DatabaseChoice(database),
+		ORM:          config.ORMChoice(orm),
+		Architecture: config.ArchitectureChoice(architecture),
+		DevOps: config.DevOpsConfig{
+			Enabled: devops,
+			Tools:   devopsTools,
+		},
+	}
+
+	// Validate configuration
+	errors := config.ValidateProjectConfig(cfg)
+	if len(errors) > 0 {
+		fmt.Println("Configuration validation failed:")
+		for _, err := range errors {
+			fmt.Printf("  - %s\n", err)
+		}
+		os.Exit(1)
+	}
+
+	// Generate project
+	fmt.Printf("Creating project '%s'...\n", projectName)
+	gen := generator.NewTemplateGenerator(cfg)
+
+	gen.SetProgressCallback(func(step int, message string) {
+		fmt.Printf("  %s\n", message)
+	})
+
+	if err := gen.Generate(); err != nil {
+		fmt.Printf("Error: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("\n✅ Project '%s' created successfully!\n", projectName)
+	fmt.Printf("Next steps:\n")
+	fmt.Printf("  cd %s\n", output)
+	fmt.Printf("  go mod tidy\n")
+	fmt.Printf("  go run main.go\n")
+}

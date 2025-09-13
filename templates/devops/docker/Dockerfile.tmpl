@@ -1,0 +1,99 @@
+# Build stage
+FROM golang:1.22-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata upx
+
+# Create app user for build stage
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+# Set working directory
+WORKDIR /app
+
+# Change ownership of the app directory
+RUN chown appuser:appgroup /app
+
+# Switch to non-root user for build
+USER appuser
+
+# Copy go mod files
+COPY --chown=appuser:appgroup go.mod go.sum ./
+
+# Download dependencies with verification
+RUN go mod download && go mod verify
+
+# Copy source code
+COPY --chown=appuser:appgroup . .
+
+# Build the application with optimizations
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -a -installsuffix cgo \
+    -ldflags="-w -s -extldflags '-static' -X main.version={{.ProjectDetails.Version | default "1.0.0"}} -X main.buildTime=$(date -u '+%Y-%m-%d_%H:%M:%S') -X main.gitCommit={{.GitCommit | default "unknown"}}" \
+    -o {{.ProjectName}} \
+    ./cmd/{{.ProjectName}}
+
+# Compress binary
+RUN upx --best --lzma {{.ProjectName}}
+
+# Final stage - use distroless for minimal attack surface
+FROM gcr.io/distroless/static-debian12:nonroot
+
+# Set working directory
+WORKDIR /app
+
+# Copy timezone data for scheduling
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+
+# Copy SSL certificates
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+
+# Copy binary from builder stage
+COPY --from=builder /app/{{.ProjectName}} .
+
+# Copy configuration files if they exist
+COPY --from=builder --chown=nonroot:nonroot /app/configs ./configs 2>/dev/null || true
+COPY --from=builder --chown=nonroot:nonroot /app/templates ./templates 2>/dev/null || true
+COPY --from=builder --chown=nonroot:nonroot /app/static ./static 2>/dev/null || true
+
+{{- if eq .Database.Type "sqlite"}}
+# Create directory for SQLite database with proper permissions
+USER root
+RUN mkdir -p /app/data && chown nonroot:nonroot /app/data
+USER nonroot
+{{- end}}
+
+# Use distroless nonroot user (uid 65532)
+USER nonroot:nonroot
+
+# Expose port
+EXPOSE 8080
+
+# Set environment variables
+ENV PORT=8080
+ENV GIN_MODE=release
+{{- if eq .Framework "gin"}}
+ENV GIN_MODE=release
+{{- else if eq .Framework "fiber"}}
+ENV FIBER_PREFORK=false
+{{- else if eq .Framework "echo"}}
+ENV ECHO_DEBUG=false
+{{- end}}
+{{- if eq .Database.Type "sqlite"}}
+ENV DB_PATH=/app/data/{{.ProjectName}}.db
+{{- end}}
+
+# Health check using the application's health endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD ["/app/{{.ProjectName}}", "--health-check"] || exit 1
+
+# Set security labels
+LABEL org.opencontainers.image.title="{{.ProjectName}}"
+LABEL org.opencontainers.image.description="{{.Description}}"
+LABEL org.opencontainers.image.version="{{.ProjectDetails.Version | default "1.0.0"}}"
+LABEL org.opencontainers.image.created="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+LABEL org.opencontainers.image.source="{{.ModulePath}}"
+LABEL org.opencontainers.image.vendor="{{.ProjectName}} Team"
+
+# Run as nonroot user
+ENTRYPOINT ["/app/{{.ProjectName}}"]

@@ -1,0 +1,394 @@
+---
+# Ansible Playbook for {{.ProjectName}} deployment
+# This playbook sets up and deploys the {{.ProjectName}} Go application
+
+- name: Deploy {{.ProjectName}} Application
+  hosts: "{{ target_hosts | default('webservers') }}"
+  become: yes
+  gather_facts: yes
+  vars:
+    app_name: "{{.ProjectName}}"
+    app_user: "{{.ProjectName}}"
+    app_group: "{{.ProjectName}}"
+    app_port: "{{ app_port | default('8080') }}"
+    app_env: "{{ app_environment | default('production') }}"
+    app_dir: "/opt/{{.ProjectName}}"
+    app_log_dir: "/var/log/{{.ProjectName}}"
+    app_data_dir: "/var/lib/{{.ProjectName}}"
+    app_config_dir: "/etc/{{.ProjectName}}"
+    app_version: "{{ app_version | default('latest') }}"
+    go_version: "{{ go_version | default('1.21.5') }}"
+
+    {{- if .Database.Enabled}}
+    # Database configuration
+    {{- if eq .Database.Type "postgresql" }}
+    db_type: "postgresql"
+    db_port: "{{ db_port | default('5432') }}"
+    db_package: "postgresql postgresql-contrib"
+    db_service: "postgresql"
+    {{- else if eq .Database.Type "mysql" }}
+    db_type: "mysql"
+    db_port: "{{ db_port | default('3306') }}"
+    db_package: "mysql-server"
+    db_service: "mysql"
+    {{- end}}
+    db_host: "{{ db_host | default('localhost') }}"
+    db_name: "{{ db_name | default('{{.ProjectName}}_db') }}"
+    db_user: "{{ db_user | default('{{.ProjectName}}_user') }}"
+    db_password: "{{ db_password }}"
+    {{- end}}
+
+    # SSL/TLS configuration
+    ssl_enabled: "{{ ssl_enabled | default(false) }}"
+    ssl_cert_path: "/etc/ssl/certs/{{.ProjectName}}.crt"
+    ssl_key_path: "/etc/ssl/private/{{.ProjectName}}.key"
+
+  tasks:
+    - name: Update package cache
+      package:
+        update_cache: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Update package cache (RedHat)
+      yum:
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
+
+    - name: Install required system packages
+      package:
+        name:
+          - curl
+          - wget
+          - git
+          - unzip
+          - supervisor
+          - nginx
+          - ufw
+          - htop
+          - vim
+          - rsync
+          - logrotate
+        state: present
+
+    - name: Create application user
+      user:
+        name: "{{ app_user }}"
+        group: "{{ app_group }}"
+        system: yes
+        shell: /bin/bash
+        home: "{{ app_dir }}"
+        create_home: yes
+        state: present
+
+    - name: Create application directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0755'
+      loop:
+        - "{{ app_dir }}"
+        - "{{ app_dir }}/bin"
+        - "{{ app_dir }}/config"
+        - "{{ app_dir }}/static"
+        - "{{ app_log_dir }}"
+        - "{{ app_data_dir }}"
+        - "{{ app_config_dir }}"
+
+    - name: Install Go
+      block:
+        - name: Download Go binary
+          get_url:
+            url: "https://golang.org/dl/go{{ go_version }}.linux-amd64.tar.gz"
+            dest: "/tmp/go{{ go_version }}.linux-amd64.tar.gz"
+            mode: '0644'
+
+        - name: Remove existing Go installation
+          file:
+            path: /usr/local/go
+            state: absent
+
+        - name: Extract Go binary
+          unarchive:
+            src: "/tmp/go{{ go_version }}.linux-amd64.tar.gz"
+            dest: /usr/local
+            remote_src: yes
+            creates: /usr/local/go/bin/go
+
+        - name: Add Go to PATH
+          lineinfile:
+            path: /etc/profile
+            line: 'export PATH=$PATH:/usr/local/go/bin'
+            state: present
+
+        - name: Set Go environment variables
+          lineinfile:
+            path: /etc/profile
+            line: "{{ item }}"
+            state: present
+          loop:
+            - 'export GOPATH=/usr/local/go'
+            - 'export GOROOT=/usr/local/go'
+
+    {{- if .Database.Enabled}}
+    - name: Install and configure database
+      block:
+        - name: Install database server
+          package:
+            name: "{{ db_package }}"
+            state: present
+
+        - name: Start and enable database service
+          systemd:
+            name: "{{ db_service }}"
+            state: started
+            enabled: yes
+
+        {{- if eq .Database.Type "postgresql" }}
+        - name: Install Python PostgreSQL adapter
+          package:
+            name: python3-psycopg2
+            state: present
+
+        - name: Create PostgreSQL database
+          postgresql_db:
+            name: "{{ db_name }}"
+            state: present
+          become_user: postgres
+
+        - name: Create PostgreSQL user
+          postgresql_user:
+            name: "{{ db_user }}"
+            password: "{{ db_password }}"
+            priv: "{{ db_name }}:ALL"
+            state: present
+          become_user: postgres
+        {{- else if eq .Database.Type "mysql" }}
+        - name: Install Python MySQL adapter
+          package:
+            name: python3-pymysql
+            state: present
+
+        - name: Create MySQL database
+          mysql_db:
+            name: "{{ db_name }}"
+            state: present
+
+        - name: Create MySQL user
+          mysql_user:
+            name: "{{ db_user }}"
+            password: "{{ db_password }}"
+            priv: "{{ db_name }}.*:ALL"
+            state: present
+        {{- end}}
+    {{- end}}
+
+    - name: Download application binary
+      get_url:
+        url: "{{ app_binary_url }}"
+        dest: "{{ app_dir }}/bin/{{.ProjectName}}"
+        mode: '0755'
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+      when: app_binary_url is defined
+      notify: restart application
+
+    - name: Build application from source
+      block:
+        - name: Clone application repository
+          git:
+            repo: "{{ app_git_repo }}"
+            dest: "{{ app_dir }}/src"
+            version: "{{ app_git_branch | default('main') }}"
+          when: app_git_repo is defined
+
+        - name: Build application
+          shell: |
+            cd {{ app_dir }}/src
+            /usr/local/go/bin/go mod download
+            /usr/local/go/bin/go build -o {{ app_dir }}/bin/{{.ProjectName}} main.go
+          environment:
+            GOPATH: /usr/local/go
+            GOROOT: /usr/local/go
+            PATH: "/usr/local/go/bin:{{ ansible_env.PATH }}"
+          become_user: "{{ app_user }}"
+          when: app_git_repo is defined
+          notify: restart application
+
+    - name: Create application configuration
+      template:
+        src: app.conf.j2
+        dest: "{{ app_config_dir }}/app.conf"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0640'
+      notify: restart application
+
+    - name: Create environment file
+      template:
+        src: app.env.j2
+        dest: "{{ app_config_dir }}/app.env"
+        owner: "{{ app_user }}"
+        group: "{{ app_group }}"
+        mode: '0600'
+      notify: restart application
+
+    - name: Create systemd service file
+      template:
+        src: app.service.j2
+        dest: "/etc/systemd/system/{{.ProjectName}}.service"
+        mode: '0644'
+      notify:
+        - reload systemd
+        - restart application
+
+    - name: Configure Nginx
+      block:
+        - name: Remove default Nginx site
+          file:
+            path: /etc/nginx/sites-enabled/default
+            state: absent
+
+        - name: Create Nginx configuration
+          template:
+            src: nginx.conf.j2
+            dest: "/etc/nginx/sites-available/{{.ProjectName}}"
+            mode: '0644'
+          notify: restart nginx
+
+        - name: Enable Nginx site
+          file:
+            src: "/etc/nginx/sites-available/{{.ProjectName}}"
+            dest: "/etc/nginx/sites-enabled/{{.ProjectName}}"
+            state: link
+          notify: restart nginx
+
+        - name: Test Nginx configuration
+          command: nginx -t
+          changed_when: false
+
+        - name: Start and enable Nginx
+          systemd:
+            name: nginx
+            state: started
+            enabled: yes
+
+    - name: Configure log rotation
+      template:
+        src: logrotate.j2
+        dest: "/etc/logrotate.d/{{.ProjectName}}"
+        mode: '0644'
+
+    - name: Configure firewall
+      block:
+        - name: Allow SSH
+          ufw:
+            rule: allow
+            port: '22'
+            proto: tcp
+
+        - name: Allow HTTP
+          ufw:
+            rule: allow
+            port: '80'
+            proto: tcp
+
+        - name: Allow HTTPS
+          ufw:
+            rule: allow
+            port: '443'
+            proto: tcp
+          when: ssl_enabled
+
+        - name: Allow application port (if different)
+          ufw:
+            rule: allow
+            port: "{{ app_port }}"
+            proto: tcp
+          when: app_port != '80' and app_port != '443'
+
+        - name: Enable UFW
+          ufw:
+            state: enabled
+
+    - name: SSL/TLS configuration
+      block:
+        - name: Install certbot
+          package:
+            name: certbot
+            state: present
+
+        - name: Generate SSL certificate
+          command: |
+            certbot certonly --standalone --agree-tos --no-eff-email
+            --email {{ ssl_email }} -d {{ ssl_domain }}
+          when: ssl_enabled and ssl_email is defined and ssl_domain is defined
+          creates: "{{ ssl_cert_path }}"
+      when: ssl_enabled
+
+    - name: Start and enable application
+      systemd:
+        name: "{{.ProjectName}}"
+        state: started
+        enabled: yes
+        daemon_reload: yes
+
+    - name: Health check
+      uri:
+        url: "http://localhost:{{ app_port }}/health"
+        method: GET
+        status_code: 200
+      retries: 5
+      delay: 10
+      register: health_check
+
+    - name: Display deployment status
+      debug:
+        msg: "{{.ProjectName}} deployed successfully! Health check: {{ health_check.status }}"
+
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: restart application
+      systemd:
+        name: "{{.ProjectName}}"
+        state: restarted
+
+    - name: restart nginx
+      systemd:
+        name: nginx
+        state: restarted
+
+# Rollback playbook
+- name: Rollback {{.ProjectName}} Application
+  hosts: "{{ target_hosts | default('webservers') }}"
+  become: yes
+  vars:
+    app_name: "{{.ProjectName}}"
+    app_dir: "/opt/{{.ProjectName}}"
+    backup_dir: "/opt/{{.ProjectName}}/backup"
+  tasks:
+    - name: Stop application service
+      systemd:
+        name: "{{.ProjectName}}"
+        state: stopped
+
+    - name: Restore previous version
+      copy:
+        src: "{{ backup_dir }}/{{.ProjectName}}.backup"
+        dest: "{{ app_dir }}/bin/{{.ProjectName}}"
+        remote_src: yes
+        mode: '0755'
+      when: rollback is defined and rollback
+
+    - name: Start application service
+      systemd:
+        name: "{{.ProjectName}}"
+        state: started
+      when: rollback is defined and rollback
+
+  tags:
+    - rollback

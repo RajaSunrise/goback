@@ -1,0 +1,74 @@
+package models
+
+import (
+	"time"
+
+	{{- if and (eq .ORM "Gorm") (eq .Database "postgresql") }}
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+	{{- else if eq .ORM "Gorm" }}
+	"gorm.io/gorm"
+	{{- else if eq .Database "postgresql" }}
+	"github.com/google/uuid"
+	{{- end}}
+)
+
+// User adalah model data utama.
+// Struct tags disesuaikan berdasarkan pilihan ORM.
+type User struct {
+	{{- if eq .Database "postgresql" }}
+	ID        uuid.UUID `json:"id" {{if eq .ORM "Gorm"}}gorm:"type:uuid;primary_key;default:gen_random_uuid()"{{else}}db:"id"{{end}}`
+	{{- else}}
+	ID        uint      `json:"id" {{if eq .ORM "Gorm"}}gorm:"primary_key"{{else}}db:"id"{{end}}`
+	{{- end}}
+	Name      string    `json:"name" {{if eq .ORM "Gorm"}}gorm:"type:varchar(255);not null"{{else}}db:"name"{{end}}`
+	Email     string    `json:"email" {{if eq .ORM "Gorm"}}gorm:"type:varchar(255);unique;not null"{{else}}db:"email"{{end}}`
+	Password  string    `json:"-" {{if eq .ORM "Gorm"}}gorm:"type:varchar(255);not null"{{else}}db:"password"{{end}}`
+	IsActive  bool      `json:"is_active" {{if eq .ORM "Gorm"}}gorm:"default:true"{{else}}db:"is_active"{{end}}`
+	CreatedAt time.Time `json:"created_at" {{if eq .ORM "Gorm"}}{{else}}db:"created_at"{{end}}`
+	UpdatedAt time.Time `json:"updated_at" {{if eq .ORM "Gorm"}}{{else}}db:"updated_at"{{end}}`
+	{{- if eq .ORM "Gorm" }}
+	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
+	{{- end}}
+}
+
+// CreateUserRequest adalah DTO (Data Transfer Object) untuk membuat user.
+type CreateUserRequest struct {
+	Name     string `json:"name" validate:"required,min=2,max=100"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=6"`
+}
+
+// UpdateUserRequest adalah DTO untuk memperbarui user.
+type UpdateUserRequest struct {
+	Name     *string `json:"name,omitempty" validate:"omitempty,min=2,max=100"`
+	IsActive *bool   `json:"is_active,omitempty"`
+}
+
+// UserResponse adalah DTO untuk menampilkan data user (tanpa password).
+type UserResponse struct {
+	{{- if eq .Database "postgresql" }}
+	ID        uuid.UUID `json:"id"`
+	{{- else}}
+	ID        uint      `json:"id"`
+	{{- end}}
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	IsActive  bool      `json:"is_active"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Pagination adalah struct untuk informasi paginasi.
+type Pagination struct {
+	Total      int64 `json:"total"`
+	Page       int   `json:"page"`
+	PerPage    int   `json:"per_page"`
+	TotalPages int   `json:"total_pages"`
+}
+
+// UsersResponse adalah DTO untuk daftar user dengan paginasi.
+type UsersResponse struct {
+	Users      []UserResponse `json:"users"`
+	Pagination Pagination     `json:"pagination"`
+}
