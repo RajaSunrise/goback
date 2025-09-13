@@ -117,7 +117,13 @@ healthCheck:
 {{- if eq .Database "postgresql" }}
 postgresql:
   enabled: true
+  # Overriding the image to use the official PostgreSQL image
+  # This is recommended due to Bitnami's licensing changes
+  image:
+    repository: postgres
+    tag: 13-alpine
   auth:
+    # It is strongly recommended to change these passwords
     postgresPassword: "changeme"
     username: "{{.ProjectName}}"
     password: "changeme"
@@ -131,7 +137,13 @@ postgresql:
 {{- else if eq .Database "mysql" }}
 mysql:
   enabled: true
+  # Overriding the image to use the official MySQL image
+  # This is recommended due to Bitnami's licensing changes
+  image:
+    repository: mysql
+    tag: 8.0
   auth:
+    # It is strongly recommended to change these passwords
     rootPassword: "changeme"
     username: "{{.ProjectName}}"
     password: "changeme"
@@ -157,10 +169,15 @@ externalDatabase:
 
 # Redis configuration for caching
 redis:
-  enabled: false
+  enabled: true
+  # Overriding the image to use the official Redis image
+  # This is recommended due to Bitnami's licensing changes
+  image:
+    repository: redis
+    tag: 7-alpine
   auth:
     enabled: false
-    password: ""
+    password: "" # It is strongly recommended to set a password
   master:
     persistence:
       enabled: true
@@ -194,7 +211,7 @@ volumeMounts:
 volumes:
   - name: config
     configMap:
-      name: "{{ include \"{{.ProjectName}}.fullname\" . }}-config"
+      name: "{{ "{{.ProjectName}}.fullname" }}-config"
 
 # Horizontal Pod Autoscaler
 hpa:

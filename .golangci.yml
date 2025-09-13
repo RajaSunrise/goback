@@ -1,83 +1,164 @@
-# .golangci.yml
-# See https://golangci-lint.run/usage/configuration/ for all available options.
+version: 2
 
 run:
-  # timeout for analysis, e.g. 30s, 5m, default is 1m
-  timeout: 5m
-
-  # exit-on-error: if set to false, golangci-lint will exit with code 0 even if
-  # issues are found. This is useful for CI/CD pipelines.
-  exit-on-error: true
-
-  # which dirs to skip: they won't be analyzed;
-  # can use regexp here, must be valid
-  skip-dirs:
-    - vendor
-    - bin
-    - obj
-    - .idea
-    - .vscode
-
-linters-settings:
-  govet:
-    # report about shadowed variables
-    check-shadowing: true
-  gofmt:
-    # simplify code: gofmt -s
-    simplify: true
-  goimports:
-    # put imports in blocks
-    local-prefixes: github.com/NarmadaWeb/goback
-  misspell:
-    # Correct commonly misspelled English words in source files.
-    locale: US
-  lll:
-    # max line length, lines with more characters will be reported.
-    line-length: 120
-
-linters:
-  # please, do not use `enable-all`: it's slow and may report obscure issues.
-  # inverted configuration with `enable` is preferred to `disable`.
-  # `enable` is the list of linters to run.
-  # `disable` is the list of linters to not run.
-  # Default is `disable: []` and `enable: [ ... ]`
-  enable:
-    - govet
-    - gofmt
-    - goimports
-    - misspell
-    - lll
-    - errcheck
-    - staticcheck
-    - unused
-    - ineffassign
-    - typecheck
-    - gosimple
-    - deadcode
-    - structcheck
-    - varcheck
+  modules-download-mode: readonly
 
 issues:
-  # Excluding configuration per-path, per-linter, per-text and per-source
-  exclude-rules:
-    # Exclude some linters from running on tests files.
-    - path: _test\.go
-      linters:
-        - errcheck # functions in tests often don't need to have their errors checked
-        - gosec    # tests are not production code
+  exclude-dirs-use-default: false
+  exclude-dirs:
+    - vendor/
+    - testdata/
+    - scripts/
+    - bin/
+    - dist/
+    - .git/
+    - .github/
+    - .vscode/
+    - .idea/
 
-    # Exclude known false-positives
-    - text: "File is not `gofmt`-ed with `-s`"
-      linters:
-        - gofmt
-
-# output configuration options
 output:
-  # colored-line-number|line-number|json|tab|checkstyle|code-climate|html|junit-xml
-  format: colored-line-number
+  sort-results: true
 
-  # print lines of code with issue
-  print-issued-lines: true
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+    disable-default-exclusions: true
 
-  # print linter name in the end of issue text
-  print-linter-name: true
+  errchkjson:
+    report-no-exported: true
+
+  exhaustive:
+    default-signifies-exhaustive: true
+
+  gocritic:
+    disabled-checks:
+      - ifElseChain
+
+  gofumpt:
+    module-path: anidong-api
+    extra-rules: true
+
+  gosec:
+    config:
+      global:
+        audit: true
+
+  govet:
+    check-shadowing: true
+    enable-all: true
+    disable:
+      - shadow
+      - fieldalignment
+      - loopclosure
+
+  grouper:
+    import-require-single-import: true
+    import-require-grouping: true
+
+  misspell:
+    locale: US
+
+  nolintlint:
+    require-explanation: true
+    require-specific: true
+
+  nonamedreturns:
+    report-error-in-defer: true
+
+  predeclared:
+    q: true
+
+  promlinter:
+    strict: true
+
+  revive:
+    enable-all-rules: true
+    rules:
+      - name: add-constant
+        disabled: true
+      - name: argument-limit
+        disabled: true
+      - name: banned-characters
+        disabled: true
+      - name: cognitive-complexity
+        disabled: true
+      - name: cyclomatic
+        disabled: true
+      - name: early-return
+        severity: warning
+        disabled: true
+      - name: exported
+        disabled: true
+      - name: file-header
+        disabled: true
+      - name: function-result-limit
+        disabled: true
+      - name: function-length
+        disabled: true
+      - name: line-length-limit
+        disabled: true
+      - name: max-public-structs
+        disabled: true
+      - name: modifies-parameter
+        disabled: true
+      - name: nested-structs
+        disabled: true
+      - name: package-comments
+        disabled: true
+
+  tagliatelle:
+    case:
+      rules:
+        json: snake
+
+  wrapcheck:
+    ignorePackageGlobs:
+      - anidong-api/*
+
+linters:
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - containedctx
+    - contextcheck
+    - dogsled
+    - durationcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - forcetypeassert
+    - goconst
+    - gocritic
+    - gomoddirectives
+    - goprintffuncname
+    - govet
+    - grouper
+    - loggercheck
+    - misspell
+    - nakedret
+    - nilerr
+    - nilnil
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - predeclared
+    - promlinter
+    - reassign
+    - rowserrcheck
+    - sqlclosecheck
+    - staticcheck
+    - thelper
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - wastedassign
+    - whitespace
+
+  disable:
+    - wrapcheck
+    - errcheck

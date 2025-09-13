@@ -22,6 +22,13 @@ keywords:
 annotations:
   category: Application
 dependencies:
+# NOTE: The Bitnami chart repository is undergoing significant changes.
+# The charts below are pinned to older versions that are known to be free.
+# However, they will not receive security updates.
+# It is strongly recommended to review the Bitnami chart and image licensing
+# and update the versions and image repositories/tags in values.yaml accordingly.
+# The values.yaml file has been configured to use the official Docker images
+# instead of the Bitnami ones, which is a more secure and future-proof approach.
 {{- if .Database}}
 {{- if eq .Database "postgresql" }}
   - name: postgresql

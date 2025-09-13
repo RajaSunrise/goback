@@ -61,12 +61,6 @@ services:
         condition: service_healthy
     networks:
       - {{.ProjectName}}-network
-    healthcheck:
-      test: ["/app/{{.ProjectName}}", "--health-check"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
     deploy:
       resources:
         limits:
@@ -99,17 +93,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    command: >
-      postgres
-      -c max_connections=100
-      -c shared_buffers=256MB
-      -c effective_cache_size=1GB
-      -c maintenance_work_mem=64MB
-      -c checkpoint_completion_target=0.9
-      -c wal_buffers=16MB
-      -c default_statistics_target=100
-      -c random_page_cost=1.1
-      -c effective_io_concurrency=200
 
 {{- else if eq .Database "mysql"}}
   mysql:
@@ -134,13 +117,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    command: >
-      --default-authentication-plugin=mysql_native_password
-      --innodb-buffer-pool-size=256M
-      --innodb-log-file-size=64M
-      --max-connections=100
-      --query-cache-size=32M
-      --query-cache-type=1
 {{- end}}
 
   redis:

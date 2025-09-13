@@ -108,7 +108,7 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 		"snakeCase":  strcase.ToSnake,
 		"kebabCase":  strcase.ToKebab,
 		"upper":      strings.ToUpper,
-		"replaceAll": func(s, old, new string) string { return strings.Replace(s, old, new, -1) },
+		"replaceAll": func(s, old, new string) string { return strings.ReplaceAll(s, old, new) },
 		"b64enc":     func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
 		"default": func(val string, def string) string {
 			if val == "" {
@@ -150,7 +150,6 @@ func (tg *TemplateGenerator) generateBaseFiles() error {
 		".env":           "base/.env.tmpl",
 		".env.example":   "base/env.example.tmpl",
 		"cmd/migrate.go": "base/cmd/migrate.go.tmpl",
-		".golangci.yml":  "base/.golangci.yml.tmpl",
 	}
 
 	for dest, src := range baseTemplates {

@@ -129,6 +129,14 @@ var (
 				Faint(true)
 )
 
+const (
+	success = "success"
+	error = "error"
+	warning = "warning"
+	info = "info"
+)
+
+
 // Logo and branding
 func RenderLogo() string {
 	logo := `
@@ -207,22 +215,22 @@ func RenderBox(title, content string, boxType string) string {
 	var style lipgloss.Style
 
 	switch boxType {
-	case "success":
+	case success:
 		style = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(SuccessColor).
 			Padding(1, 2)
-	case "error":
+	case error:
 		style = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(ErrorColor).
 			Padding(1, 2)
-	case "warning":
+	case warning:
 		style = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(WarningColor).
 			Padding(1, 2)
-	case "info":
+	case info:
 		style = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(InfoColor).
@@ -233,13 +241,13 @@ func RenderBox(title, content string, boxType string) string {
 
 	var titleStyle lipgloss.Style
 	switch boxType {
-	case "success":
+	case success:
 		titleStyle = SuccessStyle
-	case "error":
+	case error:
 		titleStyle = ErrorStyle
-	case "warning":
+	case warning:
 		titleStyle = WarningStyle
-	case "info":
+	case info:
 		titleStyle = InfoStyle
 	default:
 		titleStyle = TitleStyle
@@ -431,25 +439,25 @@ func RenderBadge(text string, badgeType string) string {
 	var style lipgloss.Style
 
 	switch badgeType {
-	case "success":
+	case success:
 		style = lipgloss.NewStyle().
 			Background(SuccessColor).
 			Foreground(lipgloss.Color("#000000")).
 			Padding(0, 1).
 			Bold(true)
-	case "error":
+	case error:
 		style = lipgloss.NewStyle().
 			Background(ErrorColor).
 			Foreground(lipgloss.Color("#FFFFFF")).
 			Padding(0, 1).
 			Bold(true)
-	case "warning":
+	case warning:
 		style = lipgloss.NewStyle().
 			Background(WarningColor).
 			Foreground(lipgloss.Color("#000000")).
 			Padding(0, 1).
 			Bold(true)
-	case "info":
+	case info:
 		style = lipgloss.NewStyle().
 			Background(InfoColor).
 			Foreground(lipgloss.Color("#FFFFFF")).

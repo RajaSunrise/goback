@@ -17,7 +17,7 @@
     app_data_dir: "/var/lib/{{.ProjectName}}"
     app_config_dir: "/etc/{{.ProjectName}}"
     app_version: "{{ app_version | default('latest') }}"
-    go_version: "{{ go_version | default('1.21.5') }}"
+    go_version: "{{ go_version | default('1.22') }}"
 
     {{- if .Database}}
     # Database configuration
@@ -184,6 +184,14 @@
         {{- end}}
     {{- end}}
 
+    - name: Backup current application binary
+      copy:
+        src: "{{ app_dir }}/bin/{{.ProjectName}}"
+        dest: "{{ app_dir }}/bin/{{.ProjectName}}.bak-{{ ansible_date_time.iso8601_basic }}"
+        remote_src: yes
+        force: no
+      when: "'{{ app_dir }}/bin/{{.ProjectName}}' is a file"
+
     - name: Download application binary
       get_url:
         url: "{{ app_binary_url }}"
@@ -207,7 +215,7 @@
           shell: |
             cd {{ app_dir }}/src
             /usr/local/go/bin/go mod download
-            /usr/local/go/bin/go build -o {{ app_dir }}/bin/{{.ProjectName}} main.go
+            /usr/local/go/bin/go build -o {{ app_dir }}/bin/{{.ProjectName}} ./cmd/{{.ProjectName}}
           environment:
             GOPATH: /usr/local/go
             GOROOT: /usr/local/go

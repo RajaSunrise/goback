@@ -67,9 +67,6 @@ func Setup(r chi.Router, db *gorm.DB) {
 			r.Put("/{id}", userHandler.UpdateUser)
 			r.Delete("/{id}", userHandler.DeleteUser)
 		})
-
-		// Health check
-		r.Get("/health", healthCheckHandler)
 	})
 {{- else}}
 func Setup(r chi.Router) {
@@ -77,11 +74,11 @@ func Setup(r chi.Router) {
 	r.Route("/api/v1", func(r chi.Router) {
 		// Hello World endpoint
 		r.Get("/hello", helloHandler)
-
-		// Health check
-		r.Get("/health", healthCheckHandler)
 	})
 {{- end}}
+
+	// Health check
+	r.Get("/health", healthCheckHandler)
 
 	// Serve static files (if any)
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir("./static/"))))
