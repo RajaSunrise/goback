@@ -1,8 +1,9 @@
 # Build stage
-FROM golang:1.22-alpine AS builder
+ARG GO_VERSION=1.22
+FROM golang:${GO_VERSION}-alpine AS builder
 
 # Install build dependencies
-RUN apk add --no-cache git ca-certificates tzdata upx
+RUN apk add --no-cache git ca-certificates tzdata
 
 # Create app user for build stage
 RUN addgroup -g 1001 -S appgroup && \
@@ -33,11 +34,11 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -o {{.ProjectName}} \
     ./cmd/{{.ProjectName}}
 
-# Compress binary
-RUN upx --best --lzma {{.ProjectName}}
-
 # Final stage - use distroless for minimal attack surface
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian12:nonroot AS final
+
+# Add healthcheck binary
+COPY --from=busybox:1.35 /bin/wget /bin/wget
 
 # Set working directory
 WORKDIR /app
@@ -83,9 +84,9 @@ ENV ECHO_DEBUG=false
 ENV DB_PATH=/app/data/{{.ProjectName}}.db
 {{- end}}
 
-# Health check using the application's health endpoint
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD ["/app/{{.ProjectName}}", "--health-check"] || exit 1
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD ["/bin/wget", "-q", "--spider", "http://localhost:8080/health"]
 
 # Set security labels
 LABEL org.opencontainers.image.title="{{.ProjectName}}"

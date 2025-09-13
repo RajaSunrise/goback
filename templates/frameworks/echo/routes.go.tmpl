@@ -70,7 +70,6 @@ func Setup(e *echo.Echo, db *gorm.DB) {
 		}
 
 		// Health check
-		api.GET("/health", healthCheckHandler)
 	}
 {{- else}}
 func Setup(e *echo.Echo) {
@@ -79,11 +78,11 @@ func Setup(e *echo.Echo) {
 	{
 		// Hello World endpoint
 		api.GET("/hello", helloHandler)
-
-		// Health check
-		api.GET("/health", healthCheckHandler)
 	}
 {{- end}}
+
+	// Health check
+	e.GET("/health", healthCheckHandler)
 
 	// Serve static files (if any)
 	e.Static("/static", "static")

@@ -81,6 +81,9 @@ spec:
       - name: config
         configMap:
           name: {{.ProjectName}}-config
+      # If you are using a private Docker registry, you need to create a secret with the credentials
+      # and add its name to the imagePullSecrets list.
+      # Example: kubectl create secret docker-registry {{.ProjectName}}-registry-secret --docker-server=...
       imagePullSecrets:
       - name: {{.ProjectName}}-registry-secret
 ---
@@ -108,10 +111,11 @@ metadata:
 type: Opaque
 data:
   {{- if .Database}}
-  # Base64 encoded values - replace with actual values
-  db-host: bG9jYWxob3N0  # localhost
+  # It is strongly recommended to change these placeholder values.
+  # Use 'echo -n "your-value" | base64' to encode your actual values.
+  db-host: Y2hhbmdlbWUtZGItaG9zdA==  # base64 encoded "changeme-db-host"
   db-port: {{if eq .Database "postgresql"}}NTQzMg==  # 5432{{else if eq .Database "mysql"}}MzMwNg==  # 3306{{else}}  # sqlite{{end}}
-  db-username: dXNlcg==  # user
-  db-password: cGFzc3dvcmQ=  # password
+  db-username: Y2hhbmdlbWUtZGItdXNlcg== # base64 encoded "changeme-db-user"
+  db-password: Y2hhbmdlbWUtZGItcGFzc3dvcmQ= # base64 encoded "changeme-db-password"
   db-name: {{printf "%s_db" .ProjectName | b64enc}}
   {{- end}}
