@@ -1,6 +1,6 @@
-// cmd/goback/root.go
+// cmd/root.go
 
-package main
+package cmd
 
 import (
 	"fmt"

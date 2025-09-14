@@ -50,7 +50,7 @@ GoBack offers a wide range of options to build your perfect stack:
 
 ### Prerequisites
 
-- Go 1.21 or higher.
+- Go 1.23 or higher.
 - A terminal that supports 256 colors (recommended for the best TUI experience).
 
 ### With `go install` (Recommended)
@@ -133,7 +133,7 @@ goback new payment-service \
 
 ## 🤝 Contributing
 
-Contributions are welcome\! Whether it's adding a new feature, fixing a bug, or improving documentation, your help is appreciated.
+Contributions are welcome! Whether it's adding a new feature, fixing a bug, or improving documentation, your help is appreciated.
 
 1. **Fork** the repository.
 2. Create a new feature branch (`git checkout -b feature/my-amazing-feature`).
@@ -157,6 +157,6 @@ GoBack is built on the shoulders of giants. Our heartfelt thanks to the creators
 - [Viper](https://github.com/spf13/viper) for configuration management.
 
 ---
-<p align="center"\>
+<p align="center">
 Made with ❤️ by the <a href="github.com/NarmadaWeb">NarmadaWeb</a> team for the Go community.
-</p\>
+</p>
