@@ -153,13 +153,14 @@ func (m *ProgressModel) renderProgress() string {
 		var status string
 		var style lipgloss.Style
 
-		if i < m.stepIndex {
+		switch {
+		case i < m.stepIndex:
 			status = "✅"
 			style = styles.SuccessStyle
-		} else if i == m.stepIndex {
+		case i == m.stepIndex:
 			status = "🔄"
 			style = styles.AccentStyle
-		} else {
+		default: // i > m.stepIndex
 			status = "⏳"
 			style = styles.MutedStyle
 		}
@@ -331,4 +332,3 @@ func (m *ProgressModel) IsSuccess() bool {
 func (m *ProgressModel) GetError() error {
 	return m.error
 }
-

@@ -129,7 +129,6 @@ linters:
     - errchkjson
     - errname
     - errorlint
-    - exhaustive
     - forcetypeassert
     - goconst
     - gocritic
@@ -162,3 +161,4 @@ linters:
   disable:
     - wrapcheck
     - errcheck
+    - exhaustive

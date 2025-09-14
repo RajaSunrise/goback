@@ -106,13 +106,13 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 
 	// Custom template functions
 	funcMap := template.FuncMap{
-		"title":      strings.ToTitle,
-		"toTitle":    strings.ToTitle,
-		"snakeCase":  strcase.ToSnake,
-		"kebabCase":  strcase.ToKebab,
-		"upper":      strings.ToUpper,
-		"replaceAll": func(s, old, new string) string { return strings.ReplaceAll(s, old, new) },
-		"b64enc":     func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
+		"title":     strings.ToTitle,
+		"toTitle":   strings.ToTitle,
+		"snakeCase": strcase.ToSnake,
+		"kebabCase": strcase.ToKebab,
+		"upper":     strings.ToUpper,
+		"replaceAll": strings.ReplaceAll,
+		"b64enc": func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
 		"default": func(val string, def string) string {
 			if val == "" {
 				return def

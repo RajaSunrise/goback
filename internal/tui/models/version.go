@@ -22,12 +22,11 @@ func (m *VersionModel) Init() tea.Cmd {
 }
 
 func (m *VersionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "enter", "esc", "q":
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch keyMsg.String() {
+		case keyEnter, keyEsc, keyQ:
 			m.selected = true
-		case "ctrl+c":
+		case keyCtrlC:
 			return m, tea.Quit
 		}
 	}
@@ -42,7 +41,7 @@ func (m *VersionModel) View() string {
 		Foreground(lipgloss.Color("86")).
 		MarginTop(1).
 		MarginBottom(1).
-		Render("Version 1.0.0")
+		Render("Version 0.1.0")
 
 	description := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("250")).
@@ -94,7 +93,7 @@ func (m *VersionModel) View() string {
 	repo := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")).
 		MarginBottom(2).
-		Render("🔗 Repository: https://github.com/your-org/goback")
+		Render("🔗 Repository: https://github.com/NarmadaWeb/goback")
 
 	help := styles.HelpStyle.Render("enter/esc: kembali ke menu • ctrl+c: keluar")
 
