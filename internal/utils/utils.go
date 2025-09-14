@@ -230,13 +230,13 @@ func MakeExecutable(path string) error {
 }
 
 // ReplaceInFile replaces all occurrences of old with new in a file
-func ReplaceInFile(path, old, new string) error {
+func ReplaceInFile(path, old, newVal string) error {
 	content, err := ReadFile(path)
 	if err != nil {
 		return err
 	}
 
-	newContent := strings.ReplaceAll(content, old, new)
+	newContent := strings.ReplaceAll(content, old, newVal)
 
 	err = CreateFile(path, newContent)
 	if err != nil {
@@ -326,7 +326,7 @@ func GetDirName(path string) string {
 }
 
 // SplitPath splits a path into directory and filename
-func SplitPath(path string) (dir, file string) {
+func SplitPath(path string) (string, string) {
 	return filepath.Split(path)
 }
 

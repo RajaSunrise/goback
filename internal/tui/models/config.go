@@ -1,5 +1,3 @@
-// internal/tui/models/config.go
-
 package models
 
 import (
@@ -14,6 +12,22 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+)
+
+const (
+	keyCtrlC   = "ctrl+c"
+	keyEnter   = "enter"
+	keyEsc     = "esc"
+	keyQ       = "q"
+	keyUp      = "up"
+	keyDown    = "down"
+	keyJ       = "j"
+	keyK       = "k"
+	keySpace   = " "
+	keyConfirm = "c"
+	keyYes     = "y"
+	keyNo      = "n"
+	keyEdit    = "e"
 )
 
 // ConfigStep represents the current step in configuration
@@ -106,18 +120,17 @@ func (m *ConfigModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ConfigModel) updateReview(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch strings.ToLower(msg.String()) {
-		case "y", "enter":
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch strings.ToLower(keyMsg.String()) {
+		case keyYes, keyEnter:
 			m.confirmed = true
 			m.stepComplete[StepReview] = true
 			return m, nil
-		case "n", "e", "esc":
+		case keyNo, keyEdit, keyEsc:
 			m.Step = StepProjectDetails
 			m.setupStep()
 			return m, nil
-		case "ctrl+c":
+		case keyCtrlC:
 			return m, tea.Quit
 		}
 	}
@@ -125,9 +138,8 @@ func (m *ConfigModel) updateReview(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ConfigModel) updateProjectDetailsInputs(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch keyMsg.Type {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
 		case tea.KeyEsc:
@@ -147,6 +159,7 @@ func (m *ConfigModel) updateProjectDetailsInputs(msg tea.Msg) (tea.Model, tea.Cm
 			if m.focusIndex < 0 {
 				m.focusIndex = len(m.inputs) - 1
 			}
+		default:
 		}
 	}
 
@@ -173,31 +186,30 @@ func (m *ConfigModel) updateProjectDetailsInputs(msg tea.Msg) (tea.Model, tea.Cm
 }
 
 func (m *ConfigModel) updateChoices(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch keyMsg.String() {
+		case keyCtrlC:
 			return m, tea.Quit
-		case "up", "k":
+		case keyUp, keyK:
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "down", "j":
+		case keyDown, keyJ:
 			if m.cursor < len(m.choices)-1 {
 				m.cursor++
 			}
-		case "enter":
+		case keyEnter:
 			return m.handleSelection()
-		case " ": // Space for multi-select
+		case keySpace:
 			if m.Step == StepDevOpsTools {
 				return m.handleSelection()
 			}
-		case "c":
+		case keyConfirm:
 			if m.Step == StepDevOpsTools && len(m.devopsTools) > 0 {
 				m.completeStep()
 				return m, nil
 			}
-		case "esc", "q":
+		case keyEsc, keyQ:
 			if m.Step == StepFramework {
 				m.canceled = true
 				return m, nil

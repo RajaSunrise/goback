@@ -28,20 +28,19 @@ func (m *MenuModel) Init() tea.Cmd {
 }
 
 func (m *MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "up", "k":
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch keyMsg.String() {
+		case keyUp, keyK:
 			if m.cursor > 0 {
 				m.cursor--
 			}
-		case "down", "j":
+		case keyDown, keyJ:
 			if m.cursor < len(m.choices)-1 {
 				m.cursor++
 			}
-		case "enter", " ":
+		case keyEnter, keySpace:
 			m.selected = m.choices[m.cursor]
-		case "q", "ctrl+c":
+		case keyQ, keyCtrlC:
 			m.selected = "Keluar"
 		}
 	}

@@ -1,5 +1,3 @@
-// internal/tui/model.go
-
 package tui
 
 import (
@@ -10,6 +8,12 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+)
+
+const (
+	keyCtrlC = "ctrl+c"
+	keyQ     = "q"
+	keyR     = "r"
 )
 
 // AppState represents the current state of the application
@@ -95,7 +99,9 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StateSplash:
 		var model tea.Model
 		model, cmd = m.SplashModel.Update(msg)
-		m.SplashModel = model.(*models.SplashModel)
+		if sm, ok := model.(*models.SplashModel); ok {
+			m.SplashModel = sm
+		}
 
 		if m.SplashModel.Finished() {
 			m.State = StateMainMenu
@@ -104,7 +110,9 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StateMainMenu:
 		var model tea.Model
 		model, cmd = m.MenuModel.Update(msg)
-		m.MenuModel = model.(*models.MenuModel)
+		if mm, ok := model.(*models.MenuModel); ok {
+			m.MenuModel = mm
+		}
 
 		if m.MenuModel.Selected() != "" {
 			choice := m.MenuModel.Selected()
@@ -119,82 +127,88 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			}
 		}
-
 	case StateFrameworkSelection:
 		var model tea.Model
 		model, cmd = m.ConfigModel.Update(msg)
-		m.ConfigModel = model.(*models.ConfigModel)
+		if cm, ok := model.(*models.ConfigModel); ok {
+			m.ConfigModel = cm
+		}
 
 		if m.ConfigModel.IsStepComplete(models.StepFramework) {
 			m.Config.Framework = m.ConfigModel.GetFrameworkChoice()
 			m.State = StateDatabaseSelection
-			// ConfigModel automatically moves to next step
 		}
 
 	case StateDatabaseSelection:
 		var model tea.Model
 		model, cmd = m.ConfigModel.Update(msg)
-		m.ConfigModel = model.(*models.ConfigModel)
+		if cm, ok := model.(*models.ConfigModel); ok {
+			m.ConfigModel = cm
+		}
 
 		if m.ConfigModel.IsStepComplete(models.StepDatabase) {
 			m.Config.Database = m.ConfigModel.GetDatabaseChoice()
 			m.State = StateToolSelection
-			// ConfigModel automatically moves to next step
 		}
 
 	case StateToolSelection:
 		var model tea.Model
 		model, cmd = m.ConfigModel.Update(msg)
-		m.ConfigModel = model.(*models.ConfigModel)
+		if cm, ok := model.(*models.ConfigModel); ok {
+			m.ConfigModel = cm
+		}
 
 		if m.ConfigModel.IsStepComplete(models.StepTool) {
 			m.Config.Tool = m.ConfigModel.GetToolChoice()
 			m.State = StateArchitectureSelection
-			// ConfigModel automatically moves to next step
 		}
 
 	case StateArchitectureSelection:
 		var model tea.Model
 		model, cmd = m.ConfigModel.Update(msg)
-		m.ConfigModel = model.(*models.ConfigModel)
+		if cm, ok := model.(*models.ConfigModel); ok {
+			m.ConfigModel = cm
+		}
 
 		if m.ConfigModel.IsStepComplete(models.StepArchitecture) {
 			m.Config.Architecture = m.ConfigModel.GetArchitectureChoice()
 			m.State = StateDevOpsOptions
-			// ConfigModel automatically moves to next step
 		}
 
 	case StateDevOpsOptions:
 		var model tea.Model
 		model, cmd = m.ConfigModel.Update(msg)
-		m.ConfigModel = model.(*models.ConfigModel)
+		if cm, ok := model.(*models.ConfigModel); ok {
+			m.ConfigModel = cm
+		}
 
 		if m.ConfigModel.IsStepComplete(models.StepDevOpsOptions) {
 			m.Config.DevOps.Enabled = m.ConfigModel.GetDevOpsEnabled()
 			if m.Config.DevOps.Enabled {
 				m.State = StateDevOpsToolsSelection
-				// ConfigModel automatically moves to DevOps tools step
 			} else {
 				m.State = StateProjectDetails
-				// ConfigModel automatically moves to project details step
 			}
 		}
 
 	case StateDevOpsToolsSelection:
 		var model tea.Model
 		model, cmd = m.ConfigModel.Update(msg)
-		m.ConfigModel = model.(*models.ConfigModel)
+		if cm, ok := model.(*models.ConfigModel); ok {
+			m.ConfigModel = cm
+		}
 
 		if m.ConfigModel.IsStepComplete(models.StepDevOpsTools) {
 			m.Config.DevOps = m.ConfigModel.GetDevOpsConfig()
 			m.State = StateProjectDetails
-			// ConfigModel automatically moves to project details step
 		}
 
 	case StateProjectDetails:
 		var model tea.Model
 		model, cmd = m.ConfigModel.Update(msg)
-		m.ConfigModel = model.(*models.ConfigModel)
+		if cm, ok := model.(*models.ConfigModel); ok {
+			m.ConfigModel = cm
+		}
 
 		if m.ConfigModel.IsStepComplete(models.StepProjectDetails) {
 			m.Config.ProjectName = m.ConfigModel.GetProjectName()
@@ -202,13 +216,14 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.Config.Description = m.ConfigModel.GetDescription()
 			m.Config.OutputDir = m.ConfigModel.GetOutputDir()
 			m.State = StateConfigReview
-			// ConfigModel automatically moves to review step
 		}
 
 	case StateConfigReview:
 		var model tea.Model
 		model, cmd = m.ConfigModel.Update(msg)
-		m.ConfigModel = model.(*models.ConfigModel)
+		if cm, ok := model.(*models.ConfigModel); ok {
+			m.ConfigModel = cm
+		}
 
 		if m.ConfigModel.IsConfirmed() {
 			m.State = StateGeneration
@@ -222,7 +237,9 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StateGeneration, StateProgress:
 		var model tea.Model
 		model, cmd = m.ProgressModel.Update(msg)
-		m.ProgressModel = model.(*models.ProgressModel)
+		if pm, ok := model.(*models.ProgressModel); ok {
+			m.ProgressModel = pm
+		}
 
 		if m.ProgressModel.IsFinished() {
 			if m.ProgressModel.IsSuccess() {
@@ -234,21 +251,19 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case StateSuccess:
-		// Handle success state - could show success message and exit
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			if keyMsg.String() == "q" || keyMsg.String() == "ctrl+c" {
+			if keyMsg.String() == keyQ || keyMsg.String() == keyCtrlC {
 				return m, tea.Quit
 			}
 		}
 
 	case StateError:
-		// Handle error state - could show error message and allow retry
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			if keyMsg.String() == "q" || keyMsg.String() == "ctrl+c" {
+			keyStr := keyMsg.String()
+			if keyStr == keyQ || keyStr == keyCtrlC {
 				return m, tea.Quit
 			}
-			if keyMsg.String() == "r" {
-				// Retry - go back to main menu
+			if keyStr == keyR {
 				m.State = StateMainMenu
 				m.Error = nil
 			}
@@ -256,7 +271,9 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case StateVersion:
 		var model tea.Model
 		model, cmd = m.VersionModel.Update(msg)
-		m.VersionModel = model.(*models.VersionModel)
+		if vm, ok := model.(*models.VersionModel); ok {
+			m.VersionModel = vm
+		}
 
 		if m.VersionModel.ShouldClose() {
 			m.State = StateMainMenu
@@ -266,7 +283,7 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Handle global quit
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		if keyMsg.String() == "ctrl+c" {
+		if keyMsg.String() == keyCtrlC {
 			return m, tea.Quit
 		}
 	}
@@ -339,9 +356,9 @@ Langkah selanjutnya:
   go mod tidy
   go run main.go
 
-Tekan 'q' untuk keluar
+Tekan '%s' untuk keluar
 `, m.Config.ProjectName, m.Config.OutputDir, m.Config.Framework.String(),
-		m.Config.Database.String(), m.Config.Architecture.String(), m.Config.OutputDir)
+		m.Config.Database.String(), m.Config.Architecture.String(), m.Config.OutputDir, keyQ)
 
 	return style.Render(content)
 }
@@ -365,9 +382,9 @@ func (m *MainModel) renderErrorView() string {
 
 Error: %s
 
-Tekan 'r' untuk kembali ke menu utama
-Tekan 'q' untuk keluar
-`, errorMsg)
+Tekan '%s' untuk kembali ke menu utama
+Tekan '%s' untuk keluar
+`, errorMsg, keyR, keyQ)
 
 	return style.Render(content)
 }
