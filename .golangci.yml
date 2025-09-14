@@ -1,9 +1,10 @@
-version: 2
+# File: .golangci.yml
+
+version: "2"
 
 run:
   modules-download-mode: readonly
-
-issues:
+  sort-results: true
   exclude-dirs-use-default: false
   exclude-dirs:
     - vendor/
@@ -15,9 +16,6 @@ issues:
     - .github/
     - .vscode/
     - .idea/
-
-output:
-  sort-results: true
 
 linters-settings:
   errcheck:
@@ -111,10 +109,6 @@ linters-settings:
     case:
       rules:
         json: snake
-
-  wrapcheck:
-    ignorePackageGlobs:
-      - anidong-api/*
 
 linters:
   enable:
