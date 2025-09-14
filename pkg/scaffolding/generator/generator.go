@@ -5,13 +5,16 @@ package generator
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
 
 	"github.com/NarmadaWeb/goback/pkg/config"
+	"github.com/NarmadaWeb/goback/pkg/scaffolding"
 	"github.com/iancoleman/strcase"
 	"helm.sh/helm/v3/pkg/chart/loader"
 	"helm.sh/helm/v3/pkg/chartutil"
@@ -84,12 +87,13 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 	destPath = strings.TrimSuffix(destPath, ".tmpl")
 
 	fullDestPath := filepath.Join(tg.OutputDir, destPath)
-	fullTemplatePath := filepath.Join("templates", templatePath)
+	// All template paths are now relative to the embedded `templates` directory
+	fullTemplatePath := filepath.ToSlash(filepath.Join("templates", templatePath))
 
-	// Read template content
-	templateContent, err := os.ReadFile(fullTemplatePath)
+	// Read template content from embedded FS
+	templateContent, err := scaffolding.Templates.ReadFile(fullTemplatePath)
 	if err != nil {
-		return fmt.Errorf("failed to read template %s: %w", fullTemplatePath, err)
+		return fmt.Errorf("failed to read embedded template %s: %w", fullTemplatePath, err)
 	}
 
 	// Create destination directory if it doesn't exist
@@ -106,13 +110,13 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 
 	// Custom template functions
 	funcMap := template.FuncMap{
-		"title":     strings.ToTitle,
-		"toTitle":   strings.ToTitle,
-		"snakeCase": strcase.ToSnake,
-		"kebabCase": strcase.ToKebab,
-		"upper":     strings.ToUpper,
+		"title":      strings.ToTitle,
+		"toTitle":    strings.ToTitle,
+		"snakeCase":  strcase.ToSnake,
+		"kebabCase":  strcase.ToKebab,
+		"upper":      strings.ToUpper,
 		"replaceAll": strings.ReplaceAll,
-		"b64enc": func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
+		"b64enc":     func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
 		"default": func(val string, def string) string {
 			if val == "" {
 				return def
@@ -174,14 +178,17 @@ func (tg *TemplateGenerator) generateFrameworkFiles() error {
 		return nil // No framework selected
 	}
 
-	frameworkDir := filepath.Join("frameworks", framework)
-	files, err := filepath.Glob(filepath.Join("templates", frameworkDir, "*.tmpl"))
+	frameworkDir := filepath.ToSlash(filepath.Join("templates", "frameworks", framework))
+	globPath := filepath.Join(frameworkDir, "*.tmpl")
+
+	files, err := fs.Glob(scaffolding.Templates, globPath)
 	if err != nil {
 		return err
 	}
 
 	for _, file := range files {
 		templatePath := strings.TrimPrefix(file, "templates"+string(filepath.Separator))
+		frameworkDirInTmpl := filepath.Join("frameworks", framework)
 
 		var destPath string
 		switch filepath.Base(templatePath) {
@@ -196,14 +203,13 @@ func (tg *TemplateGenerator) generateFrameworkFiles() error {
 		case "middleware.go.tmpl":
 			destPath = "internal/middleware/middleware.go"
 		default:
-			destPath = strings.TrimPrefix(templatePath, frameworkDir+string(filepath.Separator))
+			destPath = strings.TrimPrefix(templatePath, frameworkDirInTmpl+string(filepath.Separator))
 		}
 
 		if err := tg.generateFileFromTemplate(destPath, templatePath); err != nil {
 			return fmt.Errorf("failed to generate framework file from %s: %w", templatePath, err)
 		}
 	}
-
 	return nil
 }
 
@@ -222,10 +228,14 @@ func (tg *TemplateGenerator) generateDatabaseConfig() error {
 	}
 
 	destPath := "internal/database/connection.go"
+	fullTemplatePath := filepath.ToSlash(filepath.Join("templates", templatePath))
 
-	// Check if the template file exists
-	if _, err := os.Stat(filepath.Join("templates", templatePath)); os.IsNotExist(err) {
-		return nil // Ignore if template doesn't exist
+	// Check if the template file exists in embedded FS
+	if _, err := scaffolding.Templates.Open(fullTemplatePath); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil // Ignore if template doesn't exist
+		}
+		return err // Other error
 	}
 
 	return tg.generateFileFromTemplate(destPath, templatePath)
@@ -238,23 +248,24 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 		return nil
 	}
 
-	toolDir := filepath.Join("tools", tool)
-	files, err := filepath.Glob(filepath.Join("templates", toolDir, "*.tmpl"))
+	toolDir := filepath.ToSlash(filepath.Join("templates", "tools", tool))
+	files, err := fs.Glob(scaffolding.Templates, filepath.Join(toolDir, "*.tmpl"))
 	if err != nil || len(files) == 0 {
-		return err // atau return nil jika tidak ada file adalah normal
+		return err
 	}
 
 	for _, file := range files {
 		templatePath := strings.TrimPrefix(file, "templates"+string(filepath.Separator))
+		toolDirInTmpl := filepath.Join("tools", tool)
+
 		var destPath string
 		switch filepath.Base(templatePath) {
 		case "model.go.tmpl":
-			// This might be better suited within the architecture templates
 			destPath = "internal/models/base_model.go"
 		case "sqlc.yaml.tmpl":
 			destPath = "sqlc.yaml"
 		default:
-			destPath = strings.TrimPrefix(templatePath, toolDir+string(filepath.Separator))
+			destPath = strings.TrimPrefix(templatePath, toolDirInTmpl+string(filepath.Separator))
 		}
 		if err := tg.generateFileFromTemplate(destPath, templatePath); err != nil {
 			return fmt.Errorf("failed to generate Tool file from %s: %w", templatePath, err)
@@ -270,24 +281,23 @@ func (tg *TemplateGenerator) generateArchitectureFiles() error {
 		return nil
 	}
 
-	templateRootDir := filepath.Join("templates", "architectures", architecture)
+	templateRootDir := filepath.ToSlash(filepath.Join("templates", "architectures", architecture))
 
-	return filepath.Walk(templateRootDir, func(path string, info os.FileInfo, err_ error) error {
-		if err_ != nil {
-			return err_
+	return fs.WalkDir(scaffolding.Templates, templateRootDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		if info.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+		if d.IsDir() || !strings.HasSuffix(path, ".tmpl") {
 			return nil
 		}
 
-		// Create relative paths for the template and destination
 		relPath, err := filepath.Rel(templateRootDir, path)
 		if err != nil {
 			return err
 		}
 
 		destPath := relPath
-		templatePath := filepath.ToSlash(filepath.Join("architectures", architecture, relPath))
+		templatePath := strings.TrimPrefix(path, "templates"+string(filepath.Separator))
 
 		return tg.generateFileFromTemplate(destPath, templatePath)
 	})
@@ -308,16 +318,19 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 			continue
 		}
 
-		templateRootDir := filepath.Join("templates", "devops", toolName)
-		if _, err := os.Stat(templateRootDir); os.IsNotExist(err) {
-			continue
+		templateRootDir := filepath.ToSlash(filepath.Join("templates", "devops", toolName))
+		if _, err := scaffolding.Templates.Open(templateRootDir); err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			return err
 		}
 
-		err := filepath.Walk(templateRootDir, func(path string, info os.FileInfo, err_ error) error {
+		err := fs.WalkDir(scaffolding.Templates, templateRootDir, func(path string, d fs.DirEntry, err_ error) error {
 			if err_ != nil {
 				return err_
 			}
-			if info.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+			if d.IsDir() || !strings.HasSuffix(path, ".tmpl") {
 				return nil
 			}
 
@@ -327,7 +340,7 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 			}
 
 			destPath := filepath.Join("devops", toolName, relPath)
-			templatePath := filepath.ToSlash(filepath.Join("devops", toolName, relPath))
+			templatePath := strings.TrimPrefix(path, "templates"+string(filepath.Separator))
 
 			if toolName == "ansible" {
 				return tg.generateFileFromTemplate(destPath, templatePath, "<<", ">>")
@@ -343,11 +356,46 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 }
 
 func (tg *TemplateGenerator) generateHelmChart() error {
-	chartPath := "templates/devops/helm"
-	chartYamlPath := filepath.Join(chartPath, "Chart.yaml")
+	tempDir, err := os.MkdirTemp("", "goback-helm-")
+	if err != nil {
+		return fmt.Errorf("failed to create temp dir for helm chart: %w", err)
+	}
+	defer os.RemoveAll(tempDir)
 
-	// Manually render Chart.yaml.tmpl to a temporary Chart.yaml
-	chartTmplContent, err := os.ReadFile(filepath.Join(chartPath, "Chart.yaml.tmpl"))
+	chartFS := scaffolding.Templates
+	chartRoot := "templates/devops/helm"
+
+	// Walk the embedded chart directory and write files to temp dir
+	err = fs.WalkDir(chartFS, chartRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		relPath, err := filepath.Rel(chartRoot, path)
+		if err != nil {
+			return err
+		}
+		if relPath == "." {
+			return nil
+		}
+
+		tempPath := filepath.Join(tempDir, relPath)
+		if d.IsDir() {
+			return os.Mkdir(tempPath, 0755)
+		}
+
+		data, err := fs.ReadFile(chartFS, path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(tempPath, data, 0644)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to extract helm chart to temp dir: %w", err)
+	}
+
+	// Manually render Chart.yaml from its template
+	chartTmplPath := filepath.Join(chartRoot, "Chart.yaml.tmpl")
+	chartTmplContent, err := fs.ReadFile(chartFS, chartTmplPath)
 	if err != nil {
 		return fmt.Errorf("failed to read Chart.yaml.tmpl: %w", err)
 	}
@@ -359,20 +407,21 @@ func (tg *TemplateGenerator) generateHelmChart() error {
 	if err := chartTmpl.Execute(&chartBytes, tg.Config); err != nil {
 		return fmt.Errorf("failed to execute Chart.yaml.tmpl: %w", err)
 	}
-	if err := os.WriteFile(chartYamlPath, chartBytes.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(tempDir, "Chart.yaml"), chartBytes.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write temporary Chart.yaml: %w", err)
 	}
-	defer os.Remove(chartYamlPath)
+	_ = os.Remove(filepath.Join(tempDir, "Chart.yaml.tmpl"))
 
-	chart, err := loader.Load(chartPath)
+	// Load the chart from the temporary directory
+	chart, err := loader.Load(tempDir)
 	if err != nil {
-		return fmt.Errorf("failed to load helm chart from %s: %w", chartPath, err)
+		return fmt.Errorf("failed to load helm chart from %s: %w", tempDir, err)
 	}
 
-	// First, render values.yaml.tmpl to a buffer
+	// Render values.yaml.tmpl to a buffer
 	var valuesBytes bytes.Buffer
-	valuesTemplatePath := filepath.Join(chartPath, "values.yaml.tmpl")
-	valuesContent, err := os.ReadFile(valuesTemplatePath)
+	valuesTmplPath := filepath.Join(chartRoot, "values.yaml.tmpl")
+	valuesContent, err := fs.ReadFile(chartFS, valuesTmplPath)
 	if err != nil {
 		return fmt.Errorf("failed to read values.yaml.tmpl: %w", err)
 	}
@@ -384,13 +433,11 @@ func (tg *TemplateGenerator) generateHelmChart() error {
 		return fmt.Errorf("failed to execute values.yaml.tmpl: %w", err)
 	}
 
-	// Now, get the values as a map
 	values, err := chartutil.ReadValues(valuesBytes.Bytes())
 	if err != nil {
 		return fmt.Errorf("failed to read rendered values: %w", err)
 	}
 
-	// Set up release options
 	releaseOptions := chartutil.ReleaseOptions{
 		Name:      tg.Config.ProjectName,
 		Namespace: "default",
@@ -398,25 +445,36 @@ func (tg *TemplateGenerator) generateHelmChart() error {
 		IsInstall: true,
 	}
 
-	// Coalesce values to simulate a real Helm install
-	finalValues, err := chartutil.ToRenderValues(chart, values, releaseOptions, nil)
+	finalValues, err := chartutil.ToRenderValues(chart, values, releaseOptions, &chartutil.Capabilities{})
 	if err != nil {
-		return fmt.Errorf("failed to coalesce values: %w", err)
+		// Try with a fallback for older Helm versions if needed, though v3 should be fine
+		if chart.Metadata.KubeVersion != "" {
+			// kubeVersion, _ := chartutil.ParseKubeVersion(chart.Metadata.KubeVersion)
+			finalValues, err = chartutil.ToRenderValues(chart, values, releaseOptions, chartutil.DefaultCapabilities.Copy())
+		}
+		if err != nil {
+			return fmt.Errorf("failed to coalesce values: %w", err)
+		}
 	}
 
-	// Render the chart templates
 	renderedFiles, err := engine.Render(chart, finalValues)
 	if err != nil {
+		// If there is a problem with the rendered chart, we can try to debug it here
+		// For example, by printing the final values
+		// fmt.Printf("DEBUG: Final Helm values: %s\n", finalValues.AsMap())
 		return fmt.Errorf("failed to render helm chart: %w", err)
 	}
 
 	// Write the rendered files to the output directory
 	for path, content := range renderedFiles {
-		// Don't render empty files, notes.txt, or tests
 		if content == "" || strings.HasSuffix(path, "NOTES.txt") || strings.Contains(path, "/tests/") {
 			continue
 		}
-		destPath := filepath.Join(tg.OutputDir, "devops/helm", filepath.Base(path))
+		// The path from `engine.Render` is relative to the chart root, e.g., `my-chart/templates/service.yaml`
+		// We want to strip the chart name prefix.
+		relPath := strings.TrimPrefix(path, chart.Name()+"/")
+		destPath := filepath.Join(tg.OutputDir, "devops/helm", relPath)
+
 		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 			return fmt.Errorf("failed to create directory for %s: %w", destPath, err)
 		}
