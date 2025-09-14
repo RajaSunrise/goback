@@ -4,19 +4,6 @@ version: "2"
 
 run:
   modules-download-mode: readonly
-  sort-results: true
-  exclude-dirs-use-default: false
-  exclude-dirs:
-    - vendor/
-    - testdata/
-    - scripts/
-    - bin/
-    - dist/
-    - .git/
-    - .github/
-    - .vscode/
-    - .idea/
-
 linters-settings:
   errcheck:
     check-type-assertions: true
