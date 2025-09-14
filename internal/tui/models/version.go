@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+var version string = "Version 0.1.1"
+
 type VersionModel struct {
 	selected bool
 }
@@ -41,7 +43,7 @@ func (m *VersionModel) View() string {
 		Foreground(lipgloss.Color("86")).
 		MarginTop(1).
 		MarginBottom(1).
-		Render("Version 0.1.0")
+		Render(version)
 
 	description := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("250")).
