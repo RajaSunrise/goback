@@ -1,38 +1,81 @@
-# GoBack - TUI Backend Project Scaffolding Tool
+<div align="center">
+  <h1>GoBack</h1>
+  <p><strong>A TUI-driven Project Scaffolding Tool for Go Backend Services</strong></p>
+  <p>Effortlessly generate robust backend project structures with your favorite frameworks, databases, and architectural patterns.</p>
+</div>
 
-GoBack adalah TUI (Terminal User Interface) yang dibangun dengan Bubble Tea untuk memudahkan developer backend dalam membuat project backend dengan berbagai pilihan framework, database, ORM, arsitektur, dan DevOps tools.
+<div align="center">
+    <a href="https://github.com/NarmadaWeb/goback/blob/main/LICENSE">
+        <img src="https://img.shields.io/github/license/NarmadaWeb/goback?style=for-the-badge&color=blue" alt="License">
+    </a>
+    <a href="https://github.com/NarmadaWeb/goback/releases">
+        <img src="https://img.shields.io/github/v/release/NarmadaWeb/goback?style=for-the-badge&color=orange" alt="Latest Release">
+    </a>
+</div>
 
-## Features
+<br/>
 
-✨ **Interactive TUI Mode**: Beautiful terminal interface untuk konfigurasi proyek step-by-step  
-🚀 **CLI Mode**: Command-line interface untuk otomasi dan scripting  
-🏗️ **Multiple Frameworks**: Fiber, Gin, Chi, Echo  
-🗄️ **Database Support**: PostgreSQL, MySQL, SQLite  
-⚙️ **ORM Options**: GORM, SQLC, SQLX  
-🏛️ **Architecture Patterns**: Simple, DDD, Clean Architecture, Hexagonal  
-🔧 **DevOps Integration**: Kubernetes, Helm, Terraform, Ansible  
-📝 **Auto-generated**: Go module, README, Makefile, .gitignore  
+<p align="center">
+  <img src="assets/demo.gif" alt="GoBack TUI Demo" width="100%">
+</p>
 
-## Installation
+---
+
+## ✨ Why GoBack?
+
+Tired of manually setting up boilerplate for every new Go backend project? **GoBack** automates the entire process. Built with the elegant **Bubble Tea** framework, it provides a beautiful and intuitive Terminal User Interface (TUI) to configure and generate projects in seconds, letting you focus on writing business logic, not setup code.
+
+## 🚀 Key Features
+
+- **Interactive TUI Mode**: A beautiful, step-by-step terminal interface for effortless project configuration.
+- **Powerful CLI Mode**: A fully-featured command-line interface for automation and scripting.
+- **Rich Tech Stack**: Mix and match popular frameworks, databases, ORMs, and architectures.
+- **DevOps Ready**: Generate CI/CD and infrastructure configuration files for Docker, Kubernetes, and more.
+- **Intelligent Scaffolding**: Automatically generates `go.mod`, `Makefile`, `.gitignore`, and a starter `README.md`.
+- **Customizable**: Configure default settings and save your preferences for even faster generation.
+
+## 🛠️ Supported Tech Stack
+
+GoBack offers a wide range of options to build your perfect stack:
+
+| Category      | Supported Options                                         |
+| :------------ | :-------------------------------------------------------- |
+| **Frameworks** | `Fiber`, `Gin`, `Chi`, `Echo`                             |
+| **Databases** | `PostgreSQL`, `MySQL`, `SQLite`                           |
+| **ORM / Tools** | `GORM`, `SQLC`, `SQLX`                                    |
+| **Architecture**| `Simple`, `DDD`, `Clean Architecture`, `Hexagonal`        |
+| **DevOps** | `Kubernetes`, `Helm`, `Terraform`, `Ansible`, `Docker`    |
+
+## 📦 Installation
+
+### Prerequisites
+
+- Go 1.21 or higher.
+- A terminal that supports 256 colors (recommended for the best TUI experience).
+
+### With `go install` (Recommended)
+
+```bash
+go install github.com/NarmadaWeb/goback@latest
+````
 
 ### From Source
 
 ```bash
 git clone https://github.com/NarmadaWeb/goback.git
+
 cd goback
+
 go build .
+
 sudo mv goback /usr/local/bin/
 ```
 
-### Using Go Install
-
-```bash
-go install github.com/NarmadaWeb/goback@latest
-```
-
-## Quick Start
+## ⚡ Quick Start
 
 ### Interactive TUI Mode (Recommended)
+
+Simply run the command to launch the interactive TUI.
 
 ```bash
 goback
@@ -40,247 +83,80 @@ goback
 goback tui
 ```
 
-This will launch the interactive TUI where you can:
-1. Select your framework (Fiber, Gin, Chi, Echo)
-2. Choose database (PostgreSQL, MySQL, SQLite)
-3. Pick ORM/database tool (GORM, SQLC, SQLX)
-4. Select architecture pattern (Simple, DDD, Clean, Hexagonal)
-5. Configure DevOps tools (optional)
-6. Fill in project details
-7. Review and generate
+The TUI will guide you through:
+
+1. Selecting your framework, database, and ORM.
+2. Choosing an architectural pattern.
+3. Optionally adding DevOps tool configurations.
+4. Entering your project details.
+5. Reviewing your selections and generating the project.
 
 ### CLI Mode
 
-```bash
-# Basic usage
-goback new my-api
+For scripting and automation, use the `new` command with flags.
 
-# With specific options
+```bash
+# Generate a simple Fiber API with PostgreSQL and GORM
 goback new my-api \
-  --framework=fiber \
-  --database=postgresql \
-  --orm=gorm \
-  --architecture=clean \
-  --output=./my-project \
-  --module=github.com/myorg/my-api
+  --framework fiber \
+  --database postgresql \
+  --tool gorm \
+  --architecture ddd
 
-# With DevOps tools
-goback new my-api \
-  --devops \
-  --devops-tools=kubernetes,helm
+# See all available flags
+goback new --help
 ```
 
-## Available Options
+<details>
+<summary><strong>Click to see more CLI examples</strong></summary>
 
-### Frameworks
-- **Fiber**: Fast HTTP web framework inspired by Express
-- **Gin**: High-performance HTTP web framework
-- **Chi**: Lightweight, idiomatic HTTP router
-- **Echo**: High performance, extensible web framework
-
-### Databases
-- **PostgreSQL**: Advanced open-source relational database
-- **MySQL**: Popular open-source relational database
-- **SQLite**: Lightweight embedded database
-
-### ORMs
-- **GORM**: Feature-rich ORM with associations, hooks, and migrations
-- **SQLC**: Generate type-safe code from SQL
-- **SQLX**: Extensions on database/sql for easier usage
-
-### Architecture Patterns
-- **Simple**: Simple layered architecture with handlers, services, and models
-- **DDD**: Domain-Driven Design with domain, infrastructure, application layers
-- **Clean**: Clean Architecture with entities, use cases, and adapters
-- **Hexagonal**: Hexagonal Architecture with ports and adapters pattern
-
-### DevOps Tools
-- **Kubernetes**: Container orchestration platform
-- **Helm**: Kubernetes package manager
-- **Terraform**: Infrastructure as code tool
-- **Ansible**: IT automation and configuration management
-
-## Commands
-
-### Interactive Mode
 ```bash
-goback              # Launch TUI
-goback tui          # Launch TUI explicitly
-```
-
-### CLI Commands
-```bash
-goback new [name]   # Create new project
-goback list         # List available options
-goback config       # Manage configuration
-goback version      # Show version
-```
-
-### Configuration Management
-```bash
-goback config show                    # Show current config
-goback config set key value          # Set config value
-```
-
-## Project Structure
-
-Generated projects follow the selected architecture pattern:
-
-### Simple Architecture
-```
-my-project/
-├── main.go
-├── go.mod
-├── internal/
-│   ├── handlers/          # HTTP handlers
-│   ├── services/          # Business logic
-│   ├── models/            # Data models
-│   └── config/            # Configuration
-├── pkg/                   # Public packages
-├── scripts/               # Build scripts
-├── docs/                  # Documentation
-├── Makefile
-├── README.md
-└── .gitignore
-```
-
-### Clean Architecture
-```
-my-project/
-├── main.go
-├── internal/
-│   ├── entities/          # Business entities
-│   ├── usecases/          # Business logic
-│   ├── interface_adapters/
-│   │   ├── controllers/   # HTTP controllers
-│   │   ├── presenters/    # Response formatters
-│   │   └── gateways/      # Data access
-│   └── frameworks_drivers/
-│       ├── web/           # Web framework
-│       └── database/      # Database drivers
-└── ...
-```
-
-## Generated Files
-
-Each generated project includes:
-
-- **main.go**: Application entry point with chosen framework
-- **go.mod**: Go module with required dependencies
-- **README.md**: Project documentation with setup instructions
-- **Makefile**: Build automation with common tasks
-- **.gitignore**: Git ignore rules for Go projects
-- **Project structure**: Directories based on architecture pattern
-
-## Configuration
-
-GoBack stores configuration in `~/.goback.yaml`:
-
-```yaml
-default_output_dir: "./"
-default_module_prefix: "github.com/user"
-default_author: ""
-animation_speed: 100
-show_splash_screen: true
-auto_save: true
-theme: "default"
-```
-
-## Examples
-
-### Creating a Fiber API with PostgreSQL and GORM
-```bash
-goback new ecommerce-api \
-  --framework=fiber \
-  --database=postgresql \
-  --orm=gorm \
-  --architecture=ddd \
-  --output=./ecommerce
-```
-
-### Creating a Gin API with Clean Architecture
-```bash
+# Create a Gin API with Clean Architecture and a custom module path
 goback new user-service \
-  --framework=gin \
-  --database=mysql \
-  --orm=gorm \
-  --architecture=clean
-```
+  --framework gin \
+  --database mysql \
+  --tool gorm \
+  --architecture clean \
+  --module https://github.com/my-org/user-service
 
-### Creating a Chi API with DevOps
-```bash
+# Create a Chi API with full DevOps support
 goback new payment-service \
-  --framework=chi \
-  --database=postgresql \
-  --orm=sqlx \
+  --framework chi \
+  --database postgresql \
+  --tool sqlx \
+  --architecture hexagonal \
   --devops \
-  --devops-tools=kubernetes,helm,terraform
+  --devops-tools kubernetes,helm,terraform,ansible,docker
 ```
 
-## Development
+</details>
 
-### Building from Source
-```bash
-git clone https://github.com/NarmadaWeb/goback.git
-cd goback
-go mod tidy
-go build .
-```
+## 🤝 Contributing
 
-### Testing
-```bash
-go test ./...
-```
+Contributions are welcome\! Whether it's adding a new feature, fixing a bug, or improving documentation, your help is appreciated.
 
-### Running TUI in Development
-```bash
-go run . tui
-```
+1. **Fork** the repository.
+2. Create a new feature branch (`git checkout -b feature/my-amazing-feature`).
+3. Make your changes and commit them (`git commit -m 'feat: Add some amazing feature'`).
+4. Push to the branch (`git push origin feature/my-amazing-feature`).
+5. Open a **Pull Request**.
 
-## Contributing
+Please check our [Contributing Guidelines](CONTRIBUTING.md) and look for issues tagged with `good first issue`.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+## 📜 License
 
-## Architecture
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-GoBack follows a modular architecture:
+## 🙏 Acknowledgments
 
-- **cmd/**: CLI commands and application entry point
-- **internal/tui/**: Terminal User Interface components
-- **internal/scaffolding/**: Project generation logic
-- **internal/config/**: Configuration management
-- **templates/**: Project templates for different combinations
-- **assets/**: Static assets and logos
+GoBack is built on the shoulders of giants. Our heartfelt thanks to the creators and maintainers of these amazing libraries:
 
-## Requirements
-
-- Go 1.21 or higher
-- Terminal with 256 colors support (recommended)
-
-## Roadmap
-
-- [ ] More framework support (Echo variations, FastHTTP)
-- [ ] Additional database drivers (MongoDB, Redis)
-- [ ] Plugin system for custom templates
-- [ ] Web-based UI companion
-- [ ] Project templates marketplace
-- [ ] Integration with popular IDEs
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) for the TUI
-- Styling with [Lipgloss](https://github.com/charmbracelet/lipgloss)
-- CLI powered by [Cobra](https://github.com/spf13/cobra)
-- Configuration management with [Viper](https://github.com/spf13/viper)
+- [Bubble Tea](https://github.com/charmbracelet/bubbletea) for the TUI framework.
+- [Lipgloss](https://github.com/charmbracelet/lipgloss) for terminal styling.
+- [Cobra](https://github.com/spf13/cobra) for the powerful CLI.
+- [Viper](https://github.com/spf13/viper) for configuration management.
 
 ---
-
-Made with ❤️ for the Go community
+<p align="center"\>
+Made with ❤️ by the <a href="github.com/NarmadaWeb">NarmadaWeb</a> team for the Go community.
+</p\>
