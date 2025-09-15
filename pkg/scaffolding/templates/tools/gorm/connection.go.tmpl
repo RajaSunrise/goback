@@ -5,36 +5,52 @@ import (
 	"time"
 
 	"{{.ModulePath}}/internal/config"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-// Connect establishes a connection to PostgreSQL using GORM
+// Connect establishes a connection to the configured database using GORM.
 func Connect(cfg config.DatabaseConfig) (*gorm.DB, error) {
+	var dialector gorm.Dialector
 	dsn := cfg.GetDSN()
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	switch cfg.Type {
+	case "postgres", "postgresql":
+		dialector = postgres.Open(dsn)
+	case "mysql":
+		dialector = mysql.Open(dsn)
+	case "sqlite":
+		dialector = sqlite.Open(dsn)
+	default:
+		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
+	}
+
+	db, err := gorm.Open(dialector, &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// Get underlying sql.DB to set connection pool settings
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
-	}
+	// For SQLite, connection pool settings are not typically needed or supported in the same way.
+	if cfg.Type != "sqlite" {
+		sqlDB, err := db.DB()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
+		}
 
-	// Set connection pool settings
-	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
-	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+		// Set connection pool settings
+		sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+		sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
+		sqlDB.SetConnMaxLifetime(time.Hour)
 
-	// Test the connection
-	if err := sqlDB.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		// Test the connection
+		if err := sqlDB.Ping(); err != nil {
+			return nil, fmt.Errorf("failed to ping database: %w", err)
+		}
 	}
 
 	return db, nil

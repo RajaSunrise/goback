@@ -31,26 +31,18 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-{{- if eq .Database "postgresql"}}
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	Name     string `mapstructure:"name"`
-	SSLMode  string `mapstructure:"sslmode"`
-	TimeZone string `mapstructure:"timezone"`
-{{- else if eq .Database "mysql"}}
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	Name     string `mapstructure:"name"`
-	Charset  string `mapstructure:"charset"`
-	ParseTime bool  `mapstructure:"parse_time"`
-	Loc      string `mapstructure:"loc"`
-{{- else if eq .Database "sqlite"}}
-	Path string `mapstructure:"path"`
-{{- end}}
+	Type            string        `mapstructure:"type"`
+	Host            string        `mapstructure:"host"`
+	Port            int           `mapstructure:"port"`
+	User            string        `mapstructure:"user"`
+	Password        string        `mapstructure:"password"`
+	Name            string        `mapstructure:"name"`
+	SSLMode         string        `mapstructure:"sslmode"`
+	TimeZone        string        `mapstructure:"timezone"`
+	Charset         string        `mapstructure:"charset"`
+	ParseTime       bool          `mapstructure:"parse_time"`
+	Loc             string        `mapstructure:"loc"`
+	Path            string        `mapstructure:"path"`
 	MaxOpenConns    int           `mapstructure:"max_open_conns"`
 	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
 	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
@@ -88,7 +80,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("server.idle_timeout", parseDuration(getEnv("IDLE_TIMEOUT", "60s")))
 	viper.SetDefault("server.max_header_bytes", parseInt(getEnv("MAX_HEADER_BYTES", "1048576")))
 
-{{- if eq .Database "postgresql"}}
+	viper.SetDefault("database.type", getEnv("DB_TYPE", "{{.Database}}"))
 	viper.SetDefault("database.host", getEnv("DB_HOST", "localhost"))
 	viper.SetDefault("database.port", parseInt(getEnv("DB_PORT", "5432")))
 	viper.SetDefault("database.user", getEnv("DB_USER", "postgres"))
@@ -96,18 +88,10 @@ func Load() (*Config, error) {
 	viper.SetDefault("database.name", getEnv("DB_NAME", "{{.ProjectName | snakeCase}}"))
 	viper.SetDefault("database.sslmode", getEnv("DB_SSLMODE", "disable"))
 	viper.SetDefault("database.timezone", getEnv("DB_TIMEZONE", "UTC"))
-{{- else if eq .Database "mysql"}}
-	viper.SetDefault("database.host", getEnv("DB_HOST", "localhost"))
-	viper.SetDefault("database.port", parseInt(getEnv("DB_PORT", "3306")))
-	viper.SetDefault("database.user", getEnv("DB_USER", "root"))
-	viper.SetDefault("database.password", getEnv("DB_PASSWORD", ""))
-	viper.SetDefault("database.name", getEnv("DB_NAME", "{{.ProjectName | snakeCase}}"))
 	viper.SetDefault("database.charset", getEnv("DB_CHARSET", "utf8mb4"))
 	viper.SetDefault("database.parse_time", parseBool(getEnv("DB_PARSE_TIME", "true")))
 	viper.SetDefault("database.loc", getEnv("DB_LOC", "Local"))
-{{- else if eq .Database "sqlite"}}
 	viper.SetDefault("database.path", getEnv("DB_PATH", "./{{.ProjectName | snakeCase}}.db"))
-{{- end}}
 	viper.SetDefault("database.max_open_conns", parseInt(getEnv("DB_MAX_OPEN_CONNS", "25")))
 	viper.SetDefault("database.max_idle_conns", parseInt(getEnv("DB_MAX_IDLE_CONNS", "25")))
 	viper.SetDefault("database.conn_max_lifetime", parseDuration(getEnv("DB_CONN_MAX_LIFETIME", "5m")))
@@ -142,31 +126,22 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("server port is required")
 	}
 
-{{- if eq .Database "postgresql"}}
-	if c.Database.Host == "" {
-		return fmt.Errorf("database host is required")
+	switch c.Database.Type {
+	case "postgres", "postgresql", "mysql":
+		if c.Database.Host == "" {
+			return fmt.Errorf("database host is required")
+		}
+		if c.Database.User == "" {
+			return fmt.Errorf("database user is required")
+		}
+		if c.Database.Name == "" {
+			return fmt.Errorf("database name is required")
+		}
+	case "sqlite":
+		if c.Database.Path == "" {
+			return fmt.Errorf("database path is required")
+		}
 	}
-	if c.Database.User == "" {
-		return fmt.Errorf("database user is required")
-	}
-	if c.Database.Name == "" {
-		return fmt.Errorf("database name is required")
-	}
-{{- else if eq .Database "mysql"}}
-	if c.Database.Host == "" {
-		return fmt.Errorf("database host is required")
-	}
-	if c.Database.User == "" {
-		return fmt.Errorf("database user is required")
-	}
-	if c.Database.Name == "" {
-		return fmt.Errorf("database name is required")
-	}
-{{- else if eq .Database "sqlite"}}
-	if c.Database.Path == "" {
-		return fmt.Errorf("database path is required")
-	}
-{{- end}}
 
 	if c.JWT.Secret == "" || c.JWT.Secret == "your-secret-key" {
 		return fmt.Errorf("JWT secret must be set and not be the default value")
@@ -175,24 +150,21 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-{{- if eq .Database "postgresql"}}
-// GetDSN returns the database connection string for PostgreSQL
+// GetDSN returns the database connection string
 func (c *DatabaseConfig) GetDSN() string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
-		c.Host, c.Port, c.User, c.Password, c.Name, c.SSLMode, c.TimeZone)
+	switch c.Type {
+	case "postgres", "postgresql":
+		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
+			c.Host, c.Port, c.User, c.Password, c.Name, c.SSLMode, c.TimeZone)
+	case "mysql":
+		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=%t&loc=%s",
+			c.User, c.Password, c.Host, c.Port, c.Name, c.Charset, c.ParseTime, c.Loc)
+	case "sqlite":
+		return c.Path
+	default:
+		return ""
+	}
 }
-{{- else if eq .Database "mysql"}}
-// GetDSN returns the database connection string for MySQL
-func (c *DatabaseConfig) GetDSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=%t&loc=%s",
-		c.User, c.Password, c.Host, c.Port, c.Name, c.Charset, c.ParseTime, c.Loc)
-}
-{{- else if eq .Database "sqlite"}}
-// GetDSN returns the database connection string for SQLite
-func (c *DatabaseConfig) GetDSN() string {
-	return c.Path
-}
-{{- end}}
 
 // Helper functions for parsing environment variables
 
