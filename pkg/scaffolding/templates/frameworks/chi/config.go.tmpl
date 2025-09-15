@@ -23,6 +23,7 @@ type ServerConfig struct {
 
 {{- if .Database}}
 type DatabaseConfig struct {
+	Type     string `json:"type"`
 	Host     string `json:"host"`
 	Port     string `json:"port"`
 	Username string `json:"username"`
@@ -30,6 +31,7 @@ type DatabaseConfig struct {
 	Name     string `json:"name"`
 	SSLMode  string `json:"ssl_mode"`
 	Timezone string `json:"timezone"`
+	Path     string `json:"path"`
 }
 {{- end}}
 
@@ -51,19 +53,15 @@ func Load() (*Config, error) {
 		},
 		{{- if .Database}}
 		Database: DatabaseConfig{
+			Type:     getEnv("DB_TYPE", "{{.Database}}"),
 			Host:     getEnv("DB_HOST", "localhost"),
-		{{- if eq .Database "postgresql"}}
 			Port:     getEnv("DB_PORT", "5432"),
 			Username: getEnv("DB_USERNAME", "postgres"),
 			Password: getEnv("DB_PASSWORD", "password"),
-		{{- else if eq .Database "mysql"}}
-			Port:     getEnv("DB_PORT", "3306"),
-			Username: getEnv("DB_USERNAME", "root"),
-			Password: getEnv("DB_PASSWORD", "password"),
-		{{- end}}
 			Name:     getEnv("DB_NAME", "{{.ProjectName}}_db"),
 			SSLMode:  getEnv("DB_SSLMODE", "disable"),
 			Timezone: getEnv("DB_TIMEZONE", "UTC"),
+			Path:     getEnv("DB_PATH", "./{{.ProjectName | snakeCase}}.db"),
 		},
 		{{- end}}
 		App: AppConfig{

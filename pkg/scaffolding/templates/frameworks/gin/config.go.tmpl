@@ -28,24 +28,16 @@ type ServerConfig struct {
 
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
-{{- if eq .Database "postgresql"}}
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	DBName   string `mapstructure:"dbname"`
-	SSLMode  string `mapstructure:"sslmode"`
-{{- else if eq .Database "mysql"}}
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	DBName   string `mapstructure:"dbname"`
-{{- else if eq .Database "sqlite"}}
-	Path string `mapstructure:"path"`
-{{- end}}
-	MaxOpenConns int `mapstructure:"max_open_conns"`
-	MaxIdleConns int `mapstructure:"max_idle_conns"`
+	Type         string `mapstructure:"type"`
+	Host         string `mapstructure:"host"`
+	Port         int    `mapstructure:"port"`
+	User         string `mapstructure:"user"`
+	Password     string `mapstructure:"password"`
+	DBName       string `mapstructure:"dbname"`
+	SSLMode      string `mapstructure:"sslmode"`
+	Path         string `mapstructure:"path"`
+	MaxOpenConns int    `mapstructure:"max_open_conns"`
+	MaxIdleConns int    `mapstructure:"max_idle_conns"`
 }
 
 // JWTConfig holds JWT configuration
@@ -72,22 +64,14 @@ func Load() (*Config, error) {
 	viper.SetDefault("server.idle_timeout", 60)
 	viper.SetDefault("server.max_header_bytes", 1048576)
 
-{{- if eq .Database "postgresql"}}
+	viper.SetDefault("database.type", "{{.Database}}")
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", 5432)
 	viper.SetDefault("database.user", "postgres")
 	viper.SetDefault("database.password", "password")
 	viper.SetDefault("database.dbname", "{{.ProjectName | snakeCase}}")
 	viper.SetDefault("database.sslmode", "disable")
-{{- else if eq .Database "mysql"}}
-	viper.SetDefault("database.host", "localhost")
-	viper.SetDefault("database.port", 3306)
-	viper.SetDefault("database.user", "root")
-	viper.SetDefault("database.password", "password")
-	viper.SetDefault("database.dbname", "{{.ProjectName | snakeCase}}")
-{{- else if eq .Database "sqlite"}}
 	viper.SetDefault("database.path", "./{{.ProjectName | snakeCase}}.db")
-{{- end}}
 	viper.SetDefault("database.max_open_conns", 25)
 	viper.SetDefault("database.max_idle_conns", 5)
 
@@ -133,22 +117,14 @@ func bindEnvVars() {
 	viper.BindEnv("server.port", "PORT")
 	viper.BindEnv("server.mode", "GIN_MODE")
 
-{{- if eq .Database "postgresql"}}
+	viper.BindEnv("database.type", "DB_TYPE")
 	viper.BindEnv("database.host", "DB_HOST")
 	viper.BindEnv("database.port", "DB_PORT")
 	viper.BindEnv("database.user", "DB_USER")
 	viper.BindEnv("database.password", "DB_PASSWORD")
 	viper.BindEnv("database.dbname", "DB_NAME")
 	viper.BindEnv("database.sslmode", "DB_SSLMODE")
-{{- else if eq .Database "mysql"}}
-	viper.BindEnv("database.host", "DB_HOST")
-	viper.BindEnv("database.port", "DB_PORT")
-	viper.BindEnv("database.user", "DB_USER")
-	viper.BindEnv("database.password", "DB_PASSWORD")
-	viper.BindEnv("database.dbname", "DB_NAME")
-{{- else if eq .Database "sqlite"}}
 	viper.BindEnv("database.path", "DB_PATH")
-{{- end}}
 
 	viper.BindEnv("jwt.secret", "JWT_SECRET")
 	viper.BindEnv("jwt.expiration", "JWT_EXPIRATION")
@@ -168,7 +144,9 @@ func loadFromEnv(cfg *Config) {
 	}
 
 	// Database configuration
-{{- if eq .Database "postgresql"}}
+	if dbType := os.Getenv("DB_TYPE"); dbType != "" {
+		cfg.Database.Type = dbType
+	}
 	if host := os.Getenv("DB_HOST"); host != "" {
 		cfg.Database.Host = host
 	}
@@ -189,29 +167,9 @@ func loadFromEnv(cfg *Config) {
 	if sslmode := os.Getenv("DB_SSLMODE"); sslmode != "" {
 		cfg.Database.SSLMode = sslmode
 	}
-{{- else if eq .Database "mysql"}}
-	if host := os.Getenv("DB_HOST"); host != "" {
-		cfg.Database.Host = host
-	}
-	if port := os.Getenv("DB_PORT"); port != "" {
-		if p, err := strconv.Atoi(port); err == nil {
-			cfg.Database.Port = p
-		}
-	}
-	if user := os.Getenv("DB_USER"); user != "" {
-		cfg.Database.User = user
-	}
-	if password := os.Getenv("DB_PASSWORD"); password != "" {
-		cfg.Database.Password = password
-	}
-	if dbname := os.Getenv("DB_NAME"); dbname != "" {
-		cfg.Database.DBName = dbname
-	}
-{{- else if eq .Database "sqlite"}}
 	if path := os.Getenv("DB_PATH"); path != "" {
 		cfg.Database.Path = path
 	}
-{{- end}}
 
 	// JWT configuration
 	if secret := os.Getenv("JWT_SECRET"); secret != "" {
@@ -230,21 +188,18 @@ func loadFromEnv(cfg *Config) {
 	}
 }
 
-{{- if eq .Database "postgresql"}}
 // GetDSN returns the database connection string
 func (c *DatabaseConfig) GetDSN() string {
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode)
+	switch c.Type {
+	case "postgres", "postgresql":
+		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+			c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode)
+	case "mysql":
+		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
+			c.User, c.Password, c.Host, c.Port, c.DBName)
+	case "sqlite":
+		return c.Path
+	default:
+		return ""
+	}
 }
-{{- else if eq .Database "mysql"}}
-// GetDSN returns the database connection string
-func (c *DatabaseConfig) GetDSN() string {
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-		c.User, c.Password, c.Host, c.Port, c.DBName)
-}
-{{- else if eq .Database "sqlite"}}
-// GetDSN returns the database connection string
-func (c *DatabaseConfig) GetDSN() string {
-	return c.Path
-}
-{{- end}}
