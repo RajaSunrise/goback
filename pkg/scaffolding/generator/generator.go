@@ -161,7 +161,7 @@ func (tg *TemplateGenerator) generateBaseFiles() error {
 		"Makefile":       "base/Makefile.tmpl",
 		".env":           "base/.env.tmpl",
 		".env.example":   "base/env.example.tmpl",
-		"cmd/migrate.go": "base/cmd/migrate.go.tmpl",
+		"internal/utils/validator.go": 	"base/internal/utils/validator.go.tmpl",
 	}
 
 	for dest, src := range baseTemplates {

@@ -38,7 +38,7 @@ func main() {
 
 	// Initialize database
 	cfg.Database.Type = strings.ToLower(cfg.Database.Type)
-	db, err := database.Connect(&cfg.Database)
+	db, err := database.Connect(cfg.Database)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}

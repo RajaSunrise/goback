@@ -47,8 +47,6 @@ func NewUserHandler(userService services.UserService, validator *utils.Validator
 		validator:   validator,
 	}
 }
-
-
 {{/* --- =================== BLOK KODE UNTUK GO FIBER =================== --- */}}
 {{- if eq .Framework "fiber" }}
 
@@ -134,8 +132,6 @@ func (h *UserHandler) DeleteUser(c *fiber.Ctx) error {
 }
 
 {{- end }}
-
-
 {{/* --- =================== BLOK KODE UNTUK GIN =================== --- */}}
 {{- if eq .Framework "gin" }}
 
@@ -232,8 +228,6 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 }
 
 {{- end }}
-
-
 {{/* --- =================== BLOK KODE UNTUK CHI =================== --- */}}
 {{- if eq .Framework "chi" }}
 
