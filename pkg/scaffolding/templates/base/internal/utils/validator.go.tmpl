@@ -1,0 +1,49 @@
+package utils
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/go-playground/validator/v10"
+)
+
+// Validator holds the validator instance.
+type Validator struct {
+	validate *validator.Validate
+}
+
+// NewValidator creates a new Validator.
+func NewValidator() *Validator {
+	return &Validator{validate: validator.New()}
+}
+
+// Validate performs validation on a struct.
+func (v *Validator) Validate(s interface{}) map[string]string {
+	err := v.validate.Struct(s)
+	if err == nil {
+		return nil
+	}
+
+	errors := make(map[string]string)
+	for _, err := range err.(validator.ValidationErrors) {
+		field := strings.ToLower(err.Field())
+		errors[field] = validationErrorMessage(err)
+	}
+	return errors
+}
+
+// validationErrorMessage returns a user-friendly error message for a validation error.
+func validationErrorMessage(e validator.FieldError) string {
+	switch e.Tag() {
+	case "required":
+		return fmt.Sprintf("The %s field is required.", e.Field())
+	case "email":
+		return "Please provide a valid email address."
+	case "min":
+		return fmt.Sprintf("The %s field must be at least %s characters long.", e.Field(), e.Param())
+	case "max":
+		return fmt.Sprintf("The %s field must not exceed %s characters.", e.Field(), e.Param())
+	default:
+		return fmt.Sprintf("The %s field is invalid.", e.Field())
+	}
+}

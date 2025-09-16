@@ -3,17 +3,18 @@ package handlers
 import (
 	"net/http"
 	"strconv"
-	
-	"{{.ModulePath}}/models"
+
+	"{{.ModulePath}}/internal/models"
 	{{- if eq .Framework "chi" }}
 	"encoding/json"
 	{{- end }}
-	"{{.ModulePath}}/services"
+	"{{.ModulePath}}/internal/services"
+	"{{.ModulePath}}/internal/utils"
 
 	{{- if eq .Database "postgresql" }}
 	"github.com/google/uuid"
 	{{- end}}
-	
+
 	// --- Import dinamis berdasarkan framework ---
 	{{- if eq .Framework "fiber" }}
 	"github.com/gofiber/fiber/v2"
@@ -36,11 +37,15 @@ type UserID = uint
 // UserHandler menangani request HTTP yang berhubungan dengan User.
 type UserHandler struct {
 	userService services.UserService
+	validator  *utils.Validator
 }
 
 // NewUserHandler membuat instance baru dari UserHandler.
-func NewUserHandler(userService services.UserService) *UserHandler {
-	return &UserHandler{userService: userService}
+func NewUserHandler(userService services.UserService, validator *utils.Validator) *UserHandler {
+	return &UserHandler{
+		userService: userService,
+		validator:   validator,
+	}
 }
 
 
@@ -52,6 +57,10 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	var req models.CreateUserRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body: " + err.Error()})
+	}
+
+	if errs := h.validator.Validate(req); errs != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"errors": errs})
 	}
 
 	user, err := h.userService.CreateUser(c.Context(), &req)
@@ -66,7 +75,7 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	perPage, _ := strconv.Atoi(c.Query("per_page", "10"))
-	
+
 	response, err := h.userService.GetAllUsers(c.Context(), page, perPage)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -100,6 +109,10 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body: " + err.Error()})
 	}
 
+	if errs := h.validator.Validate(req); errs != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"errors": errs})
+	}
+
 	user, err := h.userService.UpdateUser(c.Context(), id, &req)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
@@ -131,6 +144,11 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req models.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body: " + err.Error()})
+		return
+	}
+
+	if errs := h.validator.Validate(req); errs != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"errors": errs})
 		return
 	}
 
@@ -185,6 +203,11 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+	if errs := h.validator.Validate(req); errs != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"errors": errs})
+		return
+	}
+
 	user, err := h.userService.UpdateUser(c.Request.Context(), id, &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -222,6 +245,13 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if errs := h.validator.Validate(req); errs != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"errors": errs})
+		return
+	}
+
 	user, err := h.userService.CreateUser(r.Context(), &req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -239,7 +269,7 @@ func (h *UserHandler) GetUsers(w http.ResponseWriter, r *http.Request) {
 	if page == 0 { page = 1 }
 	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
 	if perPage == 0 { perPage = 10 }
-	
+
 	response, err := h.userService.GetAllUsers(r.Context(), page, perPage)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -284,6 +314,13 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if errs := h.validator.Validate(req); errs != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"errors": errs})
+		return
+	}
+
 	user, err := h.userService.UpdateUser(r.Context(), id, &req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -323,6 +360,10 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body: " + err.Error()})
 	}
 
+	if errs := h.validator.Validate(req); errs != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{"errors": errs})
+	}
+
 	user, err := h.userService.CreateUser(c.Request().Context(), &req)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -336,7 +377,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 	if page == 0 { page = 1 }
 	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
 	if perPage == 0 { perPage = 10 }
-	
+
 	response, err := h.userService.GetAllUsers(c.Request().Context(), page, perPage)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -368,6 +409,10 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	var req models.UpdateUserRequest
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body: " + err.Error()})
+	}
+
+	if errs := h.validator.Validate(req); errs != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{"errors": errs})
 	}
 
 	user, err := h.userService.UpdateUser(c.Request().Context(), id, &req)

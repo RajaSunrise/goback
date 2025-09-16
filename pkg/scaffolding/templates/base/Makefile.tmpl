@@ -208,7 +208,7 @@ sqlc-generate:
 		echo "Generating SQLC code..."; \
 		sqlc generate; \
 	else \
-		echo "SQLC not found. Install it with: go install github.com/kyleconroy/sqlc/cmd/sqlc@latest"; \
+		echo "SQLC not found. Install it with: go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest"; \
 	fi
 
 {{- end}}
@@ -328,7 +328,7 @@ install-tools:
 	$(GOINSTALL) github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 	$(GOINSTALL) github.com/securecodewarrior/gosec/v2/cmd/gosec@latest
 {{- if eq .Tool "sqlc"}}
-	$(GOINSTALL) github.com/kyleconroy/sqlc/cmd/sqlc@latest
+	$(GOINSTALL) github.com/sqlc-dev/sqlc/cmd/sqlc@latest
 {{- end}}
 
 # Show project info
