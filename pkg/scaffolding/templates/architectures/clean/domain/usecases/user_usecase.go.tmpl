@@ -2,7 +2,7 @@ package usecases
 
 import (
 	"errors"
-	"{{.ModulePath}}/internal/entities"
+	"{{.ModulePath}}/domain/entities"
 	{{- if eq .Database "postgresql" }}
 	"github.com/google/uuid"
 	{{- end}}

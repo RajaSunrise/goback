@@ -10,12 +10,31 @@ import (
 	"syscall"
 	"time"
 
+	{{if eq .Architecture.String "simple"}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/middleware"
 	"{{.ModulePath}}/internal/routes"
 	"{{.ModulePath}}/internal/utils"
-
+	{{else}}
+	"{{.ModulePath}}/config"
+	{{if eq .Architecture.String "ddd"}}
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/middleware"
+	"{{.ModulePath}}/interfaces/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{else if eq .Architecture.String "clean"}}
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/middleware"
+	"{{.ModulePath}}/interfaces/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{else if eq .Architecture.String "hexagonal"}}
+	"{{.ModulePath}}/adapters/secondary/database"
+	"{{.ModulePath}}/adapters/primary/http/middleware"
+	"{{.ModulePath}}/adapters/primary/http/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{end}}
+	{{end}}
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"

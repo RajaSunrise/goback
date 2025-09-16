@@ -21,6 +21,9 @@ import (
 	"helm.sh/helm/v3/pkg/engine"
 )
 
+// PERBAIKAN goconst: Menambahkan konstanta untuk path yang berulang.
+const pathConfig = "config/framework.go"
+
 // TemplateGenerator handles project generation from templates
 type TemplateGenerator struct {
 	Config           *config.ProjectConfig
@@ -136,6 +139,7 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)
 	}
 
+	// Menggunakan tg.Config secara langsung agar template bisa mengakses .Architecture.String(), dll.
 	if err := parsedTmpl.Execute(outputFile, tg.Config); err != nil {
 		return fmt.Errorf("failed to execute template %s: %w", templatePath, err)
 	}
@@ -143,11 +147,53 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 	return nil
 }
 
+func (tg *TemplateGenerator) getDestinationPath(fileType string) string {
+	arch := strings.ToLower(string(tg.Config.Architecture))
+
+	// Default to simple architecture paths
+	paths := map[string]string{
+		"config":     "internal/config/framework.go",
+		"database":   "internal/database/connection.go",
+		"routes":     "internal/routes/routes.go",
+		"handlers":   "internal/handlers/handlers.go",
+		"middleware": "internal/middleware/middleware.go",
+		"models":     "internal/models/base_model.go",
+		"validator":  "internal/utils/validator.go",
+	}
+
+	// PERBAIKAN gocritic (ifElseChain): Mengubah if-else menjadi switch.
+	switch arch {
+	case "ddd":
+		paths["config"] = pathConfig
+		paths["database"] = "infrastructure/database/connection.go"
+		paths["routes"] = "interfaces/routes/routes.go"
+		paths["handlers"] = "interfaces/handlers/handlers.go"
+		paths["middleware"] = "interfaces/middleware/middleware.go"
+		paths["models"] = "domain/models/base_model.go"
+	case "clean":
+		paths["config"] = pathConfig
+		paths["database"] = "infrastructure/database/connection.go"
+		paths["routes"] = "interfaces/routes/routes.go"
+		paths["handlers"] = "interfaces/handlers/handlers.go"
+		paths["middleware"] = "interfaces/middleware/middleware.go"
+		paths["models"] = "domain/entities/base_model.go"
+	case "hexagonal":
+		paths["config"] = pathConfig
+		paths["database"] = "adapters/secondary/database/connection.go"
+		paths["routes"] = "adapters/primary/http/routes.go"
+		paths["handlers"] = "adapters/primary/http/handlers.go"
+		paths["middleware"] = "adapters/primary/http/middleware.go"
+		paths["models"] = "domain/model/base_model.go"
+	}
+
+	return paths[fileType]
+}
+
 func (tg *TemplateGenerator) validateConfiguration() error {
-	errors := config.ValidateProjectConfig(tg.Config)
-	if len(errors) > 0 {
+	validationErrors := config.ValidateProjectConfig(tg.Config)
+	if len(validationErrors) > 0 {
 		// Join the errors into a single string to return as an error
-		return fmt.Errorf("configuration validation failed: %s", strings.Join(errors, ", "))
+		return fmt.Errorf("configuration validation failed: %s", strings.Join(validationErrors, ", "))
 	}
 	return nil
 }
@@ -155,13 +201,12 @@ func (tg *TemplateGenerator) validateConfiguration() error {
 // generateBaseFiles generates the base project files.
 func (tg *TemplateGenerator) generateBaseFiles() error {
 	baseTemplates := map[string]string{
-		"go.mod":         "base/go.mod.tmpl",
-		".gitignore":     "base/gitignore.tmpl",
-		"README.md":      "base/README.md.tmpl",
-		"Makefile":       "base/Makefile.tmpl",
-		".env":           "base/.env.tmpl",
-		".env.example":   "base/env.example.tmpl",
-		"internal/utils/validator.go": 	"base/internal/utils/validator.go.tmpl",
+		"go.mod":       "base/go.mod.tmpl",
+		".gitignore":   "base/gitignore.tmpl",
+		"README.md":    "base/README.md.tmpl",
+		"Makefile":     "base/Makefile.tmpl",
+		".env":         "base/.env.tmpl",
+		".env.example": "base/env.example.tmpl",
 	}
 
 	for dest, src := range baseTemplates {
@@ -169,6 +214,17 @@ func (tg *TemplateGenerator) generateBaseFiles() error {
 			return err
 		}
 	}
+
+	// Conditionally generate validator
+	arch := strings.ToLower(string(tg.Config.Architecture))
+	if arch == "simple" || arch == "" {
+		destPath := tg.getDestinationPath("validator")
+		templatePath := "base/internal/utils/validator.go.tmpl"
+		if err := tg.generateFileFromTemplate(destPath, templatePath); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -196,13 +252,13 @@ func (tg *TemplateGenerator) generateFrameworkFiles() error {
 		case "main.go.tmpl":
 			destPath = "cmd/api/main.go"
 		case "routes.go.tmpl":
-			destPath = "internal/routes/routes.go"
+			destPath = tg.getDestinationPath("routes")
 		case "config.go.tmpl":
-			destPath = "internal/config/framework.go"
+			destPath = tg.getDestinationPath("config")
 		case "handlers.go.tmpl":
-			destPath = "internal/handlers/handlers.go"
+			destPath = tg.getDestinationPath("handlers")
 		case "middleware.go.tmpl":
-			destPath = "internal/middleware/middleware.go"
+			destPath = tg.getDestinationPath("middleware")
 		default:
 			destPath = strings.TrimPrefix(templatePath, frameworkDirInTmpl+string(filepath.Separator))
 		}
@@ -222,7 +278,7 @@ func (tg *TemplateGenerator) generateDatabaseConfig() error {
 	}
 
 	templatePath := filepath.Join("databases", tool, "connection.go.tmpl")
-	destPath := "internal/database/connection.go"
+	destPath := tg.getDestinationPath("database")
 	fullTemplatePath := filepath.ToSlash(filepath.Join("templates", templatePath))
 
 	// Check if the template file exists in embedded FS
@@ -233,7 +289,12 @@ func (tg *TemplateGenerator) generateDatabaseConfig() error {
 			templatePath = filepath.Join("databases", dbType, "connection.go.tmpl")
 			fullTemplatePath = filepath.ToSlash(filepath.Join("templates", templatePath))
 			if _, err2 := scaffolding.Templates.Open(fullTemplatePath); err2 != nil {
-				return nil // Ignore if no suitable template is found
+				// PERBAIKAN nilerr: Hanya return nil jika error adalah 'file not exist'.
+				// Jika ada error lain, kembalikan error tersebut.
+				if errors.Is(err2, fs.ErrNotExist) {
+					return nil // Ignore if no suitable template is found
+				}
+				return err2 // Return other unexpected errors
 			}
 		} else {
 			return err // Other error
@@ -278,7 +339,7 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 
 		destPath := relPath
 		if filepath.Base(path) == "model.go.tmpl" {
-			destPath = "internal/models/base_model.go"
+			destPath = tg.getDestinationPath("models")
 		} else if filepath.Base(path) == "sqlc.yaml.tmpl" {
 			destPath = "sqlc.yaml"
 		}
@@ -292,6 +353,12 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 func (tg *TemplateGenerator) generateArchitectureFiles() error {
 	architecture := string(tg.Config.Architecture)
 	if architecture == "" {
+		return nil
+	}
+
+	// For simple architecture, we don't generate from this directory,
+	// as the other steps already handle it.
+	if strings.ToLower(architecture) == "simple" {
 		return nil
 	}
 

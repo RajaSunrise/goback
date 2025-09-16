@@ -11,11 +11,27 @@ import (
 	"syscall"
 	"time"
 
+	{{if eq .Architecture.String "simple"}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/routes"
 	"{{.ModulePath}}/internal/utils"
-
+	{{else}}
+	"{{.ModulePath}}/config"
+	{{if eq .Architecture.String "ddd"}}
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{else if eq .Architecture.String "clean"}}
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{else if eq .Architecture.String "hexagonal"}}
+	"{{.ModulePath}}/adapters/secondary/database"
+	"{{.ModulePath}}/adapters/primary/http/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{end}}
+	{{end}}
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
