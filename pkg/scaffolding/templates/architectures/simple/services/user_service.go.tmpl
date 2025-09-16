@@ -6,8 +6,8 @@ import (
 	"math"
 	"time"
 
-	"{{.ModulePath}}/models"
-	"{{.ModulePath}}/repositories"
+	"{{.ModulePath}}/internal/models"
+	"{{.ModulePath}}/internal/repositories"
 	"golang.org/x/crypto/bcrypt"
 
 	{{- if eq .Database "postgresql" }}
@@ -53,15 +53,16 @@ func (s *userService) CreateUser(ctx context.Context, req *models.CreateUserRequ
 		Name:     req.Name,
 		Email:    req.Email,
 		Password: string(hashedPassword),
-		IsActive: true,
+		Active: true,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	if err := s.userRepo.Create(ctx, user); err != nil {
+	user, err = s.userRepo.Create(ctx, user)
+	if err != nil {
 		return nil, err
 	}
-	
+
 	return toUserResponse(user), nil
 }
 
@@ -83,7 +84,7 @@ func (s *userService) GetAllUsers(ctx context.Context, page, perPage int) (*mode
 	for _, user := range users {
 		userResponses = append(userResponses, *toUserResponse(&user))
 	}
-	
+
 	totalPages := int(math.Ceil(float64(total) / float64(perPage)))
 
 	return &models.UsersResponse{
@@ -106,12 +107,13 @@ func (s *userService) UpdateUser(ctx context.Context, id UserID, req *models.Upd
 	if req.Name != nil {
 		user.Name = *req.Name
 	}
-	if req.IsActive != nil {
-		user.IsActive = *req.IsActive
+	if req.Active != nil {
+		user.Active = *req.Active
 	}
 	user.UpdatedAt = time.Now()
 
-	if err := s.userRepo.Update(ctx, user); err != nil {
+	user, err = s.userRepo.Update(ctx, user)
+	if err != nil {
 		return nil, err
 	}
 
@@ -129,7 +131,7 @@ func toUserResponse(u *models.User) *models.UserResponse {
 		ID:        u.ID,
 		Name:      u.Name,
 		Email:     u.Email,
-		IsActive:  u.IsActive,
+		Active:  u.Active,
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.UpdatedAt,
 	}

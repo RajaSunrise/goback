@@ -1,71 +1,62 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
-{{- if eq .Tool "gorm"}}
-	"{{.ModulePath}}/internal/models"
-	"gorm.io/gorm"
-{{- else}}
-	"fmt"
-{{- end}}
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/database/mysql"
+	_ "github.com/golang-migrate/migrate/v4/database/sqlite3"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 func main() {
-	// Load configuration from .env
+	log.Println("Starting database migration...")
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("cannot load config: %v", err)
 	}
 
-{{- if eq .Tool "gorm"}}
-	// Connect to the database
-	db, err := database.Connect(&cfg.Database)
+	dsn := cfg.Database.GetMigrationDSN()
+	if dsn == "" {
+		log.Fatal("database DSN is empty")
+	}
+
+	m, err := migrate.New("file://db/migrations", dsn)
 	if err != nil {
-		log.Fatalf("cannot connect to database: %v", err)
+		log.Fatalf("failed to create migrate instance: %v", err)
 	}
 
-	// Determine migration direction from command-line arguments
 	direction := "up"
-	if len(os.Args) > 1 && os.Args[1] == "down" {
-		direction = "down"
+	if len(os.Args) > 1 {
+		direction = os.Args[1]
 	}
 
-	if direction == "up" {
-		log.Println("Running migrations...")
-		// GORM's AutoMigrate handles creating/updating tables.
-		// Add all your models here.
-		err = db.AutoMigrate(
-			&models.User{},
-			// &models.Product{}, // Add other models here
-		)
-		if err != nil {
-			log.Fatalf("migration failed: %v", err)
+	switch direction {
+	case "up":
+		log.Println("Applying migrations...")
+		if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+			log.Fatalf("failed to apply migrations: %v", err)
 		}
-		log.Println("Migrations completed successfully.")
-	} else {
-		log.Println("Rolling back migrations...")
-		// GORM doesn't have a built-in down migration.
-		// You drop tables manually for a full rollback.
-		err = db.Migrator().DropTable(
-			&models.User{},
-			// &models.Product{}, // Add other models here
-		)
-		if err != nil {
-			log.Fatalf("rollback failed: %v", err)
+		log.Println("Migrations applied successfully.")
+	case "down":
+		log.Println("Reverting migrations...")
+		if err := m.Down(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+			log.Fatalf("failed to revert migrations: %v", err)
 		}
-		log.Println("Rollback completed successfully.")
+		log.Println("Migrations reverted successfully.")
+	case "drop":
+		log.Println("Dropping all migrations...")
+		if err := m.Drop(); err != nil {
+			log.Fatalf("failed to drop migrations: %v", err)
+		}
+		log.Println("All migrations dropped successfully.")
+	default:
+		log.Fatalf("invalid migration direction: %s. Use 'up', 'down', or 'drop'", direction)
 	}
-{{- else if eq .Tool "sqlx"}}
-	// For sqlx, migrations are typically handled by external tools
-	// like sql-migrate, goose, or atlas.
-	fmt.Println("For sqlx, please use a dedicated migration tool like 'golang-migrate/migrate'.")
-	fmt.Println("Example command to run migrations up:")
-	fmt.Printf("migrate -path internal/database/migrations -database \"%s\" up\n", database.GetDSN(cfg))
-{{- else}}
-	fmt.Println("Migration command not implemented for the selected ORM/tool.")
-{{- end}}
 }

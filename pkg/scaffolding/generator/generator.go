@@ -115,6 +115,7 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 		"snakeCase":  strcase.ToSnake,
 		"kebabCase":  strcase.ToKebab,
 		"upper":      strings.ToUpper,
+		"lower":      strings.ToLower,
 		"replaceAll": strings.ReplaceAll,
 		"b64enc":     func(s string) string { return base64.StdEncoding.EncodeToString([]byte(s)) },
 		"default": func(val string, def string) string {
@@ -215,27 +216,28 @@ func (tg *TemplateGenerator) generateFrameworkFiles() error {
 
 // generateDatabaseConfig generates the database configuration files.
 func (tg *TemplateGenerator) generateDatabaseConfig() error {
-	database := string(tg.Config.Database)
-	if database == "" {
-		return nil // No database selected
+	tool := strings.ToLower(tg.Config.Tool.String())
+	if tool == "" {
+		return nil // No tool selected
 	}
 
-	var templatePath string
-	if tg.Config.Tool == config.ToolGorm {
-		templatePath = filepath.Join("tools", "gorm", "connection.go.tmpl")
-	} else {
-		templatePath = filepath.Join("databases", database, "connection.go.tmpl")
-	}
-
+	templatePath := filepath.Join("databases", tool, "connection.go.tmpl")
 	destPath := "internal/database/connection.go"
 	fullTemplatePath := filepath.ToSlash(filepath.Join("templates", templatePath))
 
 	// Check if the template file exists in embedded FS
 	if _, err := scaffolding.Templates.Open(fullTemplatePath); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil // Ignore if template doesn't exist
+			// Fallback to database type if tool-specific connection doesn't exist
+			dbType := strings.ToLower(tg.Config.Database.String())
+			templatePath = filepath.Join("databases", dbType, "connection.go.tmpl")
+			fullTemplatePath = filepath.ToSlash(filepath.Join("templates", templatePath))
+			if _, err2 := scaffolding.Templates.Open(fullTemplatePath); err2 != nil {
+				return nil // Ignore if no suitable template is found
+			}
+		} else {
+			return err // Other error
 		}
-		return err // Other error
 	}
 
 	return tg.generateFileFromTemplate(destPath, templatePath)
@@ -248,30 +250,42 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 		return nil
 	}
 
-	toolDir := filepath.ToSlash(filepath.Join("templates", "tools", tool))
-	files, err := fs.Glob(scaffolding.Templates, filepath.Join(toolDir, "*.tmpl"))
-	if err != nil || len(files) == 0 {
+	templateRootDir := filepath.ToSlash(filepath.Join("templates", "tools", tool))
+	if _, err := scaffolding.Templates.Open(templateRootDir); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil // No tool-specific files to generate
+		}
 		return err
 	}
 
-	for _, file := range files {
-		templatePath := strings.TrimPrefix(file, "templates"+string(filepath.Separator))
-		toolDirInTmpl := filepath.Join("tools", tool)
+	return fs.WalkDir(scaffolding.Templates, templateRootDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".tmpl") {
+			return nil
+		}
 
-		var destPath string
-		switch filepath.Base(templatePath) {
-		case "model.go.tmpl":
+		// Skip connection files as they are handled by generateDatabaseConfig
+		if filepath.Base(path) == "connection.go.tmpl" {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(templateRootDir, path)
+		if err != nil {
+			return err
+		}
+
+		destPath := relPath
+		if filepath.Base(path) == "model.go.tmpl" {
 			destPath = "internal/models/base_model.go"
-		case "sqlc.yaml.tmpl":
+		} else if filepath.Base(path) == "sqlc.yaml.tmpl" {
 			destPath = "sqlc.yaml"
-		default:
-			destPath = strings.TrimPrefix(templatePath, toolDirInTmpl+string(filepath.Separator))
 		}
-		if err := tg.generateFileFromTemplate(destPath, templatePath); err != nil {
-			return fmt.Errorf("failed to generate Tool file from %s: %w", templatePath, err)
-		}
-	}
-	return nil
+
+		templatePath := strings.TrimPrefix(path, "templates"+string(filepath.Separator))
+		return tg.generateFileFromTemplate(destPath, templatePath)
+	})
 }
 
 // generateArchitectureFiles generates the architecture-specific files recursively.

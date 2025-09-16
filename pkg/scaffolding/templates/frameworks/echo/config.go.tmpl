@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -43,6 +45,9 @@ type AppConfig struct {
 }
 
 func Load() (*Config, error) {
+	// Load .env file if it exists
+	godotenv.Load()
+
 	cfg := &Config{
 		Server: ServerConfig{
 			Port:         getEnv("PORT", "8080"),
@@ -72,7 +77,37 @@ func Load() (*Config, error) {
 		},
 	}
 
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
 	return cfg, nil
+}
+
+// Validate validates the configuration
+func (c *Config) Validate() error {
+	if c.Server.Port == "" {
+		return fmt.Errorf("server port is required")
+	}
+
+	switch c.Database.Type {
+	case "postgres", "postgresql", "mysql":
+		if c.Database.Host == "" {
+			return fmt.Errorf("database host is required")
+		}
+		if c.Database.Username == "" {
+			return fmt.Errorf("database user is required")
+		}
+		if c.Database.Name == "" {
+			return fmt.Errorf("database name is required")
+		}
+	case "sqlite":
+		if c.Database.Path == "" {
+			return fmt.Errorf("database path is required")
+		}
+	}
+
+	return nil
 }
 
 func getEnv(key, defaultValue string) string {
@@ -80,6 +115,22 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// GetMigrationDSN returns the database connection string for migrations.
+func (c *DatabaseConfig) GetMigrationDSN() string {
+	switch c.Type {
+	case "postgres", "postgresql":
+		return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			c.Username, c.Password, c.Host, c.Port, c.Name, c.SSLMode)
+	case "mysql":
+		return fmt.Sprintf("mysql://%s:%s@tcp(%s:%s)/%s",
+			c.Username, c.Password, c.Host, c.Port, c.Name)
+	case "sqlite":
+		return fmt.Sprintf("sqlite3://%s", c.Path)
+	default:
+		return ""
+	}
 }
 
 func getEnvAsInt(key string, defaultValue int) int {

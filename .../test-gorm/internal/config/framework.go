@@ -1,0 +1,213 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"time"
+
+	"github.com/joho/godotenv"
+	"github.com/spf13/viper"
+)
+
+// Config holds all configuration for the application
+type Config struct {
+	Server   ServerConfig   `mapstructure:"server"`
+	Database DatabaseConfig `mapstructure:"database"`
+	JWT      JWTConfig      `mapstructure:"jwt"`
+	Log      LogConfig      `mapstructure:"log"`
+}
+
+// ServerConfig holds server configuration
+type ServerConfig struct {
+	Port           string        `mapstructure:"port"`
+	Mode           string        `mapstructure:"mode"`
+	ReadTimeout    time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout   time.Duration `mapstructure:"write_timeout"`
+	IdleTimeout    time.Duration `mapstructure:"idle_timeout"`
+	MaxHeaderBytes int           `mapstructure:"max_header_bytes"`
+	TrustedProxies []string      `mapstructure:"trusted_proxies"`
+}
+
+// DatabaseConfig holds database configuration
+type DatabaseConfig struct {
+	Type            string        `mapstructure:"type"`
+	Host            string        `mapstructure:"host"`
+	Port            int           `mapstructure:"port"`
+	User            string        `mapstructure:"user"`
+	Password        string        `mapstructure:"password"`
+	Name            string        `mapstructure:"name"`
+	SSLMode         string        `mapstructure:"sslmode"`
+	TimeZone        string        `mapstructure:"timezone"`
+	Charset         string        `mapstructure:"charset"`
+	ParseTime       bool          `mapstructure:"parse_time"`
+	Loc             string        `mapstructure:"loc"`
+	Path            string        `mapstructure:"path"`
+	MaxOpenConns    int           `mapstructure:"max_open_conns"`
+	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
+}
+
+// JWTConfig holds JWT configuration
+type JWTConfig struct {
+	Secret     string        `mapstructure:"secret"`
+	Expiration time.Duration `mapstructure:"expiration"`
+	Issuer     string        `mapstructure:"issuer"`
+}
+
+// LogConfig holds logging configuration
+type LogConfig struct {
+	Level  string `mapstructure:"level"`
+	Format string `mapstructure:"format"`
+	Output string `mapstructure:"output"`
+}
+
+// Load loads configuration from environment variables and config files
+func Load() (*Config, error) {
+	// Load .env file if it exists
+	if err := godotenv.Load(".env"); err != nil {
+		// It's okay if .env doesn't exist
+		fmt.Printf("Warning: .env file not found: %v\n", err)
+	}
+
+	config := &Config{}
+
+	// Set defaults
+	viper.SetDefault("server.port", getEnv("PORT", "8080"))
+	viper.SetDefault("server.mode", getEnv("FIBER_MODE", "debug"))
+	viper.SetDefault("server.read_timeout", parseDuration(getEnv("READ_TIMEOUT", "30s")))
+	viper.SetDefault("server.write_timeout", parseDuration(getEnv("WRITE_TIMEOUT", "30s")))
+	viper.SetDefault("server.idle_timeout", parseDuration(getEnv("IDLE_TIMEOUT", "60s")))
+	viper.SetDefault("server.max_header_bytes", parseInt(getEnv("MAX_HEADER_BYTES", "1048576")))
+
+	viper.SetDefault("database.type", getEnv("DB_TYPE", "PostgreSQL"))
+	viper.SetDefault("database.host", getEnv("DB_HOST", "localhost"))
+	viper.SetDefault("database.port", parseInt(getEnv("DB_PORT", "5432")))
+	viper.SetDefault("database.user", getEnv("DB_USER", "postgres"))
+	viper.SetDefault("database.password", getEnv("DB_PASSWORD", ""))
+	viper.SetDefault("database.name", getEnv("DB_NAME", "test_gorm"))
+	viper.SetDefault("database.sslmode", getEnv("DB_SSLMODE", "disable"))
+	viper.SetDefault("database.timezone", getEnv("DB_TIMEZONE", "UTC"))
+	viper.SetDefault("database.charset", getEnv("DB_CHARSET", "utf8mb4"))
+	viper.SetDefault("database.parse_time", parseBool(getEnv("DB_PARSE_TIME", "true")))
+	viper.SetDefault("database.loc", getEnv("DB_LOC", "Local"))
+	viper.SetDefault("database.path", getEnv("DB_PATH", "./test_gorm.db"))
+	viper.SetDefault("database.max_open_conns", parseInt(getEnv("DB_MAX_OPEN_CONNS", "25")))
+	viper.SetDefault("database.max_idle_conns", parseInt(getEnv("DB_MAX_IDLE_CONNS", "25")))
+	viper.SetDefault("database.conn_max_lifetime", parseDuration(getEnv("DB_CONN_MAX_LIFETIME", "5m")))
+
+	viper.SetDefault("jwt.secret", getEnv("JWT_SECRET", "your-secret-key"))
+	viper.SetDefault("jwt.expiration", parseDuration(getEnv("JWT_EXPIRATION", "24h")))
+	viper.SetDefault("jwt.issuer", getEnv("JWT_ISSUER", "test-gorm"))
+
+	viper.SetDefault("log.level", getEnv("LOG_LEVEL", "info"))
+	viper.SetDefault("log.format", getEnv("LOG_FORMAT", "text"))
+	viper.SetDefault("log.output", getEnv("LOG_OUTPUT", "stdout"))
+
+	// Bind environment variables
+	viper.AutomaticEnv()
+
+	// Unmarshal into config struct
+	if err := viper.Unmarshal(config); err != nil {
+		return nil, fmt.Errorf("unable to decode config: %v", err)
+	}
+
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %v", err)
+	}
+
+	return config, nil
+}
+
+// Validate validates the configuration
+func (c *Config) Validate() error {
+	if c.Server.Port == "" {
+		return fmt.Errorf("server port is required")
+	}
+
+	switch c.Database.Type {
+	case "postgres", "postgresql", "mysql":
+		if c.Database.Host == "" {
+			return fmt.Errorf("database host is required")
+		}
+		if c.Database.User == "" {
+			return fmt.Errorf("database user is required")
+		}
+		if c.Database.Name == "" {
+			return fmt.Errorf("database name is required")
+		}
+	case "sqlite":
+		if c.Database.Path == "" {
+			return fmt.Errorf("database path is required")
+		}
+	}
+
+	if c.JWT.Secret == "" {
+		return fmt.Errorf("JWT secret must be set")
+	}
+
+	return nil
+}
+
+// GetDSN returns the database connection string
+func (c *DatabaseConfig) GetDSN() string {
+	switch c.Type {
+	case "postgres", "postgresql":
+		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
+			c.Host, c.Port, c.User, c.Password, c.Name, c.SSLMode, c.TimeZone)
+	case "mysql":
+		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=%t&loc=%s",
+			c.User, c.Password, c.Host, c.Port, c.Name, c.Charset, c.ParseTime, c.Loc)
+	case "sqlite":
+		return c.Path
+	default:
+		return ""
+	}
+}
+
+// GetMigrationDSN returns the database connection string for migrations.
+func (c *DatabaseConfig) GetMigrationDSN() string {
+	switch c.Type {
+	case "postgres", "postgresql":
+		return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+			c.User, c.Password, c.Host, c.Port, c.Name, c.SSLMode)
+	case "mysql":
+		return fmt.Sprintf("mysql://%s:%s@tcp(%s:%d)/%s",
+			c.User, c.Password, c.Host, c.Port, c.Name)
+	case "sqlite":
+		return fmt.Sprintf("sqlite3://%s", c.Path)
+	default:
+		return ""
+	}
+}
+
+// Helper functions for parsing environment variables
+
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+func parseInt(s string) int {
+	if i, err := strconv.Atoi(s); err == nil {
+		return i
+	}
+	return 0
+}
+
+func parseBool(s string) bool {
+	if b, err := strconv.ParseBool(s); err == nil {
+		return b
+	}
+	return false
+}
+
+func parseDuration(s string) time.Duration {
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	return 0
+}

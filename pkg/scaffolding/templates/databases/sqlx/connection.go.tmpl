@@ -1,0 +1,50 @@
+package database
+
+import (
+	"fmt"
+	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
+
+	"{{.ModulePath}}/internal/config"
+	"github.com/jmoiron/sqlx"
+)
+
+// Connect establishes a connection to the configured database using sqlx.
+func Connect(cfg *config.DatabaseConfig) (*sqlx.DB, error) {
+	var driverName string
+	dsn := cfg.GetDSN()
+
+	switch cfg.Type {
+	case "postgres", "postgresql":
+		driverName = "postgres"
+	case "mysql":
+		driverName = "mysql"
+	case "sqlite":
+		driverName = "sqlite3"
+	default:
+		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
+	}
+
+	db, err := sqlx.Connect(driverName, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	// For SQLite, connection pool settings are not typically needed or supported in the same way.
+	if cfg.Type != "sqlite" {
+		// Set connection pool settings
+		db.SetMaxOpenConns(cfg.MaxOpenConns)
+		db.SetMaxIdleConns(cfg.MaxIdleConns)
+		db.SetConnMaxLifetime(time.Hour)
+
+		// Test the connection
+		if err := db.Ping(); err != nil {
+			return nil, fmt.Errorf("failed to ping database: %w", err)
+		}
+	}
+
+	return db, nil
+}

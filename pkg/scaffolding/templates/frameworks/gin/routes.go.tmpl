@@ -4,51 +4,35 @@ import (
 	"net/http"
 
 	"{{.ModulePath}}/internal/config"
-{{- if eq .Architecture "simple"}}
 	"{{.ModulePath}}/internal/handlers"
-{{- else if eq .Architecture "ddd"}}
-	"{{.ModulePath}}/internal/interfaces/http"
-{{- else if eq .Architecture "clean"}}
-	"{{.ModulePath}}/internal/frameworks_drivers/web"
-{{- else if eq .Architecture "hexagonal"}}
-	"{{.ModulePath}}/internal/adapters/input/http"
-{{- end}}
+	"{{.ModulePath}}/internal/repositories"
+	"{{.ModulePath}}/internal/services"
+	"{{.ModulePath}}/internal/utils"
 
 	"github.com/gin-gonic/gin"
-{{- if eq .Tool "gorm"}}
+	{{- if eq .Tool "gorm"}}
 	"gorm.io/gorm"
-{{- else if eq .Tool "sqlx"}}
+	{{- else if eq .Tool "sqlx"}}
 	"github.com/jmoiron/sqlx"
-{{- else if eq .Tool "sqlc"}}
+	{{- else if eq .Tool "sqlc"}}
 	"database/sql"
-{{- end}}
+	{{- end}}
 )
 
-{{- if eq .Architecture "simple"}}
-// Dependencies holds all the dependencies needed by the routes
-type Dependencies struct {
-{{- if eq .Tool "gorm"}}
-	DB     *gorm.DB
-{{- else if eq .Tool "sqlx"}}
-	DB     *sqlx.DB
-{{- else if eq .Tool "sqlc"}}
-	DB     *sql.DB
-{{- end}}
-	Config *config.Config
-}
-
 // Setup configures all the routes
-func Setup(router *gin.Engine, deps *Dependencies) {
+func Setup(router *gin.Engine, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, cfg *config.Config, validator *utils.Validator) {
+	// Initialize dependencies
+	userRepository := repositories.NewUserRepository(db)
+	userService := services.NewUserService(userRepository)
+	userHandler := handlers.NewUserHandler(userService, validator)
+	healthHandler := handlers.NewHealthHandler()
+
 	// Health check endpoint
 	router.GET("/health", healthCheck)
 
 	// API version 1 routes
 	v1 := router.Group("/api/v1")
 	{
-		// Initialize handlers
-		healthHandler := handlers.NewHealthHandler()
-		userHandler := handlers.NewUserHandler(deps.DB, deps.Config)
-
 		// Health routes
 		v1.GET("/health", healthHandler.Check)
 		v1.GET("/ready", healthHandler.Ready)
@@ -62,18 +46,7 @@ func Setup(router *gin.Engine, deps *Dependencies) {
 			users.PUT("/:id", userHandler.UpdateUser)
 			users.DELETE("/:id", userHandler.DeleteUser)
 		}
-
-		// Example protected routes (if authentication is implemented)
-		// protected := v1.Group("/protected")
-		// protected.Use(middleware.AuthRequired())
-		// {
-		//     protected.GET("/profile", userHandler.GetProfile)
-		// }
 	}
-
-	// Serve static files (optional)
-	// router.Static("/static", "./web/static")
-	// router.StaticFile("/favicon.ico", "./web/static/favicon.ico")
 
 	// Catch-all route for undefined endpoints
 	router.NoRoute(func(c *gin.Context) {
@@ -83,97 +56,6 @@ func Setup(router *gin.Engine, deps *Dependencies) {
 		})
 	})
 }
-
-{{- else if eq .Architecture "ddd"}}
-// Setup configures all the routes with DDD structure
-func Setup(router *gin.Engine, handler *http.Handler) {
-	// Health check endpoint
-	router.GET("/health", healthCheck)
-
-	// API version 1 routes
-	v1 := router.Group("/api/v1")
-	{
-		// Health routes
-		v1.GET("/health", handler.HealthCheck)
-		v1.GET("/ready", handler.ReadyCheck)
-
-		// User routes
-		users := v1.Group("/users")
-		{
-			users.GET("", handler.GetUsers)
-			users.GET("/:id", handler.GetUser)
-			users.POST("", handler.CreateUser)
-			users.PUT("/:id", handler.UpdateUser)
-			users.DELETE("/:id", handler.DeleteUser)
-		}
-	}
-
-	// Catch-all route
-	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Route not found",
-			"path":  c.Request.URL.Path,
-		})
-	})
-}
-
-{{- else if eq .Architecture "clean"}}
-// Setup configures all the routes with Clean Architecture
-func Setup(webFramework *web.GinFramework, db interface{}, cfg *config.Config) {
-	router := webFramework.GetRouter()
-
-	// Health check endpoint
-	router.GET("/health", healthCheck)
-
-	// API version 1 routes
-	v1 := router.Group("/api/v1")
-	{
-		// Setup controllers
-		webFramework.SetupControllers(v1, db, cfg)
-	}
-
-	// Catch-all route
-	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Route not found",
-			"path":  c.Request.URL.Path,
-		})
-	})
-}
-
-{{- else if eq .Architecture "hexagonal"}}
-// Setup configures all the routes with Hexagonal Architecture
-func Setup(router *gin.Engine, adapter *http.Adapter) {
-	// Health check endpoint
-	router.GET("/health", healthCheck)
-
-	// API version 1 routes
-	v1 := router.Group("/api/v1")
-	{
-		// Health routes
-		v1.GET("/health", adapter.HealthCheck)
-		v1.GET("/ready", adapter.ReadyCheck)
-
-		// User routes
-		users := v1.Group("/users")
-		{
-			users.GET("", adapter.GetUsers)
-			users.GET("/:id", adapter.GetUser)
-			users.POST("", adapter.CreateUser)
-			users.PUT("/:id", adapter.UpdateUser)
-			users.DELETE("/:id", adapter.DeleteUser)
-		}
-	}
-
-	// Catch-all route
-	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Route not found",
-			"path":  c.Request.URL.Path,
-		})
-	})
-}
-{{- end}}
 
 // healthCheck is a simple health check endpoint
 func healthCheck(c *gin.Context) {

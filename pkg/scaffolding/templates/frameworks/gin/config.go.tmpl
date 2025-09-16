@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
@@ -54,6 +55,12 @@ type LogConfig struct {
 
 // Load loads configuration from environment variables and config files
 func Load() (*Config, error) {
+	// Load .env file if it exists
+	if err := godotenv.Load(".env"); err != nil {
+		// It's okay if .env doesn't exist
+		fmt.Printf("Warning: .env file not found: %v\n", err)
+	}
+
 	cfg := &Config{}
 
 	// Set default values
@@ -109,7 +116,41 @@ func Load() (*Config, error) {
 	// Load from environment variables if not set in config
 	loadFromEnv(cfg)
 
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %w", err)
+	}
+
 	return cfg, nil
+}
+
+// Validate validates the configuration
+func (c *Config) Validate() error {
+	if c.Server.Port == "" {
+		return fmt.Errorf("server port is required")
+	}
+
+	switch c.Database.Type {
+	case "postgres", "postgresql", "mysql":
+		if c.Database.Host == "" {
+			return fmt.Errorf("database host is required")
+		}
+		if c.Database.User == "" {
+			return fmt.Errorf("database user is required")
+		}
+		if c.Database.DBName == "" {
+			return fmt.Errorf("database name is required")
+		}
+	case "sqlite":
+		if c.Database.Path == "" {
+			return fmt.Errorf("database path is required")
+		}
+	}
+
+	if c.JWT.Secret == "" {
+		return fmt.Errorf("JWT secret must be set")
+	}
+
+	return nil
 }
 
 // bindEnvVars binds environment variables to config keys
@@ -199,6 +240,22 @@ func (c *DatabaseConfig) GetDSN() string {
 			c.User, c.Password, c.Host, c.Port, c.DBName)
 	case "sqlite":
 		return c.Path
+	default:
+		return ""
+	}
+}
+
+// GetMigrationDSN returns the database connection string for migrations.
+func (c *DatabaseConfig) GetMigrationDSN() string {
+	switch c.Type {
+	case "postgres", "postgresql":
+		return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+			c.User, c.Password, c.Host, c.Port, c.DBName, c.SSLMode)
+	case "mysql":
+		return fmt.Sprintf("mysql://%s:%s@tcp(%s:%d)/%s",
+			c.User, c.Password, c.Host, c.Port, c.DBName)
+	case "sqlite":
+		return fmt.Sprintf("sqlite3://%s", c.Path)
 	default:
 		return ""
 	}
