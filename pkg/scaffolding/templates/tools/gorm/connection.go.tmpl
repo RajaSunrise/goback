@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"{{.ModulePath}}/internal/config"
+	{{if eq .Architecture.String "simple"}}"{{.ModulePath}}/internal/config"{{else}}"{{.ModulePath}}/config"{{end}}
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -13,7 +13,7 @@ import (
 )
 
 // Connect establishes a connection to the configured database using GORM.
-func Connect(cfg config.DatabaseConfig) (*gorm.DB, error) {
+func Connect(cfg *config.DatabaseConfig) (*gorm.DB, error) {
 	var dialector gorm.Dialector
 	dsn := cfg.GetDSN()
 

@@ -2,23 +2,28 @@ package ports
 
 import (
 	"{{.ModulePath}}/domain"
-	{{- if eq .Database "postgresql" }}
+	{{if eq .Database "postgresql"}}
 	"github.com/google/uuid"
-	{{- end}}
+	{{end}}
 )
 
-// UserService is a port that defines the contract for user-related application logic.
+// UserService is the interface for the application's user service.
 type UserService interface {
-	{{- if eq .Database "postgresql" }}
 	CreateUser(name, email, password string) (*domain.User, error)
+	{{if eq .Database "postgresql"}}
 	GetUser(id uuid.UUID) (*domain.User, error)
-	UpdateUser(id uuid.UUID, name, email *string) (*domain.User, error)
-	DeleteUser(id uuid.UUID) error
-	{{- else}}
-	CreateUser(name, email, password string) (*domain.User, error)
+	{{else}}
 	GetUser(id uint) (*domain.User, error)
-	UpdateUser(id uint, name, email *string) (*domain.User, error)
-	DeleteUser(id uint) error
-	{{- end}}
+	{{end}}
 	GetAllUsers(page, perPage int) ([]*domain.User, int64, error)
+	{{if eq .Database "postgresql"}}
+	UpdateUser(id uuid.UUID, name, email *string) (*domain.User, error)
+	{{else}}
+	UpdateUser(id uint, name, email *string) (*domain.User, error)
+	{{end}}
+	{{if eq .Database "postgresql"}}
+	DeleteUser(id uuid.UUID) error
+	{{else}}
+	DeleteUser(id uint) error
+	{{end}}
 }

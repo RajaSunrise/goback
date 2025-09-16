@@ -1,4 +1,4 @@
-package routes
+{{if eq .Architecture.String "simple"}}package routes
 
 import (
 	"net/http"
@@ -65,3 +65,51 @@ func healthCheck(c *gin.Context) {
 		"version": "1.0.0",
 	})
 }
+{{else}}package http
+
+import (
+	"{{.ModulePath}}/adapters/secondary/database"
+	"{{.ModulePath}}/application/services"
+	"{{.ModulePath}}/ports"
+
+	"github.com/gin-gonic/gin"
+	{{- if eq .Tool "gorm"}}
+	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc"}}
+	"database/sql"
+	{{- end}}
+)
+
+func SetupRoutes(router *gin.Engine, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}) {
+	// Setup repositories
+	var userRepository ports.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = database.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = database.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = database.NewSqlcUserRepository(db)
+	{{end}}
+	
+	// Setup services
+	userService := services.NewUserService(userRepository)
+
+	// Setup handlers
+	userHandler := NewUserHandler(userService)
+	
+	// API version 1 routes
+	v1 := router.Group("/api/v1")
+	{
+		users := v1.Group("/users")
+		{
+			users.POST("", userHandler.Create)
+			users.GET("/:id", userHandler.GetByID)
+			users.GET("", userHandler.GetAll)
+			users.PUT("/:id", userHandler.Update)
+			users.DELETE("/:id", userHandler.Delete)
+		}
+	}
+}
+{{end}}

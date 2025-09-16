@@ -9,7 +9,7 @@ import (
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 
-	"{{.ModulePath}}/internal/config"
+	{{if eq .Architecture.String "simple"}}"{{.ModulePath}}/internal/config"{{else}}"{{.ModulePath}}/config"{{end}}
 )
 
 // Connect establishes a connection to the configured database using the standard library.

@@ -34,11 +34,22 @@
 
 {{- if .Database}}
 
-4.  **Run database migrations:**
-    *Ensure your database server is running and the credentials in `.env` are correct.*
+4.  **Database Setup:**
+
+    {{if eq .Tool.String "gorm"}}
+    *Ensure your database server is running and the credentials in `.env` are correct, then run the migrations:*
     ```bash
     make migrate
     ```
+    {{else if eq .Tool.String "sqlc"}}
+    *This project uses **sqlc** to generate type-safe Go code from your SQL queries. After modifying any `.sql` files in the `storage/queries` directory, you must regenerate the code:*
+    ```bash
+    make sqlc-generate
+    ```
+    **Note on Migrations:** For `sqlc`, migrations are not handled automatically. You are responsible for managing database schema changes. We recommend using a tool like [golang-migrate/migrate](https://github.com/golang-migrate/migrate).
+    {{else if eq .Tool.String "sqlx"}}
+    **Note on Migrations:** For `sqlx`, migrations are not handled automatically. You are responsible for managing database schema changes. We recommend using a tool like [golang-migrate/migrate](https://github.com/golang-migrate/migrate).
+    {{end}}
 {{- end}}
 
 5.  **Run the application:**
