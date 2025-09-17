@@ -6,33 +6,40 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	{{if eq .Architecture.String "simple"}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
-{{- if eq .Architecture "simple"}}
-	"{{.ModulePath}}/internal/handlers"
-{{- else if eq .Architecture "ddd"}}
-	"{{.ModulePath}}/internal/interfaces/http"
-{{- else if eq .Architecture "clean"}}
-	"{{.ModulePath}}/internal/frameworks_drivers/web"
-{{- else if eq .Architecture "hexagonal"}}
-	"{{.ModulePath}}/internal/adapters/input/http"
-{{- end}}
 	"{{.ModulePath}}/internal/middleware"
 	"{{.ModulePath}}/internal/routes"
-
+	"{{.ModulePath}}/internal/utils"
+	{{else}}
+	"{{.ModulePath}}/config"
+	{{if eq .Architecture.String "ddd"}}
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/middleware"
+	"{{.ModulePath}}/interfaces/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{else if eq .Architecture.String "clean"}}
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/middleware"
+	"{{.ModulePath}}/interfaces/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{else if eq .Architecture.String "hexagonal"}}
+	"{{.ModulePath}}/adapters/secondary/database"
+	"{{.ModulePath}}/adapters/primary/http/middleware"
+	"{{.ModulePath}}/adapters/primary/http/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{end}}
+	{{end}}
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
-{{- if eq .Tool "gorm"}}
-	"gorm.io/gorm"
-{{- else if eq .Tool "sqlx"}}
-	"github.com/jmoiron/sqlx"
-{{- end}}
 )
 
 var (
@@ -49,29 +56,17 @@ func main() {
 	}
 
 	// Initialize database
-{{- if eq .Tool "gorm"}}
+	cfg.Database.Type = strings.ToLower(cfg.Database.Type)
 	db, err := database.Connect(cfg.Database)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Auto-migrate database
-	if err := database.Migrate(db); err != nil {
-		log.Fatalf("Failed to run database migrations: %v", err)
-	}
-{{- else if eq .Tool "sqlx"}}
-	db, err := database.Connect(cfg.Database)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
+	// Initialize validator
+	validator := utils.NewValidator()
+	{{- if or (eq .Tool "sqlx") (eq .Tool "sqlc")}}
 	defer db.Close()
-{{- else if eq .Tool "sqlc"}}
-	db, err := database.Connect(cfg.Database)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
-{{- end}}
+	{{- end}}
 
 	// Create Fiber app
 	app := fiber.New(fiber.Config{
@@ -104,21 +99,7 @@ func main() {
 	app.Use(middleware.RequestLogger())
 
 	// Setup routes
-{{- if eq .Architecture "simple"}}
-	routes.Setup(app, &routes.Dependencies{
-		DB:     db,
-		Config: cfg,
-	})
-{{- else if eq .Architecture "ddd"}}
-	httpHandler := http.NewHandler(db, cfg)
-	routes.Setup(app, httpHandler)
-{{- else if eq .Architecture "clean"}}
-	webFramework := web.NewFiberFramework(app)
-	routes.Setup(webFramework, db, cfg)
-{{- else if eq .Architecture "hexagonal"}}
-	httpAdapter := http.NewAdapter(db, cfg)
-	routes.Setup(app, httpAdapter)
-{{- end}}
+	routes.Setup(app, db, validator)
 
 	// Create shutdown channel
 	quit := make(chan os.Signal, 1)
@@ -147,13 +128,13 @@ func main() {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-{{- if eq .Tool "gorm"}}
+	{{- if eq .Tool "gorm"}}
 	// Close database connection
 	sqlDB, err := db.DB()
 	if err == nil {
 		sqlDB.Close()
 	}
-{{- end}}
+	{{- end}}
 
 	log.Println("Server exited")
 }

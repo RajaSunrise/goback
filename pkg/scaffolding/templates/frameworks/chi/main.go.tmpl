@@ -1,41 +1,66 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"os/signal"
+	"strings"
+	"syscall"
 	"time"
 
+	{{if eq .Architecture.String "simple"}}
+	"{{.ModulePath}}/internal/config"
+	"{{.ModulePath}}/internal/database"
+	"{{.ModulePath}}/internal/routes"
+	"{{.ModulePath}}/internal/utils"
+	{{else}}
+	"{{.ModulePath}}/config"
+	{{if eq .Architecture.String "ddd"}}
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{else if eq .Architecture.String "clean"}}
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{else if eq .Architecture.String "hexagonal"}}
+	"{{.ModulePath}}/adapters/secondary/database"
+	"{{.ModulePath}}/adapters/primary/http/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{end}}
+	{{end}}
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
-	"{{.ModulePath}}/internal/config"
-	"{{.ModulePath}}/internal/routes"
-	{{- if .Database}}
-	"{{.ModulePath}}/internal/database"
-	{{- end}}
+)
+
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildTime = "unknown"
 )
 
 func main() {
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatal("Failed to load config:", err)
+		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	{{- if .Database}}
 	// Initialize database
-	db, err := database.Connect(cfg.Database)
+	cfg.Database.Type = strings.ToLower(cfg.Database.Type)
+	db, err := database.Connect(&cfg.Database)
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	defer database.Close(db)
-
-	// Auto-migrate database tables
-	if err := database.Migrate(db); err != nil {
-		log.Fatal("Failed to migrate database:", err)
-	}
+	{{- if or (eq .Tool "sqlx") (eq .Tool "sqlc")}}
+	defer db.Close()
 	{{- end}}
+
+	// Initialize validator
+	validator := utils.NewValidator()
 
 	// Create Chi router
 	r := chi.NewRouter()
@@ -45,44 +70,39 @@ func main() {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.Compress(5))
-
-	// CORS middleware
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: false,
-		MaxAge:           300,
-	}))
-
-	// Set timeout for requests
-	r.Use(middleware.Timeout(60 * time.Second))
-
-	// Health check endpoint
-	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
 
 	// Setup routes
-	{{- if .Database}}
-	routes.Setup(r, db)
-	{{- else}}
-	routes.Setup(r)
-	{{- end}}
+	routes.Setup(r, db, validator)
 
-	// Get port from environment or use default
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = cfg.Server.Port
+	// Create HTTP server
+	server := &http.Server{
+		Addr:         fmt.Sprintf(":%s", cfg.Server.Port),
+		Handler:      r,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
-	log.Printf("🚀 Server starting on port %s", port)
-	log.Printf("📖 API Documentation: http://localhost:%s/docs", port)
+	// Start server in goroutine
+	go func() {
+		log.Printf("Starting server on port %s", cfg.Server.Port)
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Could not listen on %s: %v\n", cfg.Server.Port, err)
+		}
+	}()
 
-	if err := http.ListenAndServe(":"+port, r); err != nil {
-		log.Fatal("Failed to start server:", err)
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
+
+	log.Println("Server exiting")
 }

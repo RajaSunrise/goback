@@ -7,29 +7,36 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	{{if eq .Architecture.String "simple"}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
-{{- if eq .Architecture "simple"}}
-	"{{.ModulePath}}/internal/handlers"
-{{- else if eq .Architecture "ddd"}}
-	"{{.ModulePath}}/internal/interfaces/http"
-{{- else if eq .Architecture "clean"}}
-	"{{.ModulePath}}/internal/frameworks_drivers/web"
-{{- else if eq .Architecture "hexagonal"}}
-	"{{.ModulePath}}/internal/adapters/input/http"
-{{- end}}
 	"{{.ModulePath}}/internal/middleware"
 	"{{.ModulePath}}/internal/routes"
-
+	"{{.ModulePath}}/internal/utils"
+	{{else}}
+	"{{.ModulePath}}/config"
+	{{if eq .Architecture.String "ddd"}}
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/middleware"
+	"{{.ModulePath}}/interfaces/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{else if eq .Architecture.String "clean"}}
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/middleware"
+	"{{.ModulePath}}/interfaces/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{else if eq .Architecture.String "hexagonal"}}
+	"{{.ModulePath}}/adapters/secondary/database"
+	"{{.ModulePath}}/adapters/primary/http/middleware"
+	"{{.ModulePath}}/adapters/primary/http/routes"
+	"{{.ModulePath}}/domain/utils"
+	{{end}}
+	{{end}}
 	"github.com/gin-gonic/gin"
-{{- if eq .Tool "gorm"}}
-	"gorm.io/gorm"
-{{- else if eq .Tool "sqlx"}}
-	"github.com/jmoiron/sqlx"
-{{- end}}
 )
 
 var (
@@ -49,24 +56,17 @@ func main() {
 	gin.SetMode(cfg.Server.Mode)
 
 	// Initialize database
-{{- if eq .Tool "gorm"}}
+	cfg.Database.Type = strings.ToLower(cfg.Database.Type)
 	db, err := database.Connect(&cfg.Database)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-{{- else if eq .Tool "sqlx"}}
-	db, err := database.Connect(&cfg.Database)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
+	{{- if or (eq .Tool "sqlx") (eq .Tool "sqlc")}}
 	defer db.Close()
-{{- else if eq .Tool "sqlc"}}
-	db, err := database.Connect(cfg.Database)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
-{{- end}}
+	{{- end}}
+
+	// Initialize validator
+	validator := utils.NewValidator()
 
 	// Create Gin router
 	router := gin.New()
@@ -78,21 +78,7 @@ func main() {
 	router.Use(middleware.RequestID())
 
 	// Setup routes
-{{- if eq .Architecture "simple"}}
-	routes.Setup(router, &routes.Dependencies{
-		DB:     db,
-		Config: cfg,
-	})
-{{- else if eq .Architecture "ddd"}}
-	httpHandler := http.NewHandler(db, cfg)
-	routes.Setup(router, httpHandler)
-{{- else if eq .Architecture "clean"}}
-	webFramework := web.NewGinFramework(router)
-	routes.Setup(webFramework, db, cfg)
-{{- else if eq .Architecture "hexagonal"}}
-	httpAdapter := http.NewAdapter(db, cfg)
-	routes.Setup(router, httpAdapter)
-{{- end}}
+	routes.Setup(router, db, cfg, validator)
 
 	// Create HTTP server
 	server := &http.Server{
@@ -130,13 +116,13 @@ func main() {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
-{{- if eq .Tool "gorm"}}
+	{{- if eq .Tool "gorm"}}
 	// Close database connection
 	sqlDB, err := db.DB()
 	if err == nil {
 		sqlDB.Close()
 	}
-{{- end}}
+	{{- end}}
 
 	log.Println("Server exited")
 }

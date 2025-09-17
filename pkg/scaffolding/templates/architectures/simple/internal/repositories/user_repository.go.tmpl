@@ -3,23 +3,19 @@ package repositories
 import (
 	"context"
 	"errors"
-	
-	"{{.ModulePath}}/models"
 
-	{{- if eq .Tool "sqlx" }}
-	"database/sql"
-	{{- end }}
+	"{{.ModulePath}}/internal/models"
 
 	{{- if eq .Database "postgresql" }}
 	"github.com/google/uuid"
 	{{- end}}
-	
+
 	{{- if eq .Tool "gorm" }}
 	"gorm.io/gorm"
 	{{- else if eq .Tool "sqlx" }}
 	"github.com/jmoiron/sqlx"
 	{{- else if eq .Tool "sqlc" }}
-	"{{ .ModulePath }}/db" // Asumsi paket yang dihasilkan sqlc ada di 'db'
+	db_sqlc "{{.ModulePath}}/db/sqlc"
 	{{- end }}
 )
 
@@ -27,16 +23,16 @@ import (
 {{- if eq .Database "postgresql" }}
 type UserID = uuid.UUID
 {{- else}}
-type UserID = uint
+type UserID = int64
 {{- end}}
 
 // UserRepository adalah interface konsisten untuk operasi data User.
 type UserRepository interface {
-	Create(ctx context.Context, user *models.User) error
+	Create(ctx context.Context, user *models.User) (*models.User, error)
 	FindAll(ctx context.Context, page, perPage int) ([]models.User, int64, error)
 	FindByID(ctx context.Context, id UserID) (*models.User, error)
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
-	Update(ctx context.Context, user *models.User) error
+	Update(ctx context.Context, user *models.User) (*models.User, error)
 	Delete(ctx context.Context, id UserID) error
 }
 
@@ -51,8 +47,9 @@ func NewUserRepository(db *gorm.DB) UserRepository {
 	return &userRepository{db: db}
 }
 
-func (r *userRepository) Create(ctx context.Context, user *models.User) error {
-	return r.db.WithContext(ctx).Create(user).Error
+func (r *userRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
+	err := r.db.WithContext(ctx).Create(user).Error
+	return user, err
 }
 
 func (r *userRepository) FindByID(ctx context.Context, id UserID) (*models.User, error) {
@@ -94,9 +91,10 @@ func (r *userRepository) FindAll(ctx context.Context, page, perPage int) ([]mode
 	return users, total, nil
 }
 
-func (r *userRepository) Update(ctx context.Context, user *models.User) error {
+func (r *userRepository) Update(ctx context.Context, user *models.User) (*models.User, error) {
 	// GORM's Save akan melakukan update jika primary key ada
-	return r.db.WithContext(ctx).Save(user).Error
+	err := r.db.WithContext(ctx).Save(user).Error
+	return user, err
 }
 
 func (r *userRepository) Delete(ctx context.Context, id UserID) error {
@@ -112,6 +110,111 @@ func (r *userRepository) Delete(ctx context.Context, id UserID) error {
 {{ end }}
 
 
+{{/* --- IMPLEMENTASI UNTUK SQLC --- */}}
+{{ if eq .Tool "sqlc" }}
+type userRepository struct {
+	db *sql.DB
+	*db_sqlc.Queries
+}
+
+func NewUserRepository(db *sql.DB) UserRepository {
+	return &userRepository{
+		db:      db,
+		Queries: db_sqlc.New(db),
+	}
+}
+
+func (r *userRepository) toModel(u db_sqlc.User) *models.User {
+	return &models.User{
+		ID:        u.ID,
+		Name:      u.Name,
+		Email:     u.Email,
+		Password:  u.Password,
+		Active:    u.Active,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
+	}
+}
+
+func (r *userRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
+	createdUser, err := r.Queries.CreateUser(ctx, db_sqlc.CreateUserParams{
+		Name:     user.Name,
+		Email:    user.Email,
+		Password: user.Password,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.toModel(createdUser), nil
+}
+
+func (r *userRepository) FindByID(ctx context.Context, id UserID) (*models.User, error) {
+	user, err := r.Queries.GetUser(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("user not found")
+		}
+		return nil, err
+	}
+	return r.toModel(user), nil
+}
+
+func (r *userRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
+	user, err := r.Queries.GetUserByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // Tidak ditemukan
+		}
+		return nil, err
+	}
+	return r.toModel(user), nil
+}
+
+func (r *userRepository) FindAll(ctx context.Context, page, perPage int) ([]models.User, int64, error) {
+	// Note: sqlc doesn't directly support pagination.
+	// This implementation fetches all users and mimics pagination in-memory.
+	// For production, consider using cursor-based pagination with limit and offset in your query.
+	users, err := r.Queries.ListUsers(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var userModels []models.User
+	for _, u := range users {
+		userModels = append(userModels, *r.toModel(u))
+	}
+
+	total := int64(len(userModels))
+	start := (page - 1) * perPage
+	if start > len(userModels) {
+		return []models.User{}, total, nil
+	}
+	end := start + perPage
+	if end > len(userModels) {
+		end = len(userModels)
+	}
+
+	return userModels[start:end], total, nil
+}
+
+func (r *userRepository) Update(ctx context.Context, user *models.User) (*models.User, error) {
+	updatedUser, err := r.Queries.UpdateUser(ctx, db_sqlc.UpdateUserParams{
+		ID:    user.ID,
+		Name:  user.Name,
+		Email: user.Email,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.toModel(updatedUser), nil
+}
+
+func (r *userRepository) Delete(ctx context.Context, id UserID) error {
+	return r.Queries.DeleteUser(ctx, id)
+}
+{{ end }}
+
+
 {{/* --- IMPLEMENTASI UNTUK SQLX --- */}}
 {{ if eq .Tool "sqlx" }}
 type userRepository struct {
@@ -122,10 +225,20 @@ func NewUserRepository(db *sqlx.DB) UserRepository {
 	return &userRepository{db: db}
 }
 
-func (r *userRepository) Create(ctx context.Context, user *models.User) error {
-	query := `INSERT INTO users (name, email, password) VALUES (:name, :email, :password)`
-	_, err := r.db.NamedExecContext(ctx, query, user)
-	return err
+func (r *userRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
+	query := `INSERT INTO users (name, email, password) VALUES (:name, :email, :password) RETURNING id`
+
+	stmt, err := r.db.PrepareNamedContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	var id UserID
+	if err := stmt.GetContext(ctx, &id, user); err != nil {
+		return nil, err
+	}
+	user.ID = id
+	return user, nil
 }
 
 func (r *userRepository) FindByID(ctx context.Context, id UserID) (*models.User, error) {
@@ -157,7 +270,7 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*models
 func (r *userRepository) FindAll(ctx context.Context, page, perPage int) ([]models.User, int64, error) {
 	var users []models.User
 	var total int64
-	
+
 	if err := r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM users"); err != nil {
 		return nil, 0, err
 	}
@@ -168,17 +281,17 @@ func (r *userRepository) FindAll(ctx context.Context, page, perPage int) ([]mode
 	return users, total, err
 }
 
-func (r *userRepository) Update(ctx context.Context, user *models.User) error {
-	query := `UPDATE users SET name = :name, is_active = :is_active, updated_at = NOW() WHERE id = :id`
+func (r *userRepository) Update(ctx context.Context, user *models.User) (*models.User, error) {
+	query := `UPDATE users SET name = :name, email = :email, active = :active, updated_at = NOW() WHERE id = :id`
 	result, err := r.db.NamedExecContext(ctx, query, user)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return errors.New("user not found or no changes made")
+		return nil, errors.New("user not found or no changes made")
 	}
-	return nil
+	return user, nil
 }
 
 func (r *userRepository) Delete(ctx context.Context, id UserID) error {

@@ -1,7 +1,6 @@
 package database
 
 import (
-	"database/sql"
 	"fmt"
 	"time"
 
@@ -9,11 +8,12 @@ import (
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 
-	{{if eq .Architecture.String "simple"}}"{{.ModulePath}}/internal/config"{{else}}"{{.ModulePath}}/config"{{end}}
+	"{{.ModulePath}}/internal/config"
+	"github.com/jmoiron/sqlx"
 )
 
-// Connect establishes a connection to the configured database using the standard library.
-func Connect(cfg *config.DatabaseConfig) (*sql.DB, error) {
+// Connect establishes a connection to the configured database using sqlx.
+func Connect(cfg *config.DatabaseConfig) (*sqlx.DB, error) {
 	var driverName string
 	dsn := cfg.GetDSN()
 
@@ -28,7 +28,7 @@ func Connect(cfg *config.DatabaseConfig) (*sql.DB, error) {
 		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
 	}
 
-	db, err := sql.Open(driverName, dsn)
+	db, err := sqlx.Connect(driverName, dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}

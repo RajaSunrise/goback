@@ -1,0 +1,29 @@
+package ports
+
+import (
+	"{{.ModulePath}}/domain"
+	{{- if eq .Database "postgresql" }}
+	"github.com/google/uuid"
+	{{- end}}
+)
+
+// UserRepository is a port that defines the contract for user data access.
+type UserRepository interface {
+	{{- if eq .Database "postgresql" }}
+	GetByID(id uuid.UUID) (*domain.User, error)
+	{{- else}}
+	GetByID(id uint) (*domain.User, error)
+	{{- end}}
+	GetByEmail(email string) (*domain.User, error)
+	GetAll(page, perPage int) ([]*domain.User, int64, error)
+	Create(user *domain.User) error
+	{{- if eq .Database "postgresql" }}
+	Update(id uuid.UUID, user *domain.User) error
+	Delete(id uuid.UUID) error
+	{{- else}}
+	Update(id uint, user *domain.User) error
+	Delete(id uint) error
+	{{- end}}
+	Search(query string, page, perPage int) ([]*domain.User, int64, error)
+	ExistsByEmail(email string) (bool, error)
+}

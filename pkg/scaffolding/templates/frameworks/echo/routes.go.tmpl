@@ -1,60 +1,27 @@
-package routes
+{{if eq .Architecture.String "simple"}}package routes
 
 import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	{{- if .Database}}
 	"{{.ModulePath}}/internal/handlers"
-	{{- if eq .Architecture "ddd" }}
-	"{{.ModulePath}}/internal/domain/services"
-	"{{.ModulePath}}/internal/infrastructure/repositories"
-	{{- else if eq .Architecture "clean" }}
-	"{{.ModulePath}}/internal/usecases"
-	"{{.ModulePath}}/internal/interface_adapters/repositories"
-	{{- else if eq .Architecture "hexagonal" }}
-	"{{.ModulePath}}/internal/domain/services"
-	"{{.ModulePath}}/internal/adapters/repositories"
-	{{- else}}
-	"{{.ModulePath}}/internal/services"
 	"{{.ModulePath}}/internal/repositories"
-	{{- end}}
-	{{- end}}
-	{{- if .Database}}
+	"{{.ModulePath}}/internal/services"
+	"{{.ModulePath}}/internal/utils"
+	{{- if eq .Tool "gorm"}}
 	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc"}}
+	"database/sql"
 	{{- end}}
 )
 
-{{- if .Database}}
-func Setup(e *echo.Echo, db *gorm.DB) {
-	// Initialize repositories
-	{{- if eq .Architecture "ddd" }}
-	userRepo := repositories.NewUserRepository(db)
-	{{- else if eq .Architecture "clean" }}
-	userRepo := repositories.NewUserRepository(db)
-	{{- else if eq .Architecture "hexagonal" }}
-	userRepo := repositories.NewUserRepository(db)
-	{{- else}}
-	userRepo := repositories.NewUserRepository(db)
-	{{- end}}
-
-	// Initialize services
-	{{- if eq .Architecture "ddd" }}
-	userService := services.NewUserService(userRepo)
-	{{- else if eq .Architecture "clean" }}
-	userUsecase := usecases.NewUserUsecase(userRepo)
-	{{- else if eq .Architecture "hexagonal" }}
-	userService := services.NewUserService(userRepo)
-	{{- else}}
-	userService := services.NewUserService(userRepo)
-	{{- end}}
-
-	// Initialize handlers
-	{{- if eq .Architecture "clean" }}
-	userHandler := handlers.NewUserHandler(userUsecase)
-	{{- else}}
-	userHandler := handlers.NewUserHandler(userService)
-	{{- end}}
+func Setup(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+	// Initialize dependencies
+	userRepository := repositories.NewUserRepository(db)
+	userService := services.NewUserService(userRepository)
+	userHandler := handlers.NewUserHandler(userService, validator)
 
 	// API routes
 	api := e.Group("/api/v1")
@@ -68,37 +35,11 @@ func Setup(e *echo.Echo, db *gorm.DB) {
 			users.PUT("/:id", userHandler.UpdateUser)
 			users.DELETE("/:id", userHandler.DeleteUser)
 		}
-
-		// Health check
 	}
-{{- else}}
-func Setup(e *echo.Echo) {
-	// API routes
-	api := e.Group("/api/v1")
-	{
-		// Hello World endpoint
-		api.GET("/hello", helloHandler)
-	}
-{{- end}}
 
 	// Health check
 	e.GET("/health", healthCheckHandler)
-
-	// Serve static files (if any)
-	e.Static("/static", "static")
-
-	// Documentation route
-	e.GET("/docs", docsHandler)
 }
-
-{{- if not .Database}}
-func helloHandler(c echo.Context) error {
-	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "Hello from {{.ProjectName}}!",
-		"status":  "success",
-	})
-}
-{{- end}}
 
 func healthCheckHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
@@ -107,75 +48,51 @@ func healthCheckHandler(c echo.Context) error {
 		"version": "1.0.0",
 	})
 }
+{{else}}package http
 
-func docsHandler(c echo.Context) error {
-	html := `
-	<!DOCTYPE html>
-	<html>
-	<head>
-		<title>{{.ProjectName}} API Documentation</title>
-		<style>
-			body { font-family: Arial, sans-serif; margin: 40px; }
-			h1 { color: #333; }
-			.endpoint { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
-			.method { font-weight: bold; padding: 2px 8px; border-radius: 3px; color: white; }
-			.get { background-color: #61affe; }
-			.post { background-color: #49cc90; }
-			.put { background-color: #fca130; }
-			.delete { background-color: #f93e3e; }
-		</style>
-	</head>
-	<body>
-		<h1>{{.ProjectName}} API Documentation</h1>
-		<p>Welcome to the API documentation for {{.ProjectName}}.</p>
+import (
+	"{{.ModulePath}}/adapters/secondary/database"
+	"{{.ModulePath}}/application/services"
+	"{{.ModulePath}}/ports"
 
-		<h2>Available Endpoints:</h2>
+	"github.com/labstack/echo/v4"
+	{{- if eq .Tool "gorm"}}
+	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc"}}
+	"database/sql"
+	{{- end}}
+)
 
-		<div class="endpoint">
-			<span class="method get">GET</span>
-			<strong>/api/v1/health</strong>
-			<p>Health check endpoint</p>
-		</div>
+func SetupRoutes(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}) {
+	// Setup repositories
+	var userRepository ports.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = database.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = database.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = database.NewSqlcUserRepository(db)
+	{{end}}
 
-		{{- if .Database}}
-		<div class="endpoint">
-			<span class="method get">GET</span>
-			<strong>/api/v1/users</strong>
-			<p>Get all users</p>
-		</div>
+	// Setup services
+	userService := services.NewUserService(userRepository)
 
-		<div class="endpoint">
-			<span class="method post">POST</span>
-			<strong>/api/v1/users</strong>
-			<p>Create a new user</p>
-		</div>
+	// Setup handlers
+	userHandler := NewUserHandler(userService)
 
-		<div class="endpoint">
-			<span class="method get">GET</span>
-			<strong>/api/v1/users/:id</strong>
-			<p>Get user by ID</p>
-		</div>
-
-		<div class="endpoint">
-			<span class="method put">PUT</span>
-			<strong>/api/v1/users/:id</strong>
-			<p>Update user by ID</p>
-		</div>
-
-		<div class="endpoint">
-			<span class="method delete">DELETE</span>
-			<strong>/api/v1/users/:id</strong>
-			<p>Delete user by ID</p>
-		</div>
-		{{- else}}
-		<div class="endpoint">
-			<span class="method get">GET</span>
-			<strong>/api/v1/hello</strong>
-			<p>Hello World endpoint</p>
-		</div>
-		{{- end}}
-	</body>
-	</html>`
-
-	return c.HTML(http.StatusOK, html)
+	// API version 1 routes
+	v1 := e.Group("/api/v1")
+	{
+		users := v1.Group("/users")
+		{
+			users.POST("", userHandler.Create)
+			users.GET("/:id", userHandler.GetByID)
+			users.GET("", userHandler.GetAll)
+			users.PUT("/:id", userHandler.Update)
+			users.DELETE("/:id", userHandler.Delete)
+		}
+	}
 }
+{{end}}

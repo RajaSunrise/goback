@@ -1,0 +1,455 @@
+package http
+
+import (
+	"{{.ModulePath}}/ports"
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	{{- if eq .Database "postgresql" }}
+	"github.com/google/uuid"
+	{{- end}}
+
+	// --- Dynamic imports based on framework ---
+	{{- if eq .Framework "fiber" }}
+	"github.com/gofiber/fiber/v2"
+	{{- else if eq .Framework "gin" }}
+	"github.com/gin-gonic/gin"
+	{{- else if eq .Framework "chi" }}
+	"github.com/go-chi/chi/v5"
+	{{- else if eq .Framework "echo" }}
+	"github.com/labstack/echo/v4"
+	{{- end}}
+)
+
+// UserHandler is a primary adapter that translates HTTP requests to calls to the application's port.
+type UserHandler struct {
+	userService ports.UserService
+}
+
+func NewUserHandler(userService ports.UserService) *UserHandler {
+	return &UserHandler{userService: userService}
+}
+
+// --- Helper for response ---
+func handleServiceError(err error) (int, map[string]string) {
+	if err.Error() == "user not found" {
+		return http.StatusNotFound, map[string]string{"error": err.Error()}
+	}
+	return http.StatusInternalServerError, map[string]string{"error": err.Error()}
+}
+
+type CreateUserRequest struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type UpdateUserRequest struct {
+	Name  *string `json:"name"`
+	Email *string `json:"email"`
+}
+
+{{/* =================== BLOK KODE UNTUK GO FIBER =================== */}}
+{{- if eq .Framework "fiber" }}
+func (h *UserHandler) Create(c *fiber.Ctx) error {
+	var req CreateUserRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
+	}
+	user, err := h.userService.CreateUser(req.Name, req.Email, req.Password)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+	return c.Status(http.StatusCreated).JSON(user)
+}
+
+func (h *UserHandler) GetByID(c *fiber.Ctx) error {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
+	}
+	{{- end}}
+
+	user, err := h.userService.GetUser(uint(id))
+	if err != nil {
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+	return c.JSON(user)
+}
+
+func (h *UserHandler) GetAll(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	perPage, _ := strconv.Atoi(c.Query("per_page", "10"))
+	users, _, err := h.userService.GetAllUsers(page, perPage)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+	return c.JSON(users)
+}
+
+func (h *UserHandler) Update(c *fiber.Ctx) error {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
+	}
+	{{- end}}
+
+	var req UpdateUserRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
+	}
+	user, err := h.userService.UpdateUser(uint(id), req.Name, req.Email)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+	return c.JSON(user)
+}
+
+func (h *UserHandler) Delete(c *fiber.Ctx) error {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "invalid id"})
+	}
+	{{- end}}
+
+	if err := h.userService.DeleteUser(uint(id)); err != nil {
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+	return c.SendStatus(http.StatusNoContent)
+}
+{{- end }}
+
+{{/* =================== BLOK KODE UNTUK GIN =================== */}}
+{{- if eq .Framework "gin" }}
+func (h *UserHandler) Create(c *gin.Context) {
+	var req CreateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	user, err := h.userService.CreateUser(req.Name, req.Email, req.Password)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+	c.JSON(http.StatusCreated, user)
+}
+
+func (h *UserHandler) GetByID(c *gin.Context) {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	{{- end}}
+
+	user, err := h.userService.GetUser(uint(id))
+	if err != nil {
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+	c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) GetAll(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "10"))
+	users, _, err := h.userService.GetAllUsers(page, perPage)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+	c.JSON(http.StatusOK, users)
+}
+
+func (h *UserHandler) Update(c *gin.Context) {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	{{- end}}
+
+	var req UpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	user, err := h.userService.UpdateUser(uint(id), req.Name, req.Email)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+	c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) Delete(c *gin.Context) {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid id"})
+		return
+	}
+	{{- end}}
+
+	if err := h.userService.DeleteUser(uint(id)); err != nil {
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+{{- end }}
+
+{{/* =================== BLOK KODE UNTUK CHI =================== */}}
+{{- if eq .Framework "chi" }}
+func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var req CreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	user, err := h.userService.CreateUser(req.Name, req.Email, req.Password)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(msg)
+		return
+	}
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(user)
+}
+
+func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	{{- end}}
+
+	user, err := h.userService.GetUser(uint(id))
+	if err != nil {
+		status, msg := handleServiceError(err)
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(msg)
+		return
+	}
+	json.NewEncoder(w).Encode(user)
+}
+
+func (h *UserHandler) GetAll(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
+	users, _, err := h.userService.GetAllUsers(page, perPage)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(msg)
+		return
+	}
+	json.NewEncoder(w).Encode(users)
+}
+
+func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	{{- end}}
+
+	var req UpdateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+	user, err := h.userService.UpdateUser(uint(id), req.Name, req.Email)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(msg)
+		return
+	}
+	json.NewEncoder(w).Encode(user)
+}
+
+func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	{{- end}}
+
+	if err := h.userService.DeleteUser(uint(id)); err != nil {
+		status, msg := handleServiceError(err)
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(msg)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+{{- end }}
+
+{{/* =================== BLOK KODE UNTUK ECHO =================== */}}
+{{- if eq .Framework "echo" }}
+func (h *UserHandler) Create(c echo.Context) error {
+	var req CreateUserRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	user, err := h.userService.CreateUser(req.Name, req.Email, req.Password)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		return c.JSON(status, msg)
+	}
+	return c.JSON(http.StatusCreated, user)
+}
+
+func (h *UserHandler) GetByID(c echo.Context) error {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	{{- end}}
+
+	user, err := h.userService.GetUser(uint(id))
+	if err != nil {
+		status, msg := handleServiceError(err)
+		return c.JSON(status, msg)
+	}
+	return c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) GetAll(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
+	users, _, err := h.userService.GetAllUsers(page, perPage)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		return c.JSON(status, msg)
+	}
+	return c.JSON(http.StatusOK, users)
+}
+
+func (h *UserHandler) Update(c echo.Context) error {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	{{- end}}
+
+	var req UpdateUserRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request"})
+	}
+	user, err := h.userService.UpdateUser(uint(id), req.Name, req.Email)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		return c.JSON(status, msg)
+	}
+	return c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) Delete(c echo.Context) error {
+	{{- if eq .Database "postgresql" }}
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	{{- else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id"})
+	}
+	{{- end}}
+
+	if err := h.userService.DeleteUser(uint(id)); err != nil {
+		status, msg := handleServiceError(err)
+		return c.JSON(status, msg)
+	}
+	return c.NoContent(http.StatusNoContent)
+}
+{{- end }}

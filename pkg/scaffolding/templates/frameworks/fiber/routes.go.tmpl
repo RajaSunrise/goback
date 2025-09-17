@@ -1,13 +1,28 @@
-package routes
+{{if eq .Architecture.String "simple"}}package routes
 
 import (
 	"{{.ModulePath}}/internal/handlers"
+	"{{.ModulePath}}/internal/repositories"
+	"{{.ModulePath}}/internal/services"
+	"{{.ModulePath}}/internal/utils"
 
 	"github.com/gofiber/fiber/v2"
+	{{- if eq .Tool "gorm"}}
+	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc"}}
+	"database/sql"
+	{{- end}}
 )
 
 // Setup configures all the routes
-func Setup(app *fiber.App) {
+func Setup(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+	// Initialize dependencies
+	userRepository := repositories.NewUserRepository(db)
+	userService := services.NewUserService(userRepository)
+	userHandler := handlers.NewUserHandler(userService, validator)
+
 	// Health check endpoint
 	app.Get("/health", handlers.HealthCheck)
 
@@ -17,12 +32,59 @@ func Setup(app *fiber.App) {
 		// User routes
 		users := v1.Group("/users")
 		{
-			// These handlers are just examples, you should implement them in internal/handlers/user_handler.go
-			// users.Get("", handlers.GetUsers)
-			// users.Get("/:id", handlers.GetUser)
-			// users.Post("", handlers.CreateUser)
-			// users.Put("/:id", handlers.UpdateUser)
-			// users.Delete("/:id", handlers.DeleteUser)
+			users.Get("", userHandler.GetUsers)
+			users.Get("/:id", userHandler.GetUser)
+			users.Post("", userHandler.CreateUser)
+			users.Put("/:id", userHandler.UpdateUser)
+			users.Delete("/:id", userHandler.DeleteUser)
 		}
 	}
 }
+{{else}}package http
+
+import (
+	"{{.ModulePath}}/adapters/secondary/database"
+	"{{.ModulePath}}/application/services"
+	"{{.ModulePath}}/ports"
+
+	"github.com/gofiber/fiber/v2"
+	{{- if eq .Tool "gorm"}}
+	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc"}}
+	"database/sql"
+	{{- end}}
+)
+
+func SetupRoutes(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}) {
+	// Setup repositories
+	var userRepository ports.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = database.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = database.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = database.NewSqlcUserRepository(db)
+	{{end}}
+
+	// Setup services
+	userService := services.NewUserService(userRepository)
+
+	// Setup handlers
+	userHandler := NewUserHandler(userService)
+
+	// API version 1 routes
+	v1 := app.Group("/api/v1")
+	{
+		users := v1.Group("/users")
+		{
+			users.Post("", userHandler.Create)
+			users.Get("/:id", userHandler.GetByID)
+			users.Get("", userHandler.GetAll)
+			users.Put("/:id", userHandler.Update)
+			users.Delete("/:id", userHandler.Delete)
+		}
+	}
+}
+{{end}}
