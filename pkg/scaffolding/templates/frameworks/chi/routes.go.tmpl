@@ -51,6 +51,51 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
 }
+{{else if eq .Architecture "clean"}}package http
+
+import (
+	"{{.ModulePath}}/domain/usecases"
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/handlers"
+
+	"github.com/go-chi/chi/v5"
+	{{- if eq .Tool "gorm"}}
+	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc"}}
+	"database/sql"
+	{{- end}}
+)
+
+func SetupRoutes(r *chi.Mux, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}) {
+	// Setup repositories
+	var userRepository usecases.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = database.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = database.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = database.NewSqlcUserRepository(db)
+	{{end}}
+
+	// Setup services
+	userService := usecases.NewUserUsecase(userRepository)
+
+	// Setup handlers
+	userHandler := handlers.NewUserHandler(userService)
+
+	// API version 1 routes
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Route("/users", func(r chi.Router) {
+			r.Post("/", userHandler.CreateUser)
+			r.Get("/{id}", userHandler.GetUser)
+			r.Get("/", userHandler.GetAllUsers)
+			r.Put("/{id}", userHandler.UpdateUser)
+			r.Delete("/{id}", userHandler.DeleteUser)
+		})
+	})
+}
 {{else}}package http
 
 import (

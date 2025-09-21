@@ -40,6 +40,53 @@ func Setup(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "
 		}
 	}
 }
+{{else if eq .Architecture "clean"}}package http
+
+import (
+	"{{.ModulePath}}/domain/usecases"
+	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/interfaces/handlers"
+
+	"github.com/gofiber/fiber/v2"
+	{{- if eq .Tool "gorm"}}
+	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc"}}
+	"database/sql"
+	{{- end}}
+)
+
+func SetupRoutes(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}) {
+	// Setup repositories
+	var userRepository usecases.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = database.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = database.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = database.NewSqlcUserRepository(db)
+	{{end}}
+
+	// Setup services
+	userService := usecases.NewUserUsecase(userRepository)
+
+	// Setup handlers
+	userHandler := handlers.NewUserHandler(userService)
+
+	// API version 1 routes
+	v1 := app.Group("/api/v1")
+	{
+		users := v1.Group("/users")
+		{
+			users.Post("", userHandler.CreateUser)
+			users.Get("/:id", userHandler.GetUser)
+			users.Get("", userHandler.GetAllUsers)
+			users.Put("/:id", userHandler.UpdateUser)
+			users.Delete("/:id", userHandler.DeleteUser)
+		}
+	}
+}
 {{else}}package http
 
 import (

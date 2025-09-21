@@ -21,7 +21,6 @@ import (
 	"helm.sh/helm/v3/pkg/engine"
 )
 
-// PERBAIKAN goconst: Menambahkan konstanta untuk path yang berulang.
 const pathConfig = "config/framework.go"
 
 // TemplateGenerator handles project generation from templates
@@ -293,8 +292,6 @@ func (tg *TemplateGenerator) generateDatabaseConfig() error {
 			templatePath = filepath.Join("databases", dbType, "connection.go.tmpl")
 			fullTemplatePath = filepath.ToSlash(filepath.Join("templates", templatePath))
 			if _, err2 := scaffolding.Templates.Open(fullTemplatePath); err2 != nil {
-				// PERBAIKAN nilerr: Hanya return nil jika error adalah 'file not exist'.
-				// Jika ada error lain, kembalikan error tersebut.
 				if errors.Is(err2, fs.ErrNotExist) {
 					return nil // Ignore if no suitable template is found
 				}
@@ -359,12 +356,6 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 func (tg *TemplateGenerator) generateArchitectureFiles() error {
 	architecture := string(tg.Config.Architecture)
 	if architecture == "" {
-		return nil
-	}
-
-	// For simple architecture, we don't generate from this directory,
-	// as the other steps already handle it.
-	if strings.ToLower(architecture) == "simple" {
 		return nil
 	}
 
