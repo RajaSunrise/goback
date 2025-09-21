@@ -32,13 +32,29 @@ type DatabaseConfig struct {
 	Type         string `mapstructure:"type"`
 	Host         string `mapstructure:"host"`
 	Port         int    `mapstructure:"port"`
-	User         string `mapstructure:"user"`
+	Username     string `mapstructure:"username"`
 	Password     string `mapstructure:"password"`
-	DBName       string `mapstructure:"dbname"`
+	Name         string `mapstructure:"name"`
 	SSLMode      string `mapstructure:"sslmode"`
 	Path         string `mapstructure:"path"`
 	MaxOpenConns int    `mapstructure:"max_open_conns"`
 	MaxIdleConns int    `mapstructure:"max_idle_conns"`
+}
+
+// GetDSN returns the database source name string
+func (c *DatabaseConfig) GetDSN() string {
+	switch c.Type {
+	case "postgres", "postgresql":
+		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+			c.Host, c.Port, c.Username, c.Password, c.Name, c.SSLMode)
+	case "mysql":
+		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
+			c.Username, c.Password, c.Host, c.Port, c.Name)
+	case "sqlite":
+		return c.Path
+	default:
+		return ""
+	}
 }
 
 // JWTConfig holds JWT configuration
@@ -74,9 +90,9 @@ func Load() (*Config, error) {
 	viper.SetDefault("database.type", "{{.Database}}")
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", 5432)
-	viper.SetDefault("database.user", "postgres")
+	viper.SetDefault("database.username", "postgres")
 	viper.SetDefault("database.password", "password")
-	viper.SetDefault("database.dbname", "{{.ProjectName | snakeCase}}")
+	viper.SetDefault("database.name", "{{.ProjectName | snakeCase}}")
 	viper.SetDefault("database.sslmode", "disable")
 	viper.SetDefault("database.path", "./{{.ProjectName | snakeCase}}.db")
 	viper.SetDefault("database.max_open_conns", 25)
@@ -134,10 +150,10 @@ func (c *Config) Validate() error {
 		if c.Database.Host == "" {
 			return fmt.Errorf("database host is required")
 		}
-		if c.Database.User == "" {
+		if c.Database.Username == "" {
 			return fmt.Errorf("database user is required")
 		}
-		if c.Database.DBName == "" {
+		if c.Database.Name == "" {
 			return fmt.Errorf("database name is required")
 		}
 	case "sqlite":
@@ -161,9 +177,9 @@ func bindEnvVars() {
 	viper.BindEnv("database.type", "DB_TYPE")
 	viper.BindEnv("database.host", "DB_HOST")
 	viper.BindEnv("database.port", "DB_PORT")
-	viper.BindEnv("database.user", "DB_USER")
+	viper.BindEnv("database.username", "DB_USER")
 	viper.BindEnv("database.password", "DB_PASSWORD")
-	viper.BindEnv("database.dbname", "DB_NAME")
+	viper.BindEnv("database.name", "DB_NAME")
 	viper.BindEnv("database.sslmode", "DB_SSLMODE")
 	viper.BindEnv("database.path", "DB_PATH")
 
@@ -197,13 +213,13 @@ func loadFromEnv(cfg *Config) {
 		}
 	}
 	if user := os.Getenv("DB_USER"); user != "" {
-		cfg.Database.User = user
+		cfg.Database.Username = user
 	}
 	if password := os.Getenv("DB_PASSWORD"); password != "" {
 		cfg.Database.Password = password
 	}
 	if dbname := os.Getenv("DB_NAME"); dbname != "" {
-		cfg.Database.DBName = dbname
+		cfg.Database.Name = dbname
 	}
 	if sslmode := os.Getenv("DB_SSLMODE"); sslmode != "" {
 		cfg.Database.SSLMode = sslmode
@@ -229,31 +245,15 @@ func loadFromEnv(cfg *Config) {
 	}
 }
 
-// GetDSN returns the database connection string
-func (c *DatabaseConfig) GetDSN() string {
-	switch c.Type {
-	case "postgres", "postgresql":
-		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-			c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode)
-	case "mysql":
-		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-			c.User, c.Password, c.Host, c.Port, c.DBName)
-	case "sqlite":
-		return c.Path
-	default:
-		return ""
-	}
-}
-
 // GetMigrationDSN returns the database connection string for migrations.
 func (c *DatabaseConfig) GetMigrationDSN() string {
 	switch c.Type {
 	case "postgres", "postgresql":
 		return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
-			c.User, c.Password, c.Host, c.Port, c.DBName, c.SSLMode)
+			c.Username, c.Password, c.Host, c.Port, c.Name, c.SSLMode)
 	case "mysql":
 		return fmt.Sprintf("mysql://%s:%s@tcp(%s:%d)/%s",
-			c.User, c.Password, c.Host, c.Port, c.DBName)
+			c.Username, c.Password, c.Host, c.Port, c.Name)
 	case "sqlite":
 		return fmt.Sprintf("sqlite3://%s", c.Path)
 	default:

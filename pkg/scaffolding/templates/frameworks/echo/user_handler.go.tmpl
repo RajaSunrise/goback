@@ -1,0 +1,255 @@
+package handlers
+
+import (
+	"net/http"
+	"strconv"
+
+	"{{.ModulePath}}/internal/config"
+{{- if eq .Tool "gorm"}}
+	"{{.ModulePath}}/internal/models"
+	"gorm.io/gorm"
+{{- else if eq .Tool "sqlx"}}
+	"{{.ModulePath}}/internal/models"
+	"github.com/jmoiron/sqlx"
+{{- else if eq .Tool "sqlc"}}
+	"{{.ModulePath}}/internal/db"
+	"database/sql"
+{{- end}}
+
+	"github.com/labstack/echo/v4"
+)
+
+// UserHandler handles user-related endpoints
+type UserHandler struct {
+{{- if eq .Tool "gorm"}}
+	db     *gorm.DB
+{{- else if eq .Tool "sqlx"}}
+	db     *sqlx.DB
+{{- else if eq .Tool "sqlc"}}
+	db     *sql.DB
+	queries *db.Queries
+{{- end}}
+	config *config.Config
+}
+
+// NewUserHandler creates a new user handler
+func NewUserHandler({{- if eq .Tool "gorm"}}database *gorm.DB{{- else if eq .Tool "sqlx"}}database *sqlx.DB{{- else if eq .Tool "sqlc"}}database *sql.DB{{- end}}, cfg *config.Config) *UserHandler {
+	return &UserHandler{
+		db:     database,
+{{- if eq .Tool "sqlc"}}
+		queries: db.New(database),
+{{- end}}
+		config: cfg,
+	}
+}
+
+// CreateUser handles POST /users
+func (h *UserHandler) CreateUser(c echo.Context) error {
+{{- if eq .Tool "gorm"}}
+	var user models.User
+	if err := c.Bind(&user); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+	}
+
+	result := h.db.Create(&user)
+	if result.Error != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create user"})
+	}
+
+	return c.JSON(http.StatusCreated, user)
+{{- else if eq .Tool "sqlx"}}
+	var user models.User
+	if err := c.Bind(&user); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+	}
+
+	query := `INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id, created_at, updated_at`
+	err := h.db.QueryRow(query, user.Name, user.Email).Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create user"})
+	}
+
+	return c.JSON(http.StatusCreated, user)
+{{- else if eq .Tool "sqlc"}}
+	var req struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+	}
+
+	user, err := h.queries.CreateUser(c.Request().Context(), db.CreateUserParams{
+		Name:  req.Name,
+		Email: req.Email,
+	})
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create user"})
+	}
+
+	return c.JSON(http.StatusCreated, user)
+{{- end}}
+}
+
+// GetUser handles GET /users/:id
+func (h *UserHandler) GetUser(c echo.Context) error {
+	idParam := c.Param("id")
+	id, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid user ID"})
+	}
+
+{{- if eq .Tool "gorm"}}
+	var user models.User
+	result := h.db.First(&user, id)
+	if result.Error != nil {
+		if result.Error == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch user"})
+	}
+
+	return c.JSON(http.StatusOK, user)
+{{- else if eq .Tool "sqlx"}}
+	var user models.User
+	err = h.db.Get(&user, "SELECT * FROM users WHERE id = $1", id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch user"})
+	}
+
+	return c.JSON(http.StatusOK, user)
+{{- else if eq .Tool "sqlc"}}
+	user, err := h.queries.GetUser(c.Request().Context(), int32(id))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to fetch user"})
+	}
+
+	return c.JSON(http.StatusOK, user)
+{{- end}}
+}
+
+// UpdateUser handles PUT /users/:id
+func (h *UserHandler) UpdateUser(c echo.Context) error {
+	idParam := c.Param("id")
+	id, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid user ID"})
+	}
+
+{{- if eq .Tool "gorm"}}
+	var user models.User
+	if err := c.Bind(&user); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+	}
+
+	result := h.db.Model(&user).Where("id = ?", id).Updates(user)
+	if result.Error != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update user"})
+	}
+
+	if result.RowsAffected == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+	}
+
+	h.db.First(&user, id)
+	return c.JSON(http.StatusOK, user)
+{{- else if eq .Tool "sqlx"}}
+	var req struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+	}
+
+	query := `UPDATE users SET name = $1, email = $2, updated_at = NOW() WHERE id = $3`
+	result, err := h.db.Exec(query, req.Name, req.Email, id)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update user"})
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+	}
+
+	var user models.User
+	h.db.Get(&user, "SELECT * FROM users WHERE id = $1", id)
+	return c.JSON(http.StatusOK, user)
+{{- else if eq .Tool "sqlc"}}
+	var req struct {
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
+	}
+
+	user, err := h.queries.UpdateUser(c.Request().Context(), db.UpdateUserParams{
+		ID:    int32(id),
+		Name:  req.Name,
+		Email: req.Email,
+	})
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update user"})
+	}
+
+	return c.JSON(http.StatusOK, user)
+{{- end}}
+}
+
+// DeleteUser handles DELETE /users/:id
+func (h *UserHandler) DeleteUser(c echo.Context) error {
+	idParam := c.Param("id")
+	id, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid user ID"})
+	}
+
+{{- if eq .Tool "gorm"}}
+	result := h.db.Delete(&models.User{}, id)
+	if result.Error != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to delete user"})
+	}
+
+	if result.RowsAffected == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "User deleted successfully"})
+{{- else if eq .Tool "sqlx"}}
+	result, err := h.db.Exec("DELETE FROM users WHERE id = $1", id)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to delete user"})
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "User deleted successfully"})
+{{- else if eq .Tool "sqlc"}}
+	err := h.queries.DeleteUser(c.Request().Context(), int32(id))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to delete user"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "User deleted successfully"})
+{{- end}}
+}

@@ -34,7 +34,7 @@ type DatabaseConfig struct {
 	Type            string        `mapstructure:"type"`
 	Host            string        `mapstructure:"host"`
 	Port            int           `mapstructure:"port"`
-	User            string        `mapstructure:"user"`
+	Username        string        `mapstructure:"username"`
 	Password        string        `mapstructure:"password"`
 	Name            string        `mapstructure:"name"`
 	SSLMode         string        `mapstructure:"sslmode"`
@@ -83,7 +83,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("database.type", getEnv("DB_TYPE", "{{.Database}}"))
 	viper.SetDefault("database.host", getEnv("DB_HOST", "localhost"))
 	viper.SetDefault("database.port", parseInt(getEnv("DB_PORT", "5432")))
-	viper.SetDefault("database.user", getEnv("DB_USER", "postgres"))
+	viper.SetDefault("database.username", getEnv("DB_USER", "postgres"))
 	viper.SetDefault("database.password", getEnv("DB_PASSWORD", ""))
 	viper.SetDefault("database.name", getEnv("DB_NAME", "{{.ProjectName | snakeCase}}"))
 	viper.SetDefault("database.sslmode", getEnv("DB_SSLMODE", "disable"))
@@ -131,7 +131,7 @@ func (c *Config) Validate() error {
 		if c.Database.Host == "" {
 			return fmt.Errorf("database host is required")
 		}
-		if c.Database.User == "" {
+		if c.Database.Username == "" {
 			return fmt.Errorf("database user is required")
 		}
 		if c.Database.Name == "" {
@@ -155,10 +155,10 @@ func (c *DatabaseConfig) GetDSN() string {
 	switch c.Type {
 	case "postgres", "postgresql":
 		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
-			c.Host, c.Port, c.User, c.Password, c.Name, c.SSLMode, c.TimeZone)
+			c.Host, c.Port, c.Username, c.Password, c.Name, c.SSLMode, c.TimeZone)
 	case "mysql":
 		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=%t&loc=%s",
-			c.User, c.Password, c.Host, c.Port, c.Name, c.Charset, c.ParseTime, c.Loc)
+			c.Username, c.Password, c.Host, c.Port, c.Name, c.Charset, c.ParseTime, c.Loc)
 	case "sqlite":
 		return c.Path
 	default:
@@ -171,10 +171,10 @@ func (c *DatabaseConfig) GetMigrationDSN() string {
 	switch c.Type {
 	case "postgres", "postgresql":
 		return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
-			c.User, c.Password, c.Host, c.Port, c.Name, c.SSLMode)
+			c.Username, c.Password, c.Host, c.Port, c.Name, c.SSLMode)
 	case "mysql":
 		return fmt.Sprintf("mysql://%s:%s@tcp(%s:%d)/%s",
-			c.User, c.Password, c.Host, c.Port, c.Name)
+			c.Username, c.Password, c.Host, c.Port, c.Name)
 	case "sqlite":
 		return fmt.Sprintf("sqlite3://%s", c.Path)
 	default:

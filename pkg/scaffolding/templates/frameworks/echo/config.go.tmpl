@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 
@@ -25,15 +26,33 @@ type ServerConfig struct {
 
 {{- if .Database}}
 type DatabaseConfig struct {
-	Type     string `json:"type"`
-	Host     string `json:"host"`
-	Port     string `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
-	SSLMode  string `json:"ssl_mode"`
-	Timezone string `json:"timezone"`
-	Path     string `json:"path"`
+	Type         string `json:"type"`
+	Host         string `json:"host"`
+	Port         string `json:"port"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	Name         string `json:"name"`
+	SSLMode      string `json:"ssl_mode"`
+	Timezone     string `json:"timezone"`
+	Path         string `json:"path"`
+	MaxOpenConns int    `json:"max_open_conns"`
+	MaxIdleConns int    `json:"max_idle_conns"`
+}
+
+// GetDSN returns the database source name string
+func (c *DatabaseConfig) GetDSN() string {
+	switch c.Type {
+	case "postgres", "postgresql":
+		return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s timezone=%s",
+			c.Host, c.Port, c.Username, c.Password, c.Name, c.SSLMode, c.Timezone)
+	case "mysql":
+		return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
+			c.Username, c.Password, c.Host, c.Port, c.Name)
+	case "sqlite":
+		return c.Path
+	default:
+		return ""
+	}
 }
 {{- end}}
 
@@ -58,15 +77,17 @@ func Load() (*Config, error) {
 		},
 		{{- if .Database}}
 		Database: DatabaseConfig{
-			Type:     getEnv("DB_TYPE", "{{.Database}}"),
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnv("DB_PORT", "5432"),
-			Username: getEnv("DB_USERNAME", "postgres"),
-			Password: getEnv("DB_PASSWORD", "password"),
-			Name:     getEnv("DB_NAME", "{{.ProjectName}}_db"),
-			SSLMode:  getEnv("DB_SSLMODE", "disable"),
-			Timezone: getEnv("DB_TIMEZONE", "UTC"),
-			Path:     getEnv("DB_PATH", "./{{.ProjectName | snakeCase}}.db"),
+			Type:         getEnv("DB_TYPE", "{{.Database}}"),
+			Host:         getEnv("DB_HOST", "localhost"),
+			Port:         getEnv("DB_PORT", "5432"),
+			Username:     getEnv("DB_USERNAME", "postgres"),
+			Password:     getEnv("DB_PASSWORD", "password"),
+			Name:         getEnv("DB_NAME", "{{.ProjectName}}_db"),
+			SSLMode:      getEnv("DB_SSLMODE", "disable"),
+			Timezone:     getEnv("DB_TIMEZONE", "UTC"),
+			Path:         getEnv("DB_PATH", "./{{.ProjectName | snakeCase}}.db"),
+			MaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 10),
+			MaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
 		},
 		{{- end}}
 		App: AppConfig{
