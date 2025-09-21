@@ -2,10 +2,12 @@ package middleware
 
 import (
 	"context"
+	{{- if eq .Architecture "simple"}}
 	"fmt"
 	"time"
 
 	"{{.ModulePath}}/internal/config"
+	{{- end}}
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -40,6 +42,7 @@ func RequestID() gin.HandlerFunc {
 	})
 }
 
+{{if eq .Architecture "simple"}}
 // Logger returns a custom logger middleware
 func Logger(cfg *config.Config) gin.HandlerFunc {
 	return gin.LoggerWithConfig(gin.LoggerConfig{
@@ -60,6 +63,7 @@ func Logger(cfg *config.Config) gin.HandlerFunc {
 		SkipPaths: []string{"/health"},
 	})
 }
+{{end}}
 
 // Recovery returns a recovery middleware
 func Recovery() gin.HandlerFunc {

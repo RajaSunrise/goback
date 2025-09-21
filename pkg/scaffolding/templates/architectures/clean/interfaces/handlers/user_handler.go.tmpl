@@ -1,0 +1,276 @@
+package handlers
+
+import (
+	"{{.ModulePath}}/domain/entities"
+	"{{.ModulePath}}/domain/usecases"
+	"{{.ModulePath}}/domain/utils"
+	"net/http"
+	"strconv"
+
+	{{- if eq .Database "postgresql" }}
+	"github.com/google/uuid"
+	{{- end}}
+
+	// --- Dynamic imports based on framework ---
+	{{- if eq .Framework "fiber" }}
+	"github.com/gofiber/fiber/v2"
+	{{- else if eq .Framework "gin" }}
+	"github.com/gin-gonic/gin"
+	{{- else if eq .Framework "chi" }}
+	"encoding/json"
+	"github.com/go-chi/chi/v5"
+	{{- else if eq .Framework "echo" }}
+	"github.com/labstack/echo/v4"
+	{{- end}}
+)
+
+// UserHandler is an adapter that translates HTTP requests to application service calls.
+type UserHandler struct {
+	userUsecase usecases.UserUsecase
+	validator   *utils.Validator
+}
+
+func NewUserHandler(userUsecase usecases.UserUsecase, validator *utils.Validator) *UserHandler {
+	return &UserHandler{
+		userUsecase: userUsecase,
+		validator:   validator,
+	}
+}
+
+// --- Helper for responses ---
+func handleServiceError(err error) (int, map[string]string) {
+	if err.Error() == "user not found" {
+		return http.StatusNotFound, map[string]string{"error": err.Error()}
+	}
+	return http.StatusInternalServerError, map[string]string{"error": err.Error()}
+}
+
+
+{{/* =================== GO FIBER IMPLEMENTATION =================== */}}
+{{- if eq .Framework "fiber" }}
+func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
+	var user entities.User
+	if err := c.BodyParser(&user); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if err := h.validator.Validate(user); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+	}
+	
+	ctx := c.Context()
+	if err := h.userUsecase.Create(ctx, &user); err != nil {
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(user)
+}
+
+func (h *UserHandler) GetUser(c *fiber.Ctx) error {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{else}}
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{end}}
+	
+	ctx := c.Context()
+	user, err := h.userUsecase.GetByID(ctx, entities.UserID(id))
+	if err != nil {
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+	if user == nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "user not found"})
+	}
+
+	return c.JSON(user)
+}
+
+func (h *UserHandler) GetAllUsers(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	perPage, _ := strconv.Atoi(c.Query("per_page", "10"))
+	
+	ctx := c.Context()
+	users, _, err := h.userUsecase.GetAll(ctx, page, perPage)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+
+	return c.JSON(users)
+}
+
+func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{else}}
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{end}}
+	
+	var user entities.User
+	if err := c.BodyParser(&user); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+	
+	ctx := c.Context()
+	user.ID = entities.UserID(id)
+	if err := h.userUsecase.Update(ctx, &user); err != nil {
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+
+	return c.JSON(user)
+}
+
+func (h *UserHandler) DeleteUser(c *fiber.Ctx) error {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{else}}
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{end}}
+
+	ctx := c.Context()
+	if err := h.userUsecase.Delete(ctx, entities.UserID(id)); err != nil {
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+{{- end }}
+
+{{/* =================== GIN IMPLEMENTATION =================== */}}
+{{- if eq .Framework "gin" }}
+func (h *UserHandler) CreateUser(c *gin.Context) {
+	var user entities.User
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.validator.Validate(user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	
+	ctx := c.Request.Context()
+	if err := h.userUsecase.Create(ctx, &user); err != nil {
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+
+	c.JSON(http.StatusCreated, user)
+}
+
+func (h *UserHandler) GetUser(c *gin.Context) {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Param("id"))
+	{{else}}
+	id, err := strconv.Atoi(c.Param("id"))
+	{{end}}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+	
+	ctx := c.Request.Context()
+	user, err := h.userUsecase.GetByID(ctx, entities.UserID(id))
+	if err != nil {
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+	if user == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) GetAllUsers(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "10"))
+	
+	ctx := c.Request.Context()
+	users, _, err := h.userUsecase.GetAll(ctx, page, perPage)
+	if err != nil {
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
+func (h *UserHandler) UpdateUser(c *gin.Context) {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Param("id"))
+	{{else}}
+	id, err := strconv.Atoi(c.Param("id"))
+	{{end}}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+	
+	var user entities.User
+	if err := c.ShouldBindJSON(&user); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	
+	ctx := c.Request.Context()
+	user.ID = entities.UserID(id)
+	if err := h.userUsecase.Update(ctx, &user); err != nil {
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) DeleteUser(c *gin.Context) {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Param("id"))
+	{{else}}
+	id, err := strconv.Atoi(c.Param("id"))
+	{{end}}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	ctx := c.Request.Context()
+	if err := h.userUsecase.Delete(ctx, entities.UserID(id)); err != nil {
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+{{- end }}
+
+{{/* ... Implementations for Chi and Echo would follow a similar pattern ... */}}

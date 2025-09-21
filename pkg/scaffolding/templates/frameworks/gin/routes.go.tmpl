@@ -65,12 +65,15 @@ func healthCheck(c *gin.Context) {
 		"version": "1.0.0",
 	})
 }
-{{else if eq .Architecture "clean"}}package http
+{{else if eq .Architecture "clean"}}package routes
 
 import (
+	"net/http"
+
 	"{{.ModulePath}}/domain/usecases"
-	"{{.ModulePath}}/infrastructure/database"
+	infra_repo "{{.ModulePath}}/infrastructure/repositories"
 	"{{.ModulePath}}/interfaces/handlers"
+	"{{.ModulePath}}/domain/utils"
 
 	"github.com/gin-gonic/gin"
 	{{- if eq .Tool "gorm"}}
@@ -82,41 +85,100 @@ import (
 	{{- end}}
 )
 
-func SetupRoutes(router *gin.Engine, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}) {
-	// Setup repositories
+// Setup configures all the routes
+func Setup(router *gin.Engine, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+	// Initialize dependencies
 	var userRepository usecases.UserRepository
 	{{if eq .Tool "gorm"}}
-	userRepository = database.NewGormUserRepository(db)
+	userRepository = infra_repo.NewGormUserRepository(db)
 	{{else if eq .Tool "sqlx"}}
-	userRepository = database.NewSqlxUserRepository(db)
+	userRepository = infra_repo.NewSqlxUserRepository(db)
 	{{else if eq .Tool "sqlc"}}
-	userRepository = database.NewSqlcUserRepository(db)
+	userRepository = infra_repo.NewSqlcUserRepository(db)
 	{{end}}
-	
-	// Setup services
-	userService := usecases.NewUserUsecase(userRepository)
 
-	// Setup handlers
-	userHandler := handlers.NewUserHandler(userService)
-	
+	userUsecase := usecases.NewUserUsecase(userRepository)
+	userHandler := handlers.NewUserHandler(userUsecase, validator)
+
+	// Health check endpoint
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
 	// API version 1 routes
 	v1 := router.Group("/api/v1")
 	{
+		// User routes
 		users := v1.Group("/users")
 		{
-			users.POST("", userHandler.CreateUser)
-			users.GET("/:id", userHandler.GetUser)
 			users.GET("", userHandler.GetAllUsers)
+			users.GET("/:id", userHandler.GetUser)
+			users.POST("", userHandler.CreateUser)
 			users.PUT("/:id", userHandler.UpdateUser)
 			users.DELETE("/:id", userHandler.DeleteUser)
 		}
 	}
 }
-{{else}}package http
+{{else if eq .Architecture "ddd"}}package routes
+
+import (
+	"net/http"
+
+	"{{.ModulePath}}/domain/repositories"
+	"{{.ModulePath}}/domain/services"
+	infra_repo "{{.ModulePath}}/infrastructure/repositories"
+	"{{.ModulePath}}/interfaces/handlers"
+	"{{.ModulePath}}/domain/utils"
+
+	"github.com/gin-gonic/gin"
+	{{- if eq .Tool "gorm"}}
+	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc"}}
+	"database/sql"
+	{{- end}}
+)
+
+// Setup configures all the routes
+func Setup(router *gin.Engine, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+	// Initialize dependencies
+	var userRepository repositories.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = infra_repo.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = infra_repo.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = infra_repo.NewSqlcUserRepository(db)
+	{{end}}
+
+	userService := services.NewUserService(userRepository)
+	userHandler := handlers.NewUserHandler(userService, validator)
+
+	// Health check endpoint
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+	})
+
+	// API version 1 routes
+	v1 := router.Group("/api/v1")
+	{
+		// User routes
+		users := v1.Group("/users")
+		{
+			users.GET("", userHandler.GetAll)
+			users.GET("/:id", userHandler.GetByID)
+			users.POST("", userHandler.Create)
+			users.PUT("/:id", userHandler.Update)
+			users.DELETE("/:id", userHandler.Delete)
+		}
+	}
+}
+{{else if eq .Architecture "hexagonal"}}package routes
 
 import (
 	"{{.ModulePath}}/adapters/secondary/database"
-	"{{.ModulePath}}/application/services"
+	"{{.ModulePath}}/applications/services"
 	"{{.ModulePath}}/ports"
 
 	"github.com/gin-gonic/gin"

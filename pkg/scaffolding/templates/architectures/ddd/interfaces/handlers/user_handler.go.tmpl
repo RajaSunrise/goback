@@ -1,7 +1,8 @@
 package handlers
 
 import (
-	"{{.ModulePath}}/application"
+	"{{.ModulePath}}/domain/services"
+	"{{.ModulePath}}/domain/utils"
 	"net/http"
 	"strconv"
 	
@@ -24,10 +25,16 @@ import (
 
 // UserHandler adalah 'Adapter' yang menerjemahkan request HTTP ke panggilan Application Service.
 type UserHandler struct {
-	appService *application.UserApplicationService
+	userService *services.UserService
+	validator   *utils.Validator
 }
 
-func NewUserHandler(appService *application.UserApplicationService) *UserHandler { return &UserHandler{appService: appService} }
+func NewUserHandler(userService *services.UserService, validator *utils.Validator) *UserHandler {
+	return &UserHandler{
+		userService: userService,
+		validator:   validator,
+	}
+}
 
 // --- Helper untuk response ---
 func handleServiceError(err error) (int, map[string]string) {

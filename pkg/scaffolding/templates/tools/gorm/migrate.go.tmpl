@@ -11,7 +11,7 @@ import (
 
 func RunMigrations(cfg *config.DatabaseConfig, command string) {
 	sourceURL := "file://migrations"
-	databaseURL := cfg.GetURL()
+	databaseURL := cfg.GetMigrationDSN()
 
 	m, err := migrate.New(sourceURL, databaseURL)
 	if err != nil {

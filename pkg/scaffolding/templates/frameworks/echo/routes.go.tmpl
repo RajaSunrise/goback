@@ -95,11 +95,61 @@ func SetupRoutes(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .To
 		}
 	}
 }
-{{else}}package http
+{{else if eq .Architecture "ddd"}}package routes
+
+import (
+	"{{.ModulePath}}/domain/repositories"
+	"{{.ModulePath}}/domain/services"
+	infra_repo "{{.ModulePath}}/infrastructure/repositories"
+	"{{.ModulePath}}/interfaces/handlers"
+	"{{.ModulePath}}/domain/utils"
+
+	"github.com/labstack/echo/v4"
+	{{- if eq .Tool "gorm"}}
+	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc"}}
+	"database/sql"
+	{{- end}}
+)
+
+func Setup(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+	// Initialize dependencies
+	var userRepository repositories.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = infra_repo.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = infra_repo.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = infra_repo.NewSqlcUserRepository(db)
+	{{end}}
+
+	userService := services.NewUserService(userRepository)
+	userHandler := handlers.NewUserHandler(userService, validator)
+
+	// API routes
+	api := e.Group("/api/v1")
+	{
+		// User routes
+		users := api.Group("/users")
+		{
+			users.GET("", userHandler.GetAll)
+			users.POST("", userHandler.Create)
+			users.GET("/:id", userHandler.GetByID)
+			users.PUT("/:id", userHandler.Update)
+			users.DELETE("/:id", userHandler.Delete)
+		}
+	}
+
+	// Health check
+	e.GET("/health", handlers.HealthCheck)
+}
+{{else if eq .Architecture "hexagonal"}}package routes
 
 import (
 	"{{.ModulePath}}/adapters/secondary/database"
-	"{{.ModulePath}}/application/services"
+	"{{.ModulePath}}/applications/services"
 	"{{.ModulePath}}/ports"
 
 	"github.com/labstack/echo/v4"
