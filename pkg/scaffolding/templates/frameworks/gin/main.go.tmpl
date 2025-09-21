@@ -11,31 +11,43 @@ import (
 	"syscall"
 	"time"
 
-	{{if eq .Architecture.String "simple"}}
+	{{if eq .Architecture "simple" -}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/middleware"
 	"{{.ModulePath}}/internal/routes"
 	"{{.ModulePath}}/internal/utils"
-	{{else}}
+	{{if eq .Tool "gorm" -}}
+	"{{.ModulePath}}/internal/migrate"
+	{{end -}}
+	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/config"
-	{{if eq .Architecture.String "ddd"}}
 	"{{.ModulePath}}/infrastructure/database"
 	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
 	"{{.ModulePath}}/domain/utils"
-	{{else if eq .Architecture.String "clean"}}
+	{{if eq .Tool "gorm" -}}
+	"{{.ModulePath}}/pkg/migrate"
+	{{end -}}
+	{{else if eq .Architecture "clean" -}}
+	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/infrastructure/database"
 	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
 	"{{.ModulePath}}/domain/utils"
-	{{else if eq .Architecture.String "hexagonal"}}
+	{{if eq .Tool "gorm" -}}
+	"{{.ModulePath}}/pkg/migrate"
+	{{end -}}
+	{{else if eq .Architecture "hexagonal" -}}
+	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/adapters/secondary/database"
 	"{{.ModulePath}}/adapters/primary/http/middleware"
 	"{{.ModulePath}}/adapters/primary/http/routes"
 	"{{.ModulePath}}/domain/utils"
-	{{end}}
-	{{end}}
+	{{if eq .Tool "gorm" -}}
+	"{{.ModulePath}}/pkg/migrate"
+	{{end -}}
+	{{end -}}
 	"github.com/gin-gonic/gin"
 )
 
@@ -51,6 +63,18 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
+
+	{{if eq .Tool "gorm"}}
+	// Handle migrations
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		command := "up"
+		if len(os.Args) > 2 {
+			command = os.Args[2]
+		}
+		migrate.RunMigrations(&cfg.Database, command)
+		return
+	}
+	{{end}}
 
 	// Set Gin mode
 	gin.SetMode(cfg.Server.Mode)

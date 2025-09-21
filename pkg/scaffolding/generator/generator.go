@@ -159,6 +159,7 @@ func (tg *TemplateGenerator) getDestinationPath(fileType string) string {
 		"middleware": "internal/middleware/middleware.go",
 		"models":     "internal/models/base_model.go",
 		"validator":  "internal/utils/validator.go",
+		"migrate":    "internal/migrate/migrate.go",
 	}
 
 	// PERBAIKAN gocritic (ifElseChain): Mengubah if-else menjadi switch.
@@ -170,6 +171,7 @@ func (tg *TemplateGenerator) getDestinationPath(fileType string) string {
 		paths["handlers"] = "interfaces/handlers/handlers.go"
 		paths["middleware"] = "interfaces/middleware/middleware.go"
 		paths["models"] = "domain/models/base_model.go"
+		paths["migrate"] = "pkg/migrate/migrate.go"
 	case "clean":
 		paths["config"] = pathConfig
 		paths["database"] = "infrastructure/database/connection.go"
@@ -177,6 +179,7 @@ func (tg *TemplateGenerator) getDestinationPath(fileType string) string {
 		paths["handlers"] = "interfaces/handlers/handlers.go"
 		paths["middleware"] = "interfaces/middleware/middleware.go"
 		paths["models"] = "domain/entities/base_model.go"
+		paths["migrate"] = "pkg/migrate/migrate.go"
 	case "hexagonal":
 		paths["config"] = pathConfig
 		paths["database"] = "adapters/secondary/database/connection.go"
@@ -184,6 +187,7 @@ func (tg *TemplateGenerator) getDestinationPath(fileType string) string {
 		paths["handlers"] = "adapters/primary/http/handlers.go"
 		paths["middleware"] = "adapters/primary/http/middleware.go"
 		paths["models"] = "domain/model/base_model.go"
+		paths["migrate"] = "pkg/migrate/migrate.go"
 	}
 
 	return paths[fileType]
@@ -342,6 +346,8 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 			destPath = tg.getDestinationPath("models")
 		} else if filepath.Base(path) == "sqlc.yaml.tmpl" {
 			destPath = "sqlc.yaml"
+		} else if strings.HasSuffix(path, "migrate.go.tmpl") {
+			destPath = tg.getDestinationPath("migrate")
 		}
 
 		templatePath := strings.TrimPrefix(path, "templates"+string(filepath.Separator))

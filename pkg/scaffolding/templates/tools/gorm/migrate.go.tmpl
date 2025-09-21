@@ -1,0 +1,40 @@
+package migrate
+
+import (
+	"log"
+
+	{{if eq .Architecture "simple"}}"{{.ModulePath}}/internal/config"{{else}}"{{.ModulePath}}/config"{{end}}
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+)
+
+func RunMigrations(cfg *config.DatabaseConfig, command string) {
+	sourceURL := "file://migrations"
+	databaseURL := cfg.GetURL()
+
+	m, err := migrate.New(sourceURL, databaseURL)
+	if err != nil {
+		log.Fatalf("Failed to create migrate instance: %v", err)
+	}
+
+	switch command {
+	case "up":
+		if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+			log.Fatalf("Failed to apply migrations: %v", err)
+		}
+		log.Println("Migrations applied successfully")
+	case "down":
+		if err := m.Down(); err != nil && err != migrate.ErrNoChange {
+			log.Fatalf("Failed to rollback migrations: %v", err)
+		}
+		log.Println("Migrations rolled back successfully")
+	case "drop":
+		if err := m.Drop(); err != nil {
+			log.Fatalf("Failed to drop database: %v", err)
+		}
+		log.Println("Database dropped successfully")
+	default:
+		log.Fatalf("Unknown migration command: %s", command)
+	}
+}
