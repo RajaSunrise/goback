@@ -11,32 +11,34 @@ import (
 	"syscall"
 	"time"
 
-	{{if eq .Architecture.String "simple"}}
+	"github.com/gin-gonic/gin"
+	{{if eq .Architecture "simple" -}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/middleware"
 	"{{.ModulePath}}/internal/routes"
 	"{{.ModulePath}}/internal/utils"
-	{{else}}
+	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/config"
-	{{if eq .Architecture.String "ddd"}}
 	"{{.ModulePath}}/infrastructure/database"
+	{{if eq .Tool "gorm"}}"{{.ModulePath}}/infrastructure/repositories"{{end}}
 	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
 	"{{.ModulePath}}/domain/utils"
-	{{else if eq .Architecture.String "clean"}}
+	{{else if eq .Architecture "clean" -}}
+	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/infrastructure/database"
+	{{if eq .Tool "gorm"}}"{{.ModulePath}}/infrastructure/repositories"{{end}}
 	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
 	"{{.ModulePath}}/domain/utils"
-	{{else if eq .Architecture.String "hexagonal"}}
-	"{{.ModulePath}}/adapters/secondary/database"
+	{{else if eq .Architecture "hexagonal" -}}
+	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/adapters/primary/http/middleware"
 	"{{.ModulePath}}/adapters/primary/http/routes"
 	"{{.ModulePath}}/domain/utils"
-	{{end}}
-	{{end}}
-	"github.com/gin-gonic/gin"
+	"{{.ModulePath}}/adapters/secondary/database"
+	{{end -}}
 )
 
 var (
@@ -57,13 +59,28 @@ func main() {
 
 	// Initialize database
 	cfg.Database.Type = strings.ToLower(cfg.Database.Type)
-	db, err := database.Connect(&cfg.Database)
+	db, err := database.Connect(cfg.Database)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	{{- if or (eq .Tool "sqlx") (eq .Tool "sqlc")}}
 	defer db.Close()
 	{{- end}}
+
+	{{if eq .Tool "gorm"}}
+	// Run migrations
+	log.Println("Running GORM auto-migration...")
+	{{if or (eq .Architecture "ddd") (eq .Architecture "clean")}}
+	if err := db.AutoMigrate(&repositories.UserPersistence{}); err != nil {
+		log.Fatalf("Failed to migrate database: %v", err)
+	}
+	{{else if eq .Architecture "hexagonal"}}
+	if err := db.AutoMigrate(&database.UserPersistence{}); err != nil {
+		log.Fatalf("Failed to migrate database: %v", err)
+	}
+	{{end}}
+	log.Println("GORM auto-migration completed.")
+	{{end}}
 
 	// Initialize validator
 	validator := utils.NewValidator()

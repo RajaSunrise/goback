@@ -21,8 +21,20 @@ import (
 	"helm.sh/helm/v3/pkg/engine"
 )
 
-// PERBAIKAN goconst: Menambahkan konstanta untuk path yang berulang.
-const pathConfig = "config/framework.go"
+const (
+	pathConfig     = "config/framework.go"
+	pathMigrate    = "pkg/migrate/migrate.go"
+	pathDatabase   = "infrastructure/database/connection.go"
+	pathRoutes     = "interfaces/routes/routes.go"
+	pathHandlers   = "interfaces/handlers/handlers.go"
+	pathMiddleware = "interfaces/middleware/middleware.go"
+	templatesDir   = "templates"
+	connectionTmpl = "connection.go.tmpl"
+	frameworksDir  = "frameworks"
+	devopsDir      = "devops"
+	helmDir        = "helm"
+	ansibleDir     = "ansible"
+)
 
 // TemplateGenerator handles project generation from templates
 type TemplateGenerator struct {
@@ -91,7 +103,7 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 
 	fullDestPath := filepath.Join(tg.OutputDir, destPath)
 	// All template paths are now relative to the embedded `templates` directory
-	fullTemplatePath := filepath.ToSlash(filepath.Join("templates", templatePath))
+	fullTemplatePath := filepath.ToSlash(filepath.Join(templatesDir, templatePath))
 
 	// Read template content from embedded FS
 	templateContent, err := scaffolding.Templates.ReadFile(fullTemplatePath)
@@ -159,24 +171,27 @@ func (tg *TemplateGenerator) getDestinationPath(fileType string) string {
 		"middleware": "internal/middleware/middleware.go",
 		"models":     "internal/models/base_model.go",
 		"validator":  "internal/utils/validator.go",
+		"migrate":    "internal/migrate/migrate.go",
 	}
 
 	// PERBAIKAN gocritic (ifElseChain): Mengubah if-else menjadi switch.
 	switch arch {
 	case "ddd":
 		paths["config"] = pathConfig
-		paths["database"] = "infrastructure/database/connection.go"
-		paths["routes"] = "interfaces/routes/routes.go"
-		paths["handlers"] = "interfaces/handlers/handlers.go"
-		paths["middleware"] = "interfaces/middleware/middleware.go"
+		paths["database"] = pathDatabase
+		paths["routes"] = pathRoutes
+		paths["handlers"] = pathHandlers
+		paths["middleware"] = pathMiddleware
 		paths["models"] = "domain/models/base_model.go"
+		paths["migrate"] = pathMigrate
 	case "clean":
 		paths["config"] = pathConfig
-		paths["database"] = "infrastructure/database/connection.go"
-		paths["routes"] = "interfaces/routes/routes.go"
-		paths["handlers"] = "interfaces/handlers/handlers.go"
-		paths["middleware"] = "interfaces/middleware/middleware.go"
+		paths["database"] = pathDatabase
+		paths["routes"] = pathRoutes
+		paths["handlers"] = pathHandlers
+		paths["middleware"] = pathMiddleware
 		paths["models"] = "domain/entities/base_model.go"
+		paths["migrate"] = pathMigrate
 	case "hexagonal":
 		paths["config"] = pathConfig
 		paths["database"] = "adapters/secondary/database/connection.go"
@@ -184,6 +199,7 @@ func (tg *TemplateGenerator) getDestinationPath(fileType string) string {
 		paths["handlers"] = "adapters/primary/http/handlers.go"
 		paths["middleware"] = "adapters/primary/http/middleware.go"
 		paths["models"] = "domain/model/base_model.go"
+		paths["migrate"] = pathMigrate
 	}
 
 	return paths[fileType]
@@ -235,7 +251,7 @@ func (tg *TemplateGenerator) generateFrameworkFiles() error {
 		return nil // No framework selected
 	}
 
-	frameworkDir := filepath.ToSlash(filepath.Join("templates", "frameworks", framework))
+	frameworkDir := filepath.ToSlash(filepath.Join(templatesDir, frameworksDir, framework))
 	globPath := filepath.Join(frameworkDir, "*.tmpl")
 
 	files, err := fs.Glob(scaffolding.Templates, globPath)
@@ -244,8 +260,8 @@ func (tg *TemplateGenerator) generateFrameworkFiles() error {
 	}
 
 	for _, file := range files {
-		templatePath := strings.TrimPrefix(file, "templates"+string(filepath.Separator))
-		frameworkDirInTmpl := filepath.Join("frameworks", framework)
+		templatePath := strings.TrimPrefix(file, templatesDir+string(filepath.Separator))
+		frameworkDirInTmpl := filepath.Join(frameworksDir, framework)
 
 		var destPath string
 		switch filepath.Base(templatePath) {
@@ -277,20 +293,18 @@ func (tg *TemplateGenerator) generateDatabaseConfig() error {
 		return nil // No tool selected
 	}
 
-	templatePath := filepath.Join("databases", tool, "connection.go.tmpl")
+	templatePath := filepath.Join("databases", tool, connectionTmpl)
 	destPath := tg.getDestinationPath("database")
-	fullTemplatePath := filepath.ToSlash(filepath.Join("templates", templatePath))
+	fullTemplatePath := filepath.ToSlash(filepath.Join(templatesDir, templatePath))
 
 	// Check if the template file exists in embedded FS
 	if _, err := scaffolding.Templates.Open(fullTemplatePath); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			// Fallback to database type if tool-specific connection doesn't exist
 			dbType := strings.ToLower(tg.Config.Database.String())
-			templatePath = filepath.Join("databases", dbType, "connection.go.tmpl")
-			fullTemplatePath = filepath.ToSlash(filepath.Join("templates", templatePath))
+			templatePath = filepath.Join("databases", dbType, connectionTmpl)
+			fullTemplatePath = filepath.ToSlash(filepath.Join(templatesDir, templatePath))
 			if _, err2 := scaffolding.Templates.Open(fullTemplatePath); err2 != nil {
-				// PERBAIKAN nilerr: Hanya return nil jika error adalah 'file not exist'.
-				// Jika ada error lain, kembalikan error tersebut.
 				if errors.Is(err2, fs.ErrNotExist) {
 					return nil // Ignore if no suitable template is found
 				}
@@ -311,7 +325,7 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 		return nil
 	}
 
-	templateRootDir := filepath.ToSlash(filepath.Join("templates", "tools", tool))
+	templateRootDir := filepath.ToSlash(filepath.Join(templatesDir, "tools", tool))
 	if _, err := scaffolding.Templates.Open(templateRootDir); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil // No tool-specific files to generate
@@ -328,7 +342,7 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 		}
 
 		// Skip connection files as they are handled by generateDatabaseConfig
-		if filepath.Base(path) == "connection.go.tmpl" {
+		if filepath.Base(path) == connectionTmpl {
 			return nil
 		}
 
@@ -342,9 +356,11 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 			destPath = tg.getDestinationPath("models")
 		} else if filepath.Base(path) == "sqlc.yaml.tmpl" {
 			destPath = "sqlc.yaml"
+		} else if strings.HasSuffix(path, "migrate.go.tmpl") {
+			destPath = tg.getDestinationPath("migrate")
 		}
 
-		templatePath := strings.TrimPrefix(path, "templates"+string(filepath.Separator))
+		templatePath := strings.TrimPrefix(path, templatesDir+string(filepath.Separator))
 		return tg.generateFileFromTemplate(destPath, templatePath)
 	})
 }
@@ -356,13 +372,7 @@ func (tg *TemplateGenerator) generateArchitectureFiles() error {
 		return nil
 	}
 
-	// For simple architecture, we don't generate from this directory,
-	// as the other steps already handle it.
-	if strings.ToLower(architecture) == "simple" {
-		return nil
-	}
-
-	templateRootDir := filepath.ToSlash(filepath.Join("templates", "architectures", architecture))
+	templateRootDir := filepath.ToSlash(filepath.Join(templatesDir, "architectures", architecture))
 
 	return fs.WalkDir(scaffolding.Templates, templateRootDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -378,7 +388,7 @@ func (tg *TemplateGenerator) generateArchitectureFiles() error {
 		}
 
 		destPath := relPath
-		templatePath := strings.TrimPrefix(path, "templates"+string(filepath.Separator))
+		templatePath := strings.TrimPrefix(path, templatesDir+string(filepath.Separator))
 
 		return tg.generateFileFromTemplate(destPath, templatePath)
 	})
@@ -392,14 +402,14 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 
 	for _, tool := range tg.Config.DevOps.Tools {
 		toolName := strings.ToLower(tool)
-		if toolName == "helm" {
+		if toolName == helmDir {
 			if err := tg.generateHelmChart(); err != nil {
 				return fmt.Errorf("failed to generate files for DevOps tool %s: %w", toolName, err)
 			}
 			continue
 		}
 
-		templateRootDir := filepath.ToSlash(filepath.Join("templates", "devops", toolName))
+		templateRootDir := filepath.ToSlash(filepath.Join(templatesDir, devopsDir, toolName))
 		if _, err := scaffolding.Templates.Open(templateRootDir); err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
 				continue
@@ -420,10 +430,10 @@ func (tg *TemplateGenerator) generateDevOpsFiles() error {
 				return err
 			}
 
-			destPath := filepath.Join("devops", toolName, relPath)
-			templatePath := strings.TrimPrefix(path, "templates"+string(filepath.Separator))
+			destPath := filepath.Join(devopsDir, toolName, relPath)
+			templatePath := strings.TrimPrefix(path, templatesDir+string(filepath.Separator))
 
-			if toolName == "ansible" {
+			if toolName == ansibleDir {
 				return tg.generateFileFromTemplate(destPath, templatePath, "<<", ">>")
 			}
 			return tg.generateFileFromTemplate(destPath, templatePath)
@@ -444,7 +454,7 @@ func (tg *TemplateGenerator) generateHelmChart() error {
 	defer os.RemoveAll(tempDir)
 
 	chartFS := scaffolding.Templates
-	chartRoot := "templates/devops/helm"
+	chartRoot := filepath.Join(templatesDir, devopsDir, helmDir)
 
 	// Walk the embedded chart directory and write files to temp dir
 	err = fs.WalkDir(chartFS, chartRoot, func(path string, d fs.DirEntry, err error) error {
@@ -554,7 +564,7 @@ func (tg *TemplateGenerator) generateHelmChart() error {
 		// The path from `engine.Render` is relative to the chart root, e.g., `my-chart/templates/service.yaml`
 		// We want to strip the chart name prefix.
 		relPath := strings.TrimPrefix(path, chart.Name()+"/")
-		destPath := filepath.Join(tg.OutputDir, "devops/helm", relPath)
+		destPath := filepath.Join(tg.OutputDir, devopsDir, helmDir, relPath)
 
 		if err := os.MkdirAll(filepath.Dir(destPath), 0755); err != nil {
 			return fmt.Errorf("failed to create directory for %s: %w", destPath, err)

@@ -8,7 +8,7 @@ import (
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 
-	"{{.ModulePath}}/internal/config"
+	{{if eq .Architecture "simple"}}"{{.ModulePath}}/internal/config"{{else}}"{{.ModulePath}}/config"{{end}}
 	"github.com/jmoiron/sqlx"
 )
 

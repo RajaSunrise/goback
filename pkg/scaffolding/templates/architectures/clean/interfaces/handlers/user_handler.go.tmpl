@@ -1,0 +1,554 @@
+package handlers
+
+import (
+	"{{.ModulePath}}/domain/entities"
+	"{{.ModulePath}}/domain/usecases"
+	"{{.ModulePath}}/domain/utils"
+	"net/http"
+	"strconv"
+
+	{{- if eq .Database "postgresql" }}
+	"github.com/google/uuid"
+	{{- end}}
+
+	// --- Dynamic imports based on framework ---
+	{{- if eq .Framework "fiber" }}
+	"github.com/gofiber/fiber/v2"
+	{{- else if eq .Framework "gin" }}
+	"github.com/gin-gonic/gin"
+	{{- else if eq .Framework "chi" }}
+	"encoding/json"
+	"github.com/go-chi/chi/v5"
+	{{- else if eq .Framework "echo" }}
+	"github.com/labstack/echo/v4"
+	{{- end}}
+)
+
+// UserHandler is an adapter that translates HTTP requests to application service calls.
+type UserHandler struct {
+	userUsecase usecases.UserUsecase
+	validator   *utils.Validator
+}
+
+func NewUserHandler(userUsecase usecases.UserUsecase, validator *utils.Validator) *UserHandler {
+	return &UserHandler{
+		userUsecase: userUsecase,
+		validator:   validator,
+	}
+}
+
+// --- Helper for responses ---
+func handleServiceError(c interface{}, err error) {
+	status := http.StatusInternalServerError
+	message := "internal server error"
+
+	if err.Error() == "user not found" {
+		status = http.StatusNotFound
+		message = err.Error()
+	}
+	// Add more specific error checks as needed
+
+	switch v := c.(type) {
+	{{- if eq .Framework "fiber" }}
+	case *fiber.Ctx:
+		v.Status(status).JSON(fiber.Map{"error": message})
+	{{- else if eq .Framework "gin" }}
+	case *gin.Context:
+		v.JSON(status, gin.H{"error": message})
+	{{- else if eq .Framework "echo" }}
+	case echo.Context:
+		v.JSON(status, map[string]string{"error": message})
+	{{- else if eq .Framework "chi" }}
+	case http.ResponseWriter:
+		v.WriteHeader(status)
+		json.NewEncoder(v).Encode(map[string]string{"error": message})
+	{{- end}}
+	}
+}
+
+// --- Request and Response Structs ---
+type CreateUserRequest struct {
+	Name     string `json:"name" validate:"required,min=2,max=100"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=6"`
+}
+
+type UpdateUserRequest struct {
+	Name     *string `json:"name,omitempty" validate:"omitempty,min=2,max=100"`
+	Email    *string `json:"email,omitempty" validate:"omitempty,email"`
+	Password *string `json:"password,omitempty" validate:"omitempty,min=6"`
+	IsActive *bool   `json:"is_active,omitempty"`
+}
+
+
+{{/* =================== GO FIBER IMPLEMENTATION =================== */}}
+{{- if eq .Framework "fiber" }}
+func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
+	var req CreateUserRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err})
+	}
+	
+	user, err := h.userUsecase.CreateUser(c.Context(), req.Name, req.Email, req.Password)
+	if err != nil {
+		handleServiceError(c, err)
+		return nil
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(user)
+}
+
+func (h *UserHandler) GetUser(c *fiber.Ctx) error {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{else}}
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{end}}
+	
+	user, err := h.userUsecase.GetUser(c.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}})
+	if err != nil {
+		handleServiceError(c, err)
+		return nil
+	}
+
+	return c.JSON(user)
+}
+
+func (h *UserHandler) GetAllUsers(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	perPage, _ := strconv.Atoi(c.Query("per_page", "10"))
+	
+	users, _, err := h.userUsecase.GetAllUsers(c.Context(), page, perPage)
+	if err != nil {
+		handleServiceError(c, err)
+		return nil
+	}
+
+	return c.JSON(users)
+}
+
+func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{else}}
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{end}}
+	
+	var req UpdateUserRequest
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request body"})
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error})
+	}
+	
+	dto := entities.UpdateUserDTO{
+		Name:     req.Name,
+		Email:    req.Email,
+		Password: req.Password,
+		IsActive: req.IsActive,
+	}
+
+	user, err := h.userUsecase.UpdateUser(c.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, dto)
+	if err != nil {
+		handleServiceError(c, err)
+		return nil
+	}
+
+	return c.JSON(user)
+}
+
+func (h *UserHandler) DeleteUser(c *fiber.Ctx) error {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{else}}
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid user ID"})
+	}
+	{{end}}
+
+	err = h.userUsecase.DeleteUser(c.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}})
+	if err != nil {
+		handleServiceError(c, err)
+		return nil
+	}
+
+	return c.SendStatus(fiber.StatusNoContent)
+}
+{{- end }}
+
+{{/* =================== GIN IMPLEMENTATION =================== */}}
+{{- if eq .Framework "gin" }}
+func (h *UserHandler) CreateUser(c *gin.Context) {
+	var req CreateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	
+	user, err := h.userUsecase.CreateUser(c.Request.Context(), req.Name, req.Email, req.Password)
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, user)
+}
+
+func (h *UserHandler) GetUser(c *gin.Context) {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Param("id"))
+	{{else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	{{end}}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+	
+	user, err := h.userUsecase.GetUser(c.Request.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}})
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) GetAllUsers(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "10"))
+	
+	users, _, err := h.userUsecase.GetAllUsers(c.Request.Context(), page, perPage)
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
+func (h *UserHandler) UpdateUser(c *gin.Context) {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Param("id"))
+	{{else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	{{end}}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+	
+	var req UpdateUserRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	
+	dto := entities.UpdateUserDTO{
+		Name:     req.Name,
+		Email:    req.Email,
+		Password: req.Password,
+		IsActive: req.IsActive,
+	}
+
+	user, err := h.userUsecase.UpdateUser(c.Request.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, dto)
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) DeleteUser(c *gin.Context) {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Param("id"))
+	{{else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	{{end}}
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+
+	err = h.userUsecase.DeleteUser(c.Request.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}})
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+{{- end }}
+
+{{/* =================== ECHO IMPLEMENTATION =================== */}}
+{{- if eq .Framework "echo" }}
+func (h *UserHandler) CreateUser(c echo.Context) error {
+	var req CreateUserRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	
+	user, err := h.userUsecase.CreateUser(c.Request().Context(), req.Name, req.Email, req.Password)
+	if err != nil {
+		handleServiceError(c, err)
+		return nil
+	}
+
+	return c.JSON(http.StatusCreated, user)
+}
+
+func (h *UserHandler) GetUser(c echo.Context) error {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Param("id"))
+	{{else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	{{end}}
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
+	}
+	
+	user, err := h.userUsecase.GetUser(c.Request().Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}})
+	if err != nil {
+		handleServiceError(c, err)
+		return nil
+	}
+
+	return c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) GetAllUsers(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page == 0 {
+		page = 1
+	}
+	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
+	if perPage == 0 {
+		perPage = 10
+	}
+	
+	users, _, err := h.userUsecase.GetAllUsers(c.Request().Context(), page, perPage)
+	if err != nil {
+		handleServiceError(c, err)
+		return nil
+	}
+
+	return c.JSON(http.StatusOK, users)
+}
+
+func (h *UserHandler) UpdateUser(c echo.Context) error {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Param("id"))
+	{{else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	{{end}}
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
+	}
+	
+	var req UpdateUserRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+	}
+	
+	dto := entities.UpdateUserDTO{
+		Name:     req.Name,
+		Email:    req.Email,
+		Password: req.Password,
+		IsActive: req.IsActive,
+	}
+
+	user, err := h.userUsecase.UpdateUser(c.Request().Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, dto)
+	if err != nil {
+		handleServiceError(c, err)
+		return nil
+	}
+
+	return c.JSON(http.StatusOK, user)
+}
+
+func (h *UserHandler) DeleteUser(c echo.Context) error {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(c.Param("id"))
+	{{else}}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	{{end}}
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
+	}
+
+	err = h.userUsecase.DeleteUser(c.Request().Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}})
+	if err != nil {
+		handleServiceError(c, err)
+		return nil
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+{{- end }}
+
+{{/* =================== CHI IMPLEMENTATION =================== */}}
+{{- if eq .Framework "chi" }}
+func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
+	var req CreateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	user, err := h.userUsecase.CreateUser(r.Context(), req.Name, req.Email, req.Password)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(user)
+}
+
+func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	{{else}}
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 32)
+	{{end}}
+	if err != nil {
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+	
+	user, err := h.userUsecase.GetUser(r.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}})
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}
+
+func (h *UserHandler) GetAllUsers(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page == 0 {
+		page = 1
+	}
+	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
+	if perPage == 0 {
+		perPage = 10
+	}
+
+	users, _, err := h.userUsecase.GetAllUsers(r.Context(), page, perPage)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(users)
+}
+
+func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	{{else}}
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 32)
+	{{end}}
+	if err != nil {
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+	
+	var req UpdateUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	
+	dto := entities.UpdateUserDTO{
+		Name:     req.Name,
+		Email:    req.Email,
+		Password: req.Password,
+		IsActive: req.IsActive,
+	}
+
+	user, err := h.userUsecase.UpdateUser(r.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, dto)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}
+
+func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
+	{{if eq .Database "postgresql"}}
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	{{else}}
+	id, err := strconv.ParseUint(chi.URLParam(r, "id"), 10, 32)
+	{{end}}
+	if err != nil {
+		http.Error(w, "invalid user ID", http.StatusBadRequest)
+		return
+	}
+
+	err = h.userUsecase.DeleteUser(r.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}})
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+{{- end }}

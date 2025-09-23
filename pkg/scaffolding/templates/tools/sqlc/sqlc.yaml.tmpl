@@ -1,13 +1,21 @@
 version: "2"
 sql:
-  - engine: "{{ lower .Database.String }}"
+  - engine: "{{ lower .Database }}"
     queries: "db/queries"
     schema: "db/migrations"
     gen:
       go:
         package: "db"
         out: "db/sqlc"
+        {{- if eq .Database "postgresql"}}
+        sql_package: "github.com/jackc/pgx/v5"
+        {{- else if eq .Database "mysql"}}
+        sql_package: "github.com/go-sql-driver/mysql"
+        {{- else if eq .Database "sqlite"}}
+        sql_package: "modernc.org/sqlite"
+        {{- else}}
         sql_package: "database/sql"
+        {{- end}}
         emit_json_tags: true
         emit_prepared_queries: false
         emit_interface: true

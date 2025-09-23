@@ -1,0 +1,30 @@
+package migrate
+
+import (
+	"log"
+	{{if eq .Architecture "simple" -}}
+	"{{.ModulePath}}/internal/models"
+	{{else if eq .Architecture "clean" -}}
+	"{{.ModulePath}}/domain/entities"
+	{{else if eq .Architecture "ddd" -}}
+	"{{.ModulePath}}/domain/models"
+	{{else if eq .Architecture "hexagonal" -}}
+	"{{.ModulePath}}/domain"
+	{{end -}}
+
+	"gorm.io/gorm"
+)
+
+// RunGormAutoMigration performs the GORM auto-migration.
+func RunGormAutoMigration(db *gorm.DB) {
+	log.Println("Running GORM auto-migration...")
+
+	err := db.AutoMigrate(
+		{{if eq .Architecture "clean"}}entities.User{}{{else if eq .Architecture "hexagonal"}}domain.User{}{{else}}models.User{}{{end}},
+	)
+	if err != nil {
+		log.Fatalf("Failed to migrate database with GORM: %v", err)
+	}
+
+	log.Println("GORM auto-migration completed successfully.")
+}

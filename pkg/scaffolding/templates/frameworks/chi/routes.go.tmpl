@@ -1,4 +1,4 @@
-{{if eq .Architecture.String "simple"}}package routes
+{{if eq .Architecture "simple"}}package routes
 
 import (
 	"encoding/json"
@@ -22,7 +22,7 @@ func Setup(r chi.Router, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sq
 	// Initialize dependencies
 	userRepository := repositories.NewUserRepository(db)
 	userService := services.NewUserService(userRepository)
-	userHandler := handlers.NewUserHandler(userService, validator)
+	userHandler := handlers.NewUserHandler(*userService, validator)
 
 	// API routes
 	r.Route("/api/v1", func(r chi.Router) {
@@ -51,12 +51,13 @@ func healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
 }
-{{else}}package http
+{{else if eq .Architecture "clean"}}package routes
 
 import (
-	"{{.ModulePath}}/adapters/secondary/database"
-	"{{.ModulePath}}/application/services"
-	"{{.ModulePath}}/ports"
+	"{{.ModulePath}}/domain/usecases"
+	"{{.ModulePath}}/infrastructure/repositories"
+	"{{.ModulePath}}/interfaces/handlers"
+	"{{.ModulePath}}/domain/utils"
 
 	"github.com/go-chi/chi/v5"
 	{{- if eq .Tool "gorm"}}
@@ -68,7 +69,102 @@ import (
 	{{- end}}
 )
 
-func SetupRoutes(r *chi.Mux, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}) {
+func Setup(r chi.Router, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+	// Setup repositories
+	var userRepository usecases.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = repositories.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = repositories.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = repositories.NewSqlcUserRepository(db)
+	{{end}}
+
+	// Setup services
+	userService := usecases.NewUserUsecase(userRepository)
+
+	// Setup handlers
+	userHandler := handlers.NewUserHandler(*userService, validator)
+
+	// API version 1 routes
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Route("/users", func(r chi.Router) {
+			r.Post("/", userHandler.CreateUser)
+			r.Get("/{id}", userHandler.GetUser)
+			r.Get("/", userHandler.GetAllUsers)
+			r.Put("/{id}", userHandler.UpdateUser)
+			r.Delete("/{id}", userHandler.DeleteUser)
+		})
+	})
+}
+{{else if eq .Architecture "ddd"}}package routes
+
+import (
+	"{{.ModulePath}}/domain/repositories"
+	"{{.ModulePath}}/domain/services"
+	infra_repo "{{.ModulePath}}/infrastructure/repositories"
+	"{{.ModulePath}}/interfaces/handlers"
+	"{{.ModulePath}}/domain/utils"
+
+	"github.com/go-chi/chi/v5"
+	{{- if eq .Tool "gorm"}}
+	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc"}}
+	"database/sql"
+	{{- end}}
+)
+
+func Setup(r chi.Router, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+	// Initialize dependencies
+	var userRepository repositories.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = infra_repo.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = infra_repo.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = infra_repo.NewSqlcUserRepository(db)
+	{{end}}
+
+	userService := services.NewUserService(userRepository)
+	userHandler := handlers.NewUserHandler(*userService, validator)
+
+	// API routes
+	r.Route("/api/v1", func(r chi.Router) {
+		// User routes
+		r.Route("/users", func(r chi.Router) {
+			r.Get("/", userHandler.GetAll)
+			r.Post("/", userHandler.Create)
+			r.Get("/{id}", userHandler.GetByID)
+			r.Put("/{id}", userHandler.Update)
+			r.Delete("/{id}", userHandler.Delete)
+		})
+	})
+
+	// Health check
+	r.Get("/health", handlers.HealthCheck)
+}
+{{else if eq .Architecture "hexagonal"}}package routes
+
+import (
+	"{{.ModulePath}}/adapters/primary/http/handlers"
+	"{{.ModulePath}}/adapters/secondary/database"
+	"{{.ModulePath}}/application/services"
+	"{{.ModulePath}}/domain/ports"
+	"{{.ModulePath}}/domain/utils"
+
+	"github.com/go-chi/chi/v5"
+	{{- if eq .Tool "gorm"}}
+	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx"}}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc"}}
+	"database/sql"
+	{{- end}}
+)
+
+func Setup(r chi.Router, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
 	// Setup repositories
 	var userRepository ports.UserRepository
 	{{if eq .Tool "gorm"}}
@@ -83,7 +179,7 @@ func SetupRoutes(r *chi.Mux, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool
 	userService := services.NewUserService(userRepository)
 
 	// Setup handlers
-	userHandler := NewUserHandler(userService)
+	userHandler := handlers.NewUserHandler(*userService, validator)
 
 	// API version 1 routes
 	r.Route("/api/v1", func(r chi.Router) {
