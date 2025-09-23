@@ -272,12 +272,7 @@ func (tg *TemplateGenerator) generateFrameworkFiles() error {
 		case "config.go.tmpl":
 			destPath = tg.getDestinationPath("config")
 		case "handlers.go.tmpl":
-			// Only generate framework-level handlers for simple architecture
-			if arch := strings.ToLower(string(tg.Config.Architecture)); arch == "simple" || arch == "" {
-				destPath = tg.getDestinationPath("handlers")
-			} else {
-				continue // Skip this file for other architectures
-			}
+			destPath = tg.getDestinationPath("handlers")
 		case "middleware.go.tmpl":
 			destPath = tg.getDestinationPath("middleware")
 		default:

@@ -133,9 +133,9 @@ func (uc *UserUsecase) SearchUsers(ctx context.Context, query string, page, perP
 
 // UpdateUser use case for updating user information
 {{- if eq .Database "postgresql" }}
-func (uc *UserUsecase) UpdateUser(ctx context.Context, id uuid.UUID, name, email, password *string, age *int, phone, address *string, isActive *bool) (*entities.User, error) {
+func (uc *UserUsecase) UpdateUser(ctx context.Context, id uuid.UUID, dto entities.UpdateUserDTO) (*entities.User, error) {
 {{- else}}
-func (uc *UserUsecase) UpdateUser(ctx context.Context, id uint, name, email, password *string, age *int, phone, address *string, isActive *bool) (*entities.User, error) {
+func (uc *UserUsecase) UpdateUser(ctx context.Context, id uint, dto entities.UpdateUserDTO) (*entities.User, error) {
 {{- end}}
 	// Get existing user
 	user, err := uc.userRepo.GetByID(ctx, id)
@@ -147,16 +147,16 @@ func (uc *UserUsecase) UpdateUser(ctx context.Context, id uint, name, email, pas
 	}
 
 	// Update name if provided
-	if name != nil {
-		if err := user.UpdateName(*name); err != nil {
+	if dto.Name != nil {
+		if err := user.UpdateName(*dto.Name); err != nil {
 			return nil, err
 		}
 	}
 
 	// Update email if provided and different
-	if email != nil && *email != user.Email {
+	if dto.Email != nil && *dto.Email != user.Email {
 		// Check if new email is already taken
-		exists, err := uc.userRepo.ExistsByEmail(ctx, *email)
+		exists, err := uc.userRepo.ExistsByEmail(ctx, *dto.Email)
 		if err != nil {
 			return nil, err
 		}
@@ -164,38 +164,21 @@ func (uc *UserUsecase) UpdateUser(ctx context.Context, id uint, name, email, pas
 			return nil, errors.New("email already taken")
 		}
 
-		if err := user.UpdateEmail(*email); err != nil {
+		if err := user.UpdateEmail(*dto.Email); err != nil {
 			return nil, err
 		}
 	}
 
 	// Update password if provided
-	if password != nil {
-		if err := user.UpdatePassword(*password); err != nil {
+	if dto.Password != nil {
+		if err := user.UpdatePassword(*dto.Password); err != nil {
 			return nil, err
 		}
-	}
-
-	// Update age if provided
-	if age != nil {
-		if err := user.UpdateAge(*age); err != nil {
-			return nil, err
-		}
-	}
-
-	// Update phone if provided
-	if phone != nil {
-		user.UpdatePhone(*phone)
-	}
-
-	// Update address if provided
-	if address != nil {
-		user.UpdateAddress(*address)
 	}
 
 	// Update active status if provided
-	if isActive != nil {
-		if *isActive {
+	if dto.IsActive != nil {
+		if *dto.IsActive {
 			user.Activate()
 		} else {
 			user.Deactivate()

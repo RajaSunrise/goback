@@ -45,9 +45,6 @@ type UserPersistence struct {
 	Name      string    `{{if eq .Tool "gorm"}}gorm:"not null"{{else}}db:"name"{{end}}`
 	Email     string    `{{if eq .Tool "gorm"}}gorm:"uniqueIndex;not null"{{else}}db:"email"{{end}}`
 	Password  string    `{{if eq .Tool "gorm"}}gorm:"not null"{{else}}db:"password"{{end}}`
-	Age       *int      `{{if eq .Tool "gorm"}}{{else}}db:"age"{{end}}`
-	Phone     *string   `{{if eq .Tool "gorm"}}{{else}}db:"phone"{{end}}`
-	Address   *string   `{{if eq .Tool "gorm"}}{{else}}db:"address"{{end}}`
 	IsActive  bool      `{{if eq .Tool "gorm"}}gorm:"not null;default:true"{{else}}db:"is_active"{{end}}`
 }
 
@@ -70,9 +67,6 @@ func toEntity(p *UserPersistence) *entities.User {
 		Name:      p.Name,
 		Email:     p.Email,
 		Password:  p.Password,
-		Age:       p.Age,
-		Phone:     p.Phone,
-		Address:   p.Address,
 		IsActive:  p.IsActive,
 		CreatedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt,
@@ -89,9 +83,6 @@ func fromEntity(e *entities.User) *UserPersistence {
 		Name:      e.Name,
 		Email:     e.Email,
 		Password:  e.Password,
-		Age:       e.Age,
-		Phone:     e.Phone,
-		Address:   e.Address,
 		IsActive:  e.IsActive,
 		CreatedAt: e.CreatedAt,
 		UpdatedAt: e.UpdatedAt,
@@ -272,9 +263,6 @@ func (r *SqlxUserRepository) Update(ctx context.Context, id {{if eq .Database "p
 				name = :name,
 				email = :email,
 				password = :password,
-				age = :age,
-				phone = :phone,
-				address = :address,
 				is_active = :is_active,
 				updated_at = :updated_at
 			  WHERE id = :id`
@@ -343,9 +331,6 @@ func (r *SqlcUserRepository) toEntity(p *sqlc.User) *entities.User {
 		Name:      p.Name,
 		Email:     p.Email,
 		Password:  p.Password,
-		Age:       &p.Age.Int32,
-		Phone:     &p.Phone.String,
-		Address:   &p.Address.String,
 		IsActive:  p.IsActive,
 		CreatedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt,
@@ -360,9 +345,6 @@ func (r *SqlcUserRepository) Create(ctx context.Context, user *entities.User) er
 		Name:      user.Name,
 		Email:     user.Email,
 		Password:  user.Password,
-		Age:       sql.NullInt32{Int32: *user.Age, Valid: user.Age != nil},
-		Phone:     sql.NullString{String: *user.Phone, Valid: user.Phone != nil},
-		Address:   sql.NullString{String: *user.Address, Valid: user.Address != nil},
 		IsActive:  user.IsActive,
 	}
 	_, err := r.Queries.CreateUser(ctx, params)
@@ -423,9 +405,6 @@ func (r *SqlcUserRepository) Update(ctx context.Context, id {{if eq .Database "p
 		Name:      user.Name,
 		Email:     user.Email,
 		Password:  user.Password,
-		Age:       sql.NullInt32{Int32: *user.Age, Valid: user.Age != nil},
-		Phone:     sql.NullString{String: *user.Phone, Valid: user.Phone != nil},
-		Address:   sql.NullString{String: *user.Address, Valid: user.Address != nil},
 		IsActive:  user.IsActive,
 	}
 	_, err := r.Queries.UpdateUser(ctx, params)

@@ -77,9 +77,6 @@ type UpdateUserRequest struct {
 	Name     *string `json:"name,omitempty" validate:"omitempty,min=2,max=100"`
 	Email    *string `json:"email,omitempty" validate:"omitempty,email"`
 	Password *string `json:"password,omitempty" validate:"omitempty,min=6"`
-	Age      *int    `json:"age,omitempty" validate:"omitempty,gt=0,lt=150"`
-	Phone    *string `json:"phone,omitempty"`
-	Address  *string `json:"address,omitempty"`
 	IsActive *bool   `json:"is_active,omitempty"`
 }
 
@@ -93,7 +90,7 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	}
 
 	if err := h.validator.Validate(req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err})
 	}
 	
 	user, err := h.userUsecase.CreateUser(c.Context(), req.Name, req.Email, req.Password)
@@ -159,10 +156,17 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 	}
 
 	if err := h.validator.Validate(req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error()})
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": err.Error})
 	}
 	
-	user, err := h.userUsecase.UpdateUser(c.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, req.Name, req.Email, req.Password, req.Age, req.Phone, req.Address, req.IsActive)
+	dto := entities.UpdateUserDTO{
+		Name:     req.Name,
+		Email:    req.Email,
+		Password: req.Password,
+		IsActive: req.IsActive,
+	}
+
+	user, err := h.userUsecase.UpdateUser(c.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, dto)
 	if err != nil {
 		handleServiceError(c, err)
 		return nil
@@ -272,7 +276,14 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 	
-	user, err := h.userUsecase.UpdateUser(c.Request.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, req.Name, req.Email, req.Password, req.Age, req.Phone, req.Address, req.IsActive)
+	dto := entities.UpdateUserDTO{
+		Name:     req.Name,
+		Email:    req.Email,
+		Password: req.Password,
+		IsActive: req.IsActive,
+	}
+
+	user, err := h.userUsecase.UpdateUser(c.Request.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, dto)
 	if err != nil {
 		handleServiceError(c, err)
 		return
@@ -380,7 +391,14 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 	}
 	
-	user, err := h.userUsecase.UpdateUser(c.Request().Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, req.Name, req.Email, req.Password, req.Age, req.Phone, req.Address, req.IsActive)
+	dto := entities.UpdateUserDTO{
+		Name:     req.Name,
+		Email:    req.Email,
+		Password: req.Password,
+		IsActive: req.IsActive,
+	}
+
+	user, err := h.userUsecase.UpdateUser(c.Request().Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, dto)
 	if err != nil {
 		handleServiceError(c, err)
 		return nil
@@ -497,7 +515,14 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	user, err := h.userUsecase.UpdateUser(r.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, req.Name, req.Email, req.Password, req.Age, req.Phone, req.Address, req.IsActive)
+	dto := entities.UpdateUserDTO{
+		Name:     req.Name,
+		Email:    req.Email,
+		Password: req.Password,
+		IsActive: req.IsActive,
+	}
+
+	user, err := h.userUsecase.UpdateUser(r.Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}}, dto)
 	if err != nil {
 		handleServiceError(w, err)
 		return

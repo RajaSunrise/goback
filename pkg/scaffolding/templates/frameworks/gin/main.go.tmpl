@@ -71,11 +71,11 @@ func main() {
 	// Run migrations
 	log.Println("Running GORM auto-migration...")
 	{{if or (eq .Architecture "ddd") (eq .Architecture "clean")}}
-	if err := db.AutoMigrate(&repositories.UserPersistenceModel{}); err != nil {
+	if err := db.AutoMigrate(&repositories.UserPersistence{}); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 	{{else if eq .Architecture "hexagonal"}}
-	if err := db.AutoMigrate(&database.UserPersistenceModel{}); err != nil {
+	if err := db.AutoMigrate(&database.UserPersistence{}); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 	{{end}}
