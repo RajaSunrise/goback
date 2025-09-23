@@ -2,263 +2,29 @@ package migrate
 
 import (
 	"log"
+	{{if eq .Architecture "simple" -}}
+	"{{.ModulePath}}/internal/models"
+	{{else if eq .Architecture "clean" -}}
+	"{{.ModulePath}}/internal/models"
+	{{else if eq .Architecture "ddd" -}}
+	"{{.ModulePath}}/internal/models"
+	{{else if eq .Architecture "ddd" -}}
+	"{{.ModulePath}}/internal/models"
+	{{end -}}
 
-	{{if eq .Architecture "simple"}}"{{.ModulePath}}/internal/config"{{else}}"{{.ModulePath}}/config"{{end}}
-	"github.com/golang-migrate/migrate/v4"
-	
-	// Import drivers berdasarkan jenis database
-{{- if eq .Database "postgresql"}}
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/lib/pq"
-{{- else if eq .Database "mysql"}}
-	_ "github.com/golang-migrate/migrate/v4/database/mysql"
-	_ "github.com/go-sql-driver/mysql"
-{{- else if eq .Database "sqlite"}}
-	_ "github.com/golang-migrate/migrate/v4/database/sqlite3"
-	_ "github.com/mattn/go-sqlite3"
-{{- else}}
-	// Import semua drivers jika database tidak spesifik
-	_ "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/database/mysql"
-	_ "github.com/golang-migrate/migrate/v4/database/sqlite3"
-	_ "github.com/lib/pq"
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/mattn/go-sqlite3"
-{{- end}}
-	
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-)
-
-// MigrationOptions holds options for migration
-type MigrationOptions struct {
-	Steps   int
-	Version int
-}
-
-// RunMigrations executes database migrations
-func RunMigrations(cfg *config.DatabaseConfig, command string, opts ...*MigrationOptions) {
-	sourceURL := "file://db/migrations"
-	databaseURL := cfg.GetMigrationDSN()
-
-	m, err := migrate.New(sourceURL, databaseURL)
-	if err != nil {
-		log.Fatalf("Failed to create migrate instance: %v", err)
-	}
-	defer func() {
-		if sourceErr, dbErr := m.Close(); sourceErr != nil || dbErr != nil {
-			log.Printf("Failed to close migrate instance - source: %v, db: %v", sourceErr, dbErr)
-		}
-	}()
-
-	var option *MigrationOptions
-	if len(opts) > 0 && opts[0] != nil {
-		option = opts[0]
-	}
-
-	switch command {
-	case "up":
-		executeUp(m)
-	case "down":
-		executeDown(m, option)
-	case "drop":
-		executeDrop(m)
-	case "version":
-		showVersion(m)
-	case "force":
-		executeForce(m, option)
-	case "steps":
-		executeSteps(m, option)
-	default:
-		log.Fatalf("Unknown migration command: %s. Available commands: up, down, drop, version, force, steps", command)
-	}
-}
-
-func executeUp(m *migrate.Migrate) {
-	log.Println("Running migrations up...")
-	
-	if err := m.Up(); err != nil {
-		if err == migrate.ErrNoChange {
-			log.Println("No migrations to apply")
-			return
-		}
-		log.Fatalf("Failed to apply migrations: %v", err)
-	}
-	
-	version, dirty, err := m.Version()
-	if err != nil {
-		log.Printf("Migrations applied successfully, but failed to get version: %v", err)
-		return
-	}
-	
-	log.Printf("Migrations applied successfully! Current version: %d (dirty: %t)", version, dirty)
-}
-
-func executeDown(m *migrate.Migrate, opts *MigrationOptions) {
-	if opts != nil && opts.Steps > 0 {
-		log.Printf("Rolling back %d migration steps...", opts.Steps)
-		if err := m.Steps(-opts.Steps); err != nil {
-			if err == migrate.ErrNoChange {
-				log.Println("No migrations to rollback")
-				return
-			}
-			log.Fatalf("Failed to rollback %d steps: %v", opts.Steps, err)
-		}
-	} else {
-		log.Println("Rolling back all migrations...")
-		if err := m.Down(); err != nil {
-			if err == migrate.ErrNoChange {
-				log.Println("No migrations to rollback")
-				return
-			}
-			log.Fatalf("Failed to rollback migrations: %v", err)
-		}
-	}
-	
-	version, dirty, err := m.Version()
-	if err != nil && err != migrate.ErrNilVersion {
-		log.Printf("Migrations rolled back, but failed to get version: %v", err)
-		return
-	}
-	
-	if err == migrate.ErrNilVersion {
-		log.Println("All migrations rolled back successfully!")
-	} else {
-		log.Printf("Migrations rolled back successfully! Current version: %d (dirty: %t)", version, dirty)
-	}
-}
-
-func executeDrop(m *migrate.Migrate) {
-	log.Println("Dropping all database objects...")
-	
-	if err := m.Drop(); err != nil {
-		log.Fatalf("Failed to drop database: %v", err)
-	}
-	
-	log.Println("Database dropped successfully!")
-}
-
-func showVersion(m *migrate.Migrate) {
-	version, dirty, err := m.Version()
-	if err != nil {
-		if err == migrate.ErrNilVersion {
-			log.Println("No migrations applied yet")
-			return
-		}
-		log.Fatalf("Failed to get migration version: %v", err)
-	}
-	
-	status := "clean"
-	if dirty {
-		status = "dirty"
-	}
-	
-	log.Printf("Current migration version: %d (%s)", version, status)
-}
-
-func executeForce(m *migrate.Migrate, opts *MigrationOptions) {
-	if opts == nil || opts.Version < 0 {
-		log.Fatal("Force command requires a valid version number (>= 0)")
-	}
-	
-	log.Printf("Forcing migration to version %d...", opts.Version)
-	
-	if err := m.Force(opts.Version); err != nil {
-		log.Fatalf("Failed to force migration to version %d: %v", opts.Version, err)
-	}
-	
-	log.Printf("Migration forced to version %d successfully!", opts.Version)
-}
-
-func executeSteps(m *migrate.Migrate, opts *MigrationOptions) {
-	if opts == nil || opts.Steps == 0 {
-		log.Fatal("Steps command requires a valid step number (!= 0)")
-	}
-	
-	direction := "up"
-	if opts.Steps < 0 {
-		direction = "down"
-	}
-	
-	log.Printf("Running %d migration steps %s...", abs(opts.Steps), direction)
-	
-	if err := m.Steps(opts.Steps); err != nil {
-		if err == migrate.ErrNoChange {
-			log.Printf("No migrations to run %s", direction)
-			return
-		}
-		log.Fatalf("Failed to run %d steps %s: %v", abs(opts.Steps), direction, err)
-	}
-	
-	version, dirty, err := m.Version()
-	if err != nil {
-		log.Printf("Migration steps completed, but failed to get version: %v", err)
-		return
-	}
-	
-	log.Printf("Migration steps completed successfully! Current version: %d (dirty: %t)", version, dirty)
-}
-
-// Helper function to get absolute value
-func abs(x int) int {
-	if x < 0 {
-		return -x
-	}
-	return x
-}
-
-// ValidateMigrationPath checks if migration files exist
-func ValidateMigrationPath(path string) error {
-	// Implementation depends on your file system checks
-	// This is a placeholder for validation logic
-	return nil
-}
-
-// GetMigrationVersion returns current migration version
-func GetMigrationVersion(cfg *config.DatabaseConfig) (uint, bool, error) {
-	sourceURL := "file://db/migrations"
-	databaseURL := cfg.GetMigrationDSN()
-
-	m, err := migrate.New(sourceURL, databaseURL)
-	if err != nil {
-		return 0, false, err
-	}
-	defer func() {
-		if sourceErr, dbErr := m.Close(); sourceErr != nil || dbErr != nil {
-			log.Printf("Failed to close migrate instance - source: %v, db: %v", sourceErr, dbErr)
-		}
-	}()
-
-	return m.Version()
-}
-
-
-
-package database
-
-import (
-	"fmt"
-	"log"
-
-	"gorm.io/driver/mysql"
-	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-
-	"my-project/internal/config" // Ganti 'my-project' dengan path modul Anda
-	"my-project/internal/models" // Import paket models
 )
 
-// RunAutoMigrations menjalankan migrasi otomatis GORM untuk semua model yang terdaftar.
-func RunAutoMigrations(db *gorm.DB) {
-	log.Println("Running auto-migrations...")
-	err := db.AutoMigrate(
-		&models.User{}, 
-	)
+// RunGormAutoMigration performs the GORM auto-migration.
+func RunGormAutoMigration(db *gorm.DB) {
+	log.Println("Running GORM auto-migration...")
 
+	err := db.AutoMigrate(
+		models.User{},
+	)
 	if err != nil {
-		log.Fatalf("Failed to run auto-migrations: %v", err)
+		log.Fatalf("Failed to migrate database with GORM: %v", err)
 	}
 
-	log.Println("Auto-migrations completed successfully!")
+	log.Println("GORM auto-migration completed successfully.")
 }

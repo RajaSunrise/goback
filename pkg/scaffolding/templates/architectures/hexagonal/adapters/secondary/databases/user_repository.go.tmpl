@@ -23,19 +23,28 @@ import (
 )
 
 // --- PERSISTENCE MODEL & MAPPING ---
-// This model is mapped to the database table, separate from the domain entity.
 type UserPersistenceModel struct {
-	{{- if eq .Database "postgresql" }}
-	ID        uuid.UUID `{{if eq .Tool "gorm"}}gorm:"type:uuid;primary_key"{{else}}db:"id"{{end}}`
-	{{- else}}
-	ID        uint      `{{if eq .Tool "gorm"}}gorm:"primary_key;autoIncrement"{{else}}db:"id"{{end}}`
+	{{- if and (eq .Tool "gorm") (ne .Database "postgresql") }}
+	gorm.Model
+	{{- else if and (eq .Tool "gorm") (eq .Database "postgresql") }}
+	ID        uuid.UUID `gorm:"type:uuid;primary_key"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt `gorm:"index"`
+	{{- else }}
+		{{- if eq .Database "postgresql" }}
+	ID        uuid.UUID `db:"id"`
+		{{- else}}
+	ID        uint      `db:"id"`
+		{{- end}}
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
 	{{- end}}
+
 	Name      string    `{{if eq .Tool "gorm"}}{{else}}db:"name"{{end}}`
 	Email     string    `{{if eq .Tool "gorm"}}gorm:"uniqueIndex"{{else}}db:"email"{{end}}`
 	Password  string    `{{if eq .Tool "gorm"}}{{else}}db:"password"{{end}}`
 	IsActive  bool      `{{if eq .Tool "gorm"}}{{else}}db:"is_active"{{end}}`
-	CreatedAt time.Time `{{if eq .Tool "gorm"}}{{else}}db:"created_at"{{end}}`
-	UpdatedAt time.Time `{{if eq .Tool "gorm"}}{{else}}db:"updated_at"{{end}}`
 }
 
 {{ if eq .Tool "gorm" }}
@@ -44,27 +53,38 @@ func (UserPersistenceModel) TableName() string { return "users" }
 
 // Mapping functions
 func toDomain(p *UserPersistenceModel) *domain.User {
-	return &domain.User{
-		ID:        p.ID,
+	d := &domain.User{
 		Name:      p.Name,
 		Email:     p.Email,
 		Password:  p.Password,
 		IsActive:  p.IsActive,
-		CreatedAt: p.CreatedAt,
-		UpdatedAt: p.UpdatedAt,
 	}
+	{{- if and (eq .Tool "gorm") (ne .Database "postgresql") }}
+	d.ID = p.ID
+	d.CreatedAt = p.CreatedAt
+	d.UpdatedAt = p.UpdatedAt
+	{{- else }}
+	d.ID = p.ID
+	d.CreatedAt = p.CreatedAt
+	d.UpdatedAt = p.UpdatedAt
+	{{- end}}
+	return d
 }
 
 func fromDomain(d *domain.User) *UserPersistenceModel {
-	return &UserPersistenceModel{
-		ID:        d.ID,
+	p := &UserPersistenceModel{
 		Name:      d.Name,
 		Email:     d.Email,
 		Password:  d.Password,
 		IsActive:  d.IsActive,
-		CreatedAt: d.CreatedAt,
-		UpdatedAt: d.UpdatedAt,
 	}
+	p.ID = d.ID
+
+	{{ if ne .Tool "gorm" }}
+	p.CreatedAt = d.CreatedAt
+	p.UpdatedAt = d.UpdatedAt
+	{{ end }}
+	return p
 }
 
 {{/* =================== GORM IMPLEMENTATION =================== */}}
@@ -83,7 +103,7 @@ func (r *GormUserRepository) Create(user *domain.User) error {
 	if result.Error != nil {
 		return result.Error
 	}
-	user.ID = model.ID // Update user with generated ID
+	user.ID = model.ID
 	return nil
 }
 
@@ -141,6 +161,7 @@ func (r *GormUserRepository) Update(id uuid.UUID, user *domain.User) error {
 func (r *GormUserRepository) Update(id uint, user *domain.User) error {
 {{- end}}
 	model := fromDomain(user)
+	model.ID = id // Ensure the ID is set for the update
 	return r.db.Save(model).Error
 }
 
@@ -290,7 +311,7 @@ func (r *SqlcUserRepository) Create(user *domain.User) error {
 }
 
 {{- if eq .Database "postgresql" }}
-func (r *SqlcUserRepository) GetByID(id uuid.UUID) (*domain.User, error) {
+func (r *SqlxUserRepository) GetByID(id uuid.UUID) (*domain.User, error) {
 {{- else}}
 func (r *SqlcUserRepository) GetByID(id uint) (*domain.User, error) {
 {{- end}}
