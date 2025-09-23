@@ -21,4 +21,4 @@ jobs:
         id: labeler
         uses: fuxingloh/multi-labeler@v4
         with:
-          github-token: ${{secrets.LABELER}}
+          github-token: ${{secrets.LABEL}}
