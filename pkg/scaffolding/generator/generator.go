@@ -352,12 +352,13 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 		}
 
 		destPath := relPath
-		if filepath.Base(path) == "model.go.tmpl" {
-			destPath = tg.getDestinationPath("models")
-		} else if filepath.Base(path) == "sqlc.yaml.tmpl" {
-			destPath = "sqlc.yaml"
-		} else if strings.HasSuffix(path, "migrate.go.tmpl") {
-			destPath = tg.getDestinationPath("migrate")
+		switch {
+			case filepath.Base(path) == "model.go.tmpl":
+					destPath = tg.getDestinationPath("models")
+			case filepath.Base(path) == "sqlc.yaml.tmpl":
+					destPath = "sqlc.yaml"
+			case strings.HasSuffix(path, "migrate.go.tmpl"):
+					destPath = tg.getDestinationPath("migrate")
 		}
 
 		templatePath := strings.TrimPrefix(path, templatesDir+string(filepath.Separator))

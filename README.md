@@ -57,6 +57,15 @@ GoBack offers a wide range of options to build your perfect stack:
 
 ```bash
 go install github.com/NarmadaWeb/goback@latest
+
+# your favorite version
+go install github.com/NarmadaWeb/goback@0.1.2 # x.x.x
+````
+
+### update version to latest 
+
+```bash
+go install -u github.com/NarmadaWeb/goback@latest
 ````
 
 ### From Source
