@@ -66,7 +66,10 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 		// Di sini kita bisa memeriksa tipe error untuk memberikan status code yang lebih baik
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.Status(fiber.StatusCreated).JSON(user)
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+	    "message": "succes create users",
+		"users": user,
+	})
 }
 
 // GetUsers menangani request GET untuk mendapatkan daftar user dengan paginasi.
@@ -115,7 +118,10 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-	return c.JSON(user)
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+		"message": "success update users",
+		"users": user,
+	})
 }
 
 // DeleteUser menangani request DELETE untuk menghapus user.
@@ -226,8 +232,8 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 	}
 	c.Status(http.StatusNoContent)
 }
-
 {{- end }}
+
 {{/* --- =================== BLOK KODE UNTUK CHI =================== --- */}}
 {{- if eq .Framework "chi" }}
 
@@ -340,9 +346,7 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
-
 {{- end }}
-
 
 {{/* --- =================== BLOK KODE UNTUK ECHO =================== --- */}}
 {{- if eq .Framework "echo" }}
@@ -428,9 +432,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 	}
 	return c.NoContent(http.StatusNoContent)
 }
-
 {{- end }}
-
 
 // parseUserID adalah helper untuk mengurai ID dari string, beradaptasi dengan tipe database.
 func parseUserID(idStr string) (UserID, error) {
