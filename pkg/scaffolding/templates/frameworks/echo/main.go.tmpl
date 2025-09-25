@@ -19,6 +19,7 @@ import (
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/routes"
+	"{{.ModulePath}}/internal/migrate"
 	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/application"
 	"{{.ModulePath}}/config"
@@ -67,7 +68,7 @@ func main() {
 
 	{{if eq .Tool "gorm"}}
 	// Run migrations
-	log.Println("Running GORM auto-migration...")
+	migrate.RunGormAutoMigration(db)
 	{{if or (eq .Architecture "ddd") (eq .Architecture "clean")}}
 	if err := db.AutoMigrate(&repositories.UserPersistenceModel{}); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
@@ -77,7 +78,6 @@ func main() {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 	{{end}}
-	log.Println("GORM auto-migration completed.")
 	{{end}}
 
 	// Initialize validator

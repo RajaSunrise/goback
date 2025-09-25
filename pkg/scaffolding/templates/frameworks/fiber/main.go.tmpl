@@ -21,6 +21,7 @@ import (
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/middleware"
+	"{{.ModulePath}}/internal/migrate"
 	"{{.ModulePath}}/internal/routes"
 	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/application"
