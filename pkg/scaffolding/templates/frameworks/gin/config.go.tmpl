@@ -74,7 +74,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("database.type", "{{.Database}}")
 	viper.SetDefault("database.host", "localhost")
 	viper.SetDefault("database.port", 5432)
-	viper.SetDefault("database.user", "postgres")
+	viper.SetDefault("database.user", "user")
 	viper.SetDefault("database.password", "password")
 	viper.SetDefault("database.dbname", "{{.ProjectName | snakeCase}}")
 	viper.SetDefault("database.sslmode", "disable")
