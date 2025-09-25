@@ -1,76 +1,648 @@
 package handlers
 
 import (
-	"{{.ModulePath}}/domain/services"
-	"{{.ModulePath}}/domain/utils"
+	"{{.ModulePath}}/application"
+	"{{.ModulePath}}/domain/entities"
+	"{{.ModulePath}}/interfaces/utils"
 	"net/http"
 	"strconv"
-	
-	{{- if eq .Database "postgresql" }}
-	"github.com/google/uuid"
-	{{- end}}
-	
-	// --- Import dinamis berdasarkan framework ---
-	{{- if eq .Framework "fiber" }}
-	"github.com/gofiber/fiber/v2"
-	{{- else if eq .Framework "gin" }}
-	"github.com/gin-gonic/gin"
-	{{- else if eq .Framework "chi" }}
-	"encoding/json"
-	"github.com/go-chi/chi/v5"
-	{{- else if eq .Framework "echo" }}
-	"github.com/labstack/echo/v4"
-	{{- end}}
+
+	{{if eq .Database "postgresql"}}
+	"github.com/google/uuid" // Import for UUID parsing, used with PostgreSQL
+	{{end}}
+
+	// --- Dynamic imports based on framework ---
+	{{if eq .Framework "fiber"}}
+	"github.com/gofiber/fiber/v2" // Fiber framework import
+	{{else if eq .Framework "gin"}}
+	"github.com/gin-gonic/gin" // Gin framework import
+	{{else if eq .Framework "chi"}}
+	"encoding/json"          // JSON encoding for Chi
+	"github.com/go-chi/chi/v5" // Chi router import
+	{{else if eq .Framework "echo"}}
+	"github.com/labstack/echo/v4" // Echo framework import
+	{{end}}
 )
 
-// UserHandler adalah 'Adapter' yang menerjemahkan request HTTP ke panggilan Application Service.
+// UserHandler is the adapter that translates HTTP requests to application service calls.
 type UserHandler struct {
-	userService *services.UserService
-	validator   *utils.Validator
+	userService *application.UserApplicationService // Dependency on the user application service
+	validator   *utils.Validator                 // Dependency on a request validator utility
 }
 
-func NewUserHandler(userService *services.UserService, validator *utils.Validator) *UserHandler {
+// NewUserHandler creates a new UserHandler instance.
+func NewUserHandler(userService *application.UserApplicationService, validator *utils.Validator) *UserHandler {
 	return &UserHandler{
 		userService: userService,
 		validator:   validator,
 	}
 }
 
-// --- Helper untuk response ---
+// --- Response helpers ---
+
+// handleServiceError translates application service errors into appropriate HTTP status codes and messages.
 func handleServiceError(err error) (int, map[string]string) {
-	// Di sini Anda bisa memetakan error spesifik ke status code HTTP yang berbeda
-	if err.Error() == "user not found" {
-		return http.StatusNotFound, map[string]string{"error": err.Error()}
+	var status int
+	var message string
+
+	// Map specific error messages to HTTP status codes
+	switch err.Error() {
+	case "user not found":
+		status = http.StatusNotFound
+		message = err.Error()
+	case "email is already in use":
+		status = http.StatusConflict
+		message = err.Error()
+	case "invalid old password":
+		status = http.StatusBadRequest
+		message = err.Error()
+	default:
+		// Default to internal server error for unhandled errors
+		status = http.StatusInternalServerError
+		message = "An unexpected error occurred"
 	}
-	return http.StatusInternalServerError, map[string]string{"error": err.Error()}
+	return status, map[string]string{"error": message}
 }
 
-{{/* =================== BLOK KODE UNTUK GO FIBER =================== */}}
-{{- if eq .Framework "fiber" }}
-func (h *UserHandler) Create(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
-func (h *UserHandler) GetByID(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
-func (h *UserHandler) GetAll(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
-func (h *UserHandler) Update(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
-func (h *UserHandler) Delete(c *fiber.Ctx) error { /* ... implementasi Fiber ... */ }
-{{- end }}
+{{/* =================== CODE BLOCK FOR GO FIBER =================== */}}
+{{if eq .Framework "fiber"}}
+// Create handles the creation of a new user.
+// It parses the request body, validates it, and calls the application service.
+func (h *UserHandler) Create(c *fiber.Ctx) error {
+	var req application.CreateUserRequest
+	// Parse request body into CreateUserRequest struct
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid request body"})
+	}
+	// Validate the request struct
+	if err := h.validator.Validate(req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.H{"errors": err})
+	}
+	// Call the application service to create the user
+	user, err := h.userService.Create(c.Context(), req)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+	// Respond with the created user and HTTP 201 Created status
+	return c.Status(http.StatusCreated).JSON(user)
+}
 
-{{/* =================== BLOK KODE UNTUK GIN =================== */}}
-{{- if eq .Framework "gin" }}
-func (h *UserHandler) Create(c *gin.Context) { /* ... implementasi Gin ... */ }
-func (h *UserHandler) GetByID(c *gin.Context) { /* ... implementasi Gin ... */ }
-func (h *UserHandler) GetAll(c *gin.Context) { /* ... implementasi Gin ... */ }
-func (h *UserHandler) Update(c *gin.Context) { /* ... implementasi Gin ... */ }
-func (h *UserHandler) Delete(c *gin.Context) { /* ... implementasi Gin ... */ }
-{{- end }}
+// GetByID retrieves a user by their ID.
+// It parses the ID from URL parameters and calls the application service.
+func (h *UserHandler) GetByID(c *fiber.Ctx) error {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid UUID format"})
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid ID format"})
+	}
+	{{end}}
+	// Call the application service to get the user by ID
+	user, err := h.userService.GetByID(c.Context(), entities.UserID(id))
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+	// Respond with the retrieved user
+	return c.JSON(user)
+}
 
-{{/* =================== BLOK KODE UNTUK CHI =================== */}}
-{{- if eq .Framework "chi" }}
-func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) { /* ... implementasi Chi ... */ }
-// ... dan seterusnya untuk Chi
-{{- end }}
+// GetAll retrieves a list of all users with pagination.
+// It parses page and per_page query parameters and calls the application service.
+func (h *UserHandler) GetAll(c *fiber.Ctx) error {
+	// Parse page and per_page query parameters with default values
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	perPage, _ := strconv.Atoi(c.Query("per_page", "10"))
+	// Call the application service to get all users
+	users, err := h.userService.GetAll(c.Context(), page, perPage)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+	// Respond with the list of users
+	return c.JSON(users)
+}
 
-{{/* =================== BLOK KODE UNTUK ECHO =================== */}}
-{{- if eq .Framework "echo" }}
-func (h *UserHandler) Create(c echo.Context) error { /* ... implementasi Echo ... */ }
-// ... dan seterusnya untuk Echo
-{{- end }}
+// Update handles updating an existing user.
+// It parses the user ID from URL parameters, request body, validates it, and calls the application service.
+func (h *UserHandler) Update(c *fiber.Ctx) error {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid UUID format"})
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid ID format"})
+	}
+	{{end}}
+	var req application.UpdateUserRequest
+	// Parse request body into UpdateUserRequest struct
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid request body"})
+	}
+	// Validate the request struct
+	if err := h.validator.Validate(req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.H{"errors": err})
+	}
+	// Call the application service to update the user
+	user, err := h.userService.Update(c.Context(), entities.UserID(id), req)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+	// Respond with the updated user
+	return c.JSON(user)
+}
+
+// Delete handles deleting a user by ID.
+// It parses the ID from URL parameters and calls the application service.
+func (h *UserHandler) Delete(c *fiber.Ctx) error {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid UUID format"})
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid ID format"})
+	}
+	{{end}}
+	// Call the application service to delete the user
+	if err := h.userService.Delete(c.Context(), entities.UserID(id)); err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		return c.Status(status).JSON(msg)
+	}
+	// Respond with HTTP 204 No Content status
+	return c.SendStatus(http.StatusNoContent)
+}
+{{end}}
+
+{{/* =================== CODE BLOCK FOR GIN =================== */}}
+{{if eq .Framework "gin"}}
+// Create handles the creation of a new user.
+// It parses the request body, validates it, and calls the application service.
+func (h *UserHandler) Create(c *gin.Context) {
+	var req application.CreateUserRequest
+	// Bind request JSON body to CreateUserRequest struct
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	// Validate the request struct
+	if err := h.validator.Validate(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"errors": err})
+		return
+	}
+	// Call the application service to create the user
+	user, err := h.userService.Create(c.Request.Context(), req)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+	// Respond with the created user and HTTP 201 Created status
+	c.JSON(http.StatusCreated, user)
+}
+
+// GetByID retrieves a user by their ID.
+// It parses the ID from URL parameters and calls the application service.
+func (h *UserHandler) GetByID(c *gin.Context) {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid UUID format"})
+		return
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+	{{end}}
+	// Call the application service to get the user by ID
+	user, err := h.userService.GetByID(c.Request.Context(), entities.UserID(id))
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+	// Respond with the retrieved user
+	c.JSON(http.StatusOK, user)
+}
+
+// GetAll retrieves a list of all users with pagination.
+// It parses page and per_page query parameters and calls the application service.
+func (h *UserHandler) GetAll(c *gin.Context) {
+	// Parse page and per_page query parameters with default values
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "10"))
+	// Call the application service to get all users
+	users, err := h.userService.GetAll(c.Request.Context(), page, perPage)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+	// Respond with the list of users
+	c.JSON(http.StatusOK, users)
+}
+
+// Update handles updating an existing user.
+// It parses the user ID from URL parameters, request body, validates it, and calls the application service.
+func (h *UserHandler) Update(c *gin.Context) {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid UUID format"})
+		return
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+	{{end}}
+	var req application.UpdateUserRequest
+	// Bind request JSON body to UpdateUserRequest struct
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+	// Validate the request struct
+	if err := h.validator.Validate(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"errors": err})
+		return
+	}
+	// Call the application service to update the user
+	user, err := h.userService.Update(c.Request.Context(), entities.UserID(id), req)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+	// Respond with the updated user
+	c.JSON(http.StatusOK, user)
+}
+
+// Delete handles deleting a user by ID.
+// It parses the ID from URL parameters and calls the application service.
+func (h *UserHandler) Delete(c *gin.Context) {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid UUID format"})
+		return
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID format"})
+		return
+	}
+	{{end}}
+	// Call the application service to delete the user
+	if err := h.userService.Delete(c.Request.Context(), entities.UserID(id)); err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		c.JSON(status, msg)
+		return
+	}
+	// Respond with HTTP 204 No Content status
+	c.Status(http.StatusNoContent)
+}
+{{end}}
+
+{{/* =================== CODE BLOCK FOR CHI =================== */}}
+{{if eq .Framework "chi"}}
+// Create handles the creation of a new user.
+// It parses the request body, validates it, and calls the application service.
+func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var req application.CreateUserRequest
+	// Decode request JSON body into CreateUserRequest struct
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	// Validate the request struct
+	if err := h.validator.Validate(req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"errors": err}) // Use map[string]interface{} for gin.H equivalent
+		return
+	}
+	// Call the application service to create the user
+	user, err := h.userService.Create(r.Context(), req)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(msg)
+		return
+	}
+	// Respond with the created user and HTTP 201 Created status
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(user)
+}
+
+// GetByID retrieves a user by their ID.
+// It parses the ID from URL parameters and calls the application service.
+func (h *UserHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "Invalid UUID format", http.StatusBadRequest)
+		return
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		return
+	}
+	{{end}}
+	// Call the application service to get the user by ID
+	user, err := h.userService.GetByID(r.Context(), entities.UserID(id))
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(msg)
+		return
+	}
+	// Respond with the retrieved user
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}
+
+// GetAll retrieves a list of all users with pagination.
+// It parses page and per_page query parameters and calls the application service.
+func (h *UserHandler) GetAll(w http.ResponseWriter, r *http.Request) {
+	// Parse page and per_page query parameters with default values
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page == 0 { page = 1 }
+	perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
+	if perPage == 0 { perPage = 10 }
+
+	// Call the application service to get all users
+	users, err := h.userService.GetAll(r.Context(), page, perPage)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(msg)
+		return
+	}
+	// Respond with the list of users
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(users)
+}
+
+// Update handles updating an existing user.
+// It parses the user ID from URL parameters, request body, validates it, and calls the application service.
+func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "Invalid UUID format", http.StatusBadRequest)
+		return
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		return
+	}
+	{{end}}
+	var req application.UpdateUserRequest
+	// Decode request JSON body into UpdateUserRequest struct
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	// Validate the request struct
+	if err := h.validator.Validate(req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"errors": err}) // Use map[string]interface{} for gin.H equivalent
+		return
+	}
+	// Call the application service to update the user
+	user, err := h.userService.Update(r.Context(), entities.UserID(id), req)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(msg)
+		return
+	}
+	// Respond with the updated user
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(user)
+}
+
+// Delete handles deleting a user by ID.
+// It parses the ID from URL parameters and calls the application service.
+func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		http.Error(w, "Invalid UUID format", http.StatusBadRequest)
+		return
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid ID format", http.StatusBadRequest)
+		return
+	}
+	{{end}}
+	// Call the application service to delete the user
+	if err := h.userService.Delete(r.Context(), entities.UserID(id)); err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		json.NewEncoder(w).Encode(msg)
+		return
+	}
+	// Respond with HTTP 204 No Content status
+	w.WriteHeader(http.StatusNoContent)
+}
+{{end}}
+
+{{/* =================== CODE BLOCK FOR ECHO =================== */}}
+{{if eq .Framework "echo"}}
+// Create handles the creation of a new user.
+// It parses the request body, validates it, and calls the application service.
+func (h *UserHandler) Create(c echo.Context) error {
+	var req application.CreateUserRequest
+	// Bind request JSON body to CreateUserRequest struct
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request body"})
+	}
+	// Validate the request struct
+	if err := h.validator.Validate(req); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"errors": err})
+	}
+	// Call the application service to create the user
+	user, err := h.userService.Create(c.Request().Context(), req)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		return c.JSON(status, msg)
+	}
+	// Respond with the created user and HTTP 201 Created status
+	return c.JSON(http.StatusCreated, user)
+}
+
+// GetByID retrieves a user by their ID.
+// It parses the ID from URL parameters and calls the application service.
+func (h *UserHandler) GetByID(c echo.Context) error {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid UUID format"})
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid ID format"})
+	}
+	{{end}}
+	// Call the application service to get the user by ID
+	user, err := h.userService.GetByID(c.Request().Context(), entities.UserID(id))
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		return c.JSON(status, msg)
+	}
+	// Respond with the retrieved user
+	return c.JSON(http.StatusOK, user)
+}
+
+// GetAll retrieves a list of all users with pagination.
+// It parses page and per_page query parameters and calls the application service.
+func (h *UserHandler) GetAll(c echo.Context) error {
+	// Parse page and per_page query parameters with default values
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page == 0 { page = 1 }
+	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
+	if perPage == 0 { perPage = 10 }
+
+	// Call the application service to get all users
+	users, err := h.userService.GetAll(c.Request().Context(), page, perPage)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		return c.JSON(status, msg)
+	}
+	// Respond with the list of users
+	return c.JSON(http.StatusOK, users)
+}
+
+// Update handles updating an existing user.
+// It parses the user ID from URL parameters, request body, validates it, and calls the application service.
+func (h *UserHandler) Update(c echo.Context) error {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid UUID format"})
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid ID format"})
+	}
+	{{end}}
+	var req application.UpdateUserRequest
+	// Bind request JSON body to UpdateUserRequest struct
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request body"})
+	}
+	// Validate the request struct
+	if err := h.validator.Validate(req); err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"errors": err})
+	}
+	// Call the application service to update the user
+	user, err := h.userService.Update(c.Request().Context(), entities.UserID(id), req)
+	if err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		return c.JSON(status, msg)
+	}
+	// Respond with the updated user
+	return c.JSON(http.StatusOK, user)
+}
+
+// Delete handles deleting a user by ID.
+// It parses the ID from URL parameters and calls the application service.
+func (h *UserHandler) Delete(c echo.Context) error {
+	{{if eq .Database "postgresql"}}
+	// Parse UUID from URL parameters for PostgreSQL
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid UUID format"})
+	}
+	{{else}}
+	// Parse integer ID from URL parameters for other databases
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid ID format"})
+	}
+	{{end}}
+	// Call the application service to delete the user
+	if err := h.userService.Delete(c.Request().Context(), entities.UserID(id)); err != nil {
+		// Handle service-specific errors
+		status, msg := handleServiceError(err)
+		return c.JSON(status, msg)
+	}
+	// Respond with HTTP 204 No Content status
+	return c.NoContent(http.StatusNoContent)
+}
+{{end}}

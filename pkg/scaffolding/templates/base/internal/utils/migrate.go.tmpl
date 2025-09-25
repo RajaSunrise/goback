@@ -1,0 +1,65 @@
+package utils
+
+import (
+	"database/sql"
+	"fmt"
+	"os"
+
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database"
+	{{- if eq .Database "postgresql" }}
+	"github.com/golang-migrate/migrate/v4/database/postgres"
+	{{- else if eq .Database "mysql" }}
+	"github.com/golang-migrate/migrate/v4/database/mysql"
+	{{- else if eq .Database "sqlite" }}
+	"github.com/golang-migrate/migrate/v4/database/sqlite3"
+	{{- end }}
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+)
+
+// RunMigrations menjalankan migrasi database.
+func RunMigrations(db *sql.DB, dbName, migrationsPath string) error {
+	var driver database.Driver
+	var err error
+
+	switch dbName {
+	{{- if eq .Database "postgresql" }}
+	case "postgresql":
+		driver, err = postgres.WithInstance(db, &postgres.Config{})
+	{{- else if eq .Database "mysql" }}
+	case "mysql":
+		driver, err = mysql.WithInstance(db, &mysql.Config{})
+	{{- else if eq .Database "sqlite" }}
+	case "sqlite":
+		driver, err = sqlite3.WithInstance(db, &sqlite3.Config{})
+	{{- end }}
+	default:
+		return fmt.Errorf("unsupported database for migration: %s", dbName)
+	}
+
+	if err != nil {
+		return fmt.Errorf("could not create migration driver: %w", err)
+	}
+
+	// Cek apakah path migrasi ada
+	if _, err := os.Stat(migrationsPath); os.IsNotExist(err) {
+		return fmt.Errorf("migrations path does not exist: %s", migrationsPath)
+	}
+
+
+	m, err := migrate.NewWithDatabaseInstance(
+		fmt.Sprintf("file://%s", migrationsPath),
+		dbName,
+		driver,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create migrate instance: %w", err)
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+
+	fmt.Println("Database migrations applied successfully.")
+	return nil
+}

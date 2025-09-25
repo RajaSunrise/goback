@@ -72,9 +72,9 @@ const (
 
 // DevOps tool choices
 const (
-	DevOpsHelm       = "helm"
-	DevOpsTerraform  = "terraform"
-	DevOpsAnsible    = "ansible"
+	DevOpsHelm      = "helm"
+	DevOpsTerraform = "terraform"
+	DevOpsAnsible   = "ansible"
 )
 
 // Validation functions

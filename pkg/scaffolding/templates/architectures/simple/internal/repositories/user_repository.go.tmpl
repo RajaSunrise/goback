@@ -2,7 +2,9 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"time"
 
 	"{{.ModulePath}}/internal/models"
 
@@ -12,21 +14,25 @@ import (
 
 	{{- if eq .Tool "gorm" }}
 	"gorm.io/gorm"
-	{{- else if eq .Tool "sqlx" }}
+	{{- end}}
+
+	{{- if eq .Tool "sqlx" }}
 	"github.com/jmoiron/sqlx"
-	{{- else if eq .Tool "sqlc" }}
-	db_sqlc "{{.ModulePath}}/db/sqlc"
+	{{- end }}
+
+	{{- if eq .Tool "sqlc" }}
+	db_sqlc "{{.ModulePath}}/db/sqlc" // Import generated SQLC code
 	{{- end }}
 )
 
-// Tipe ID dinamis berdasarkan database
+// Dynamic ID type based on database
 {{- if eq .Database "postgresql" }}
 type UserID = uuid.UUID
 {{- else}}
 type UserID = uint
 {{- end}}
 
-// UserRepository adalah interface konsisten untuk operasi data User.
+// UserRepository is a consistent interface for User data operations.
 type UserRepository interface {
 	Create(ctx context.Context, user *models.User) (*models.User, error)
 	FindAll(ctx context.Context, page, perPage int) ([]models.User, int64, error)
@@ -36,8 +42,10 @@ type UserRepository interface {
 	Delete(ctx context.Context, id UserID) error
 }
 
-{{/* --- IMPLEMENTASI UNTUK GORM --- */}}
-{{ if eq .Tool "gorm" }}
+{{/* --- IMPLEMENTATION BLOCKS --- */}}
+
+{{- if eq .Tool "gorm" }}
+// GORM implementation of UserRepository
 type userRepository struct {
 	db *gorm.DB
 }
@@ -66,7 +74,7 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*models
 	var user models.User
 	if err := r.db.WithContext(ctx).First(&user, "email = ?", email).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil // Return nil, nil jika tidak ditemukan untuk pengecekan service
+			return nil, nil // Return nil, nil if not found for service checks
 		}
 		return nil, err
 	}
@@ -91,7 +99,7 @@ func (r *userRepository) FindAll(ctx context.Context, page, perPage int) ([]mode
 }
 
 func (r *userRepository) Update(ctx context.Context, user *models.User) (*models.User, error) {
-	// GORM's Save akan melakukan update jika primary key ada
+	// GORM's Save will perform an update if primary key exists
 	err := r.db.WithContext(ctx).Save(user).Error
 	return user, err
 }
@@ -106,40 +114,43 @@ func (r *userRepository) Delete(ctx context.Context, id UserID) error {
 	}
 	return nil
 }
-{{ end }}
+{{- end }}
 
-{{/* --- IMPLEMENTASI UNTUK SQLC --- */}}
-{{ if eq .Tool "sqlc" }}
+{{- if eq .Tool "sqlc" }}
+// SQLC implementation of UserRepository
 type userRepository struct {
-	db *sql.DB
-	*db_sqlc.Queries
+	queries *db_sqlc.Queries
+	db      *sql.DB // Can be used for transactions, if needed.
 }
 
 func NewUserRepository(db *sql.DB) UserRepository {
 	return &userRepository{
+		queries: db_sqlc.New(db),
 		db:      db,
-		Queries: db_sqlc.New(db),
 	}
 }
 
+// toModel maps from SQLC generated User to internal models.User
 func (r *userRepository) toModel(u db_sqlc.User) *models.User {
 	return &models.User{
 		ID:        u.ID,
 		Name:      u.Name,
 		Email:     u.Email,
 		Password:  u.Password,
-		Active:    u.Active,
+		Active:    u.Active, // Based on sqlc.yaml and db schema
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.UpdatedAt,
 	}
 }
 
 func (r *userRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
-	createdUser, err := r.Queries.CreateUser(ctx, db_sqlc.CreateUserParams{
+	params := db_sqlc.CreateUserParams{
 		Name:     user.Name,
 		Email:    user.Email,
 		Password: user.Password,
-	})
+		Active:   user.Active,
+	}
+	createdUser, err := r.queries.CreateUser(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +158,12 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) (*models
 }
 
 func (r *userRepository) FindByID(ctx context.Context, id UserID) (*models.User, error) {
-	user, err := r.Queries.GetUser(ctx, id)
+	{{- if eq .Database "postgresql" }}
+	user, err := r.queries.GetUserByID(ctx, id)
+	{{- else}}
+	user, err := r.queries.GetUserByID(ctx, int32(id))
+	{{- end}}
+
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("user not found")
@@ -158,10 +174,10 @@ func (r *userRepository) FindByID(ctx context.Context, id UserID) (*models.User,
 }
 
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
-	user, err := r.Queries.GetUserByEmail(ctx, email)
+	user, err := r.queries.GetUserByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil // Tidak ditemukan
+			return nil, nil // Return nil, nil if not found for service checks
 		}
 		return nil, err
 	}
@@ -169,38 +185,38 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*models
 }
 
 func (r *userRepository) FindAll(ctx context.Context, page, perPage int) ([]models.User, int64, error) {
-	// Note: sqlc doesn't directly support pagination.
-	// This implementation fetches all users and mimics pagination in-memory.
-	// For production, consider using cursor-based pagination with limit and offset in your query.
-	users, err := r.Queries.ListUsers(ctx)
+	offset := int32((page - 1) * perPage)
+	limit := int32(perPage)
+
+	total, err := r.queries.CountUsers(ctx)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	listUsersParams := db_sqlc.ListUsersParams{
+		Limit:  limit,
+		Offset: offset,
+	}
+	sqlcUsers, err := r.queries.ListUsers(ctx, listUsersParams)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	var userModels []models.User
-	for _, u := range users {
+	for _, u := range sqlcUsers {
 		userModels = append(userModels, *r.toModel(u))
 	}
-
-	total := int64(len(userModels))
-	start := (page - 1) * perPage
-	if start > len(userModels) {
-		return []models.User{}, total, nil
-	}
-	end := start + perPage
-	if end > len(userModels) {
-		end = len(userModels)
-	}
-
-	return userModels[start:end], total, nil
+	return userModels, total, nil
 }
 
 func (r *userRepository) Update(ctx context.Context, user *models.User) (*models.User, error) {
-	updatedUser, err := r.Queries.UpdateUser(ctx, db_sqlc.UpdateUserParams{
-		ID:    user.ID,
-		Name:  user.Name,
-		Email: user.Email,
-	})
+	params := db_sqlc.UpdateUserParams{
+		ID:       user.ID,
+		Name:     user.Name,
+		Email:    user.Email,
+		Active:   user.Active,
+	}
+	updatedUser, err := r.queries.UpdateUser(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -208,12 +224,24 @@ func (r *userRepository) Update(ctx context.Context, user *models.User) (*models
 }
 
 func (r *userRepository) Delete(ctx context.Context, id UserID) error {
-	return r.Queries.DeleteUser(ctx, id)
-}
-{{ end }}
+	{{- if eq .Database "postgresql" }}
+	err := r.queries.DeleteUser(ctx, id)
+	{{- else}}
+	err := r.queries.DeleteUser(ctx, int32(id))
+	{{- end}}
 
-{{/* --- IMPLEMENTASI UNTUK SQLX --- */}}
-{{ if eq .Tool "sqlx" }}
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errors.New("user not found")
+		}
+		return err
+	}
+	return nil
+}
+{{- end }}
+
+{{- if eq .Tool "sqlx" }}
+// SQLX implementation of UserRepository
 type userRepository struct {
 	db *sqlx.DB
 }
@@ -223,24 +251,28 @@ func NewUserRepository(db *sqlx.DB) UserRepository {
 }
 
 func (r *userRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
-	query := `INSERT INTO users (name, email, password) VALUES (:name, :email, :password) RETURNING id`
+	query := `INSERT INTO users (name, email, password, active) VALUES (:name, :email, :password, :active) RETURNING id, created_at, updated_at`
 
-	stmt, err := r.db.PrepareNamedContext(ctx, query)
+	rows, err := r.db.NamedQueryContext(ctx, query, user)
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	var id UserID
-	if err := stmt.GetContext(ctx, &id, user); err != nil {
-		return nil, err
+	if rows.Next() {
+		if err := rows.Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt); err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, errors.New("failed to retrieve ID after user creation")
 	}
-	user.ID = id
+
 	return user, nil
 }
 
 func (r *userRepository) FindByID(ctx context.Context, id UserID) (*models.User, error) {
 	var user models.User
-	query := "SELECT * FROM users WHERE id = $1"
+	query := "SELECT id, name, email, password, active, created_at, updated_at FROM users WHERE id = $1"
 	err := r.db.GetContext(ctx, &user, query, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -253,11 +285,11 @@ func (r *userRepository) FindByID(ctx context.Context, id UserID) (*models.User,
 
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
-	query := "SELECT * FROM users WHERE email = $1"
+	query := "SELECT id, name, email, password, active, created_at, updated_at FROM users WHERE email = $1"
 	err := r.db.GetContext(ctx, &user, query, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil // Tidak ditemukan
+			return nil, nil // Return nil, nil if not found
 		}
 		return nil, err
 	}
@@ -273,19 +305,28 @@ func (r *userRepository) FindAll(ctx context.Context, page, perPage int) ([]mode
 	}
 
 	offset := (page - 1) * perPage
-	query := "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2"
+	query := "SELECT id, name, email, password, active, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2"
 	err := r.db.SelectContext(ctx, &users, query, perPage, offset)
-	return users, total, err
+	if err != nil {
+		return nil, 0, err
+	}
+	return users, total, nil
 }
 
 func (r *userRepository) Update(ctx context.Context, user *models.User) (*models.User, error) {
-	query := `UPDATE users SET name = :name, email = :email, active = :active, updated_at = NOW() WHERE id = :id`
-	result, err := r.db.NamedExecContext(ctx, query, user)
+	query := `UPDATE users SET name = :name, email = :email, active = :active, updated_at = NOW() WHERE id = :id RETURNING created_at, updated_at`
+
+	rows, err := r.db.NamedQueryContext(ctx, query, user)
 	if err != nil {
 		return nil, err
 	}
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
+	defer rows.Close()
+
+	if rows.Next() {
+		if err := rows.Scan(&user.CreatedAt, &user.UpdatedAt); err != nil {
+			return nil, err
+		}
+	} else {
 		return nil, errors.New("user not found or no changes made")
 	}
 	return user, nil
@@ -302,4 +343,4 @@ func (r *userRepository) Delete(ctx context.Context, id UserID) error {
 	}
 	return nil
 }
-{{ end }}
+{{- end }}
