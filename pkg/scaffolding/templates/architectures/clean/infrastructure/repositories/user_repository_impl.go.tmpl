@@ -89,7 +89,6 @@ func fromEntity(e *entities.User) *UserPersistence {
 	}
 }
 
-
 {{/* =================== GORM IMPLEMENTATION =================== */}}
 {{- if eq .Tool "gorm" }}
 type GormUserRepository struct {

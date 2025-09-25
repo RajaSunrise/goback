@@ -2,7 +2,8 @@
 # Built with Go {{.Framework}} framework
 
 # Build stage
-FROM golang:1.21-alpine AS builder
+ARG GO_VERSION=1.22
+FROM golang:${GO_VERSION}-alpine AS builder
 
 # Install necessary packages
 RUN apk add --no-cache git ca-certificates tzdata
@@ -13,8 +14,9 @@ WORKDIR /app
 # Copy go mod files
 COPY go.mod go.sum ./
 
-# Download dependencies
-RUN go mod download
+# Download dependencies with caching
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
 
 # Copy source code
 COPY . .
@@ -23,17 +25,21 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags='-w -s -extldflags "-static"' \
     -a -installsuffix cgo \
-    -o main ./cmd/main.go
+    -o main ./cmd
 
 # Final stage
-FROM alpine:3.18
+FROM alpine:3.19
+
+# Add metadata
+LABEL maintainer="{{.ProjectName}}" \
+      description="Docker image for {{.ProjectName}}"
 
 # Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates tzdata
+RUN apk --no-cache add ca-certificates tzdata wget
 
 # Create non-root user
-RUN addgroup -g 1001 -S {{.ProjectName}} && \
-    adduser -u 1001 -S {{.ProjectName}} -G {{.ProjectName}}
+RUN addgroup -g 1001 -S appuser && \
+    adduser -u 1001 -S appuser -G appuser
 
 # Set working directory
 WORKDIR /app
@@ -48,10 +54,10 @@ COPY --from=builder /app/static ./static/ 2>/dev/null || true
 COPY --from=builder /app/config ./config/ 2>/dev/null || true
 
 # Change ownership
-RUN chown -R {{.ProjectName}}:{{.ProjectName}} /app
+RUN chown -R appuser:appuser /app
 
 # Switch to non-root user
-USER {{.ProjectName}}
+USER appuser
 
 # Expose port
 EXPOSE 8080

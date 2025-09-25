@@ -14,27 +14,26 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
+	"{{.ModulePath}}/internal/utils"
 	{{if eq .Architecture "simple" -}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/routes"
-	"{{.ModulePath}}/internal/utils"
 	{{else if eq .Architecture "ddd" -}}
+	"{{.ModulePath}}/application"
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/infrastructure/database"
-	{{if eq .Tool "gorm"}}"{{.ModulePath}}/infrastructure/repositories"{{end}}
+	"{{.ModulePath}}/infrastructure/persistence"
+	"{{.ModulePath}}/interfaces/handlers"
 	"{{.ModulePath}}/interfaces/routes"
-	"{{.ModulePath}}/domain/utils"
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/infrastructure/database"
 	{{if eq .Tool "gorm"}}"{{.ModulePath}}/infrastructure/repositories"{{end}}
 	"{{.ModulePath}}/interfaces/routes"
-	"{{.ModulePath}}/domain/utils"
 	{{else if eq .Architecture "hexagonal" -}}
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/adapters/primary/http/routes"
-	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/adapters/secondary/database"
 	{{end -}}
 )
@@ -60,6 +59,10 @@ func main() {
 	}
 	{{- if or (eq .Tool "sqlx") (eq .Tool "sqlc")}}
 	defer db.Close()
+	// Run migrations
+	if err := utils.RunMigrations(db, cfg.Database.Type, "./migrations"); err != nil {
+		log.Fatalf("could not run migrations: %v", err)
+	}
 	{{- end}}
 
 	{{if eq .Tool "gorm"}}
@@ -89,7 +92,14 @@ func main() {
 	e.Use(middleware.CORS())
 
 	// Setup routes
+	{{if eq .Architecture "ddd"}}
+	userRepo := persistence.NewSQLUserRepository(db)
+	userService := application.NewUserApplicationService(userRepo)
+	userHandler := handlers.NewUserHandler(userService, validator)
+	routes.Setup(e, userHandler)
+	{{else}}
 	routes.Setup(e, db, validator)
+	{{end}}
 
 	// Start server in goroutine
 	go func() {

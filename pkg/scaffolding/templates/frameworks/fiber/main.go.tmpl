@@ -16,33 +16,32 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 
+	"{{.ModulePath}}/internal/utils"
 	{{if eq .Architecture "simple" -}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/middleware"
 	"{{.ModulePath}}/internal/routes"
-	"{{.ModulePath}}/internal/utils"
 	{{else if eq .Architecture "ddd" -}}
+	"{{.ModulePath}}/application"
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/infrastructure/database"
-	{{if eq .Tool "gorm"}}"{{.ModulePath}}/infrastructure/repositories"{{end}}
+	"{{.ModulePath}}/infrastructure/persistence"
+	"{{.ModulePath}}/interfaces/handlers"
 	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
-	"{{.ModulePath}}/domain/utils"
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/infrastructure/database"
 	{{if eq .Tool "gorm"}}"{{.ModulePath}}/infrastructure/repositories"{{end}}
 	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
-	"{{.ModulePath}}/domain/utils"
 	{{else if eq .Architecture "hexagonal" -}}
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/adapters/primary/http/middleware"
 	"{{.ModulePath}}/adapters/primary/http/routes"
-	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/adapters/secondary/database"
-	{{end -}}
+	{{end}}
 )
 
 var (
@@ -66,6 +65,10 @@ func main() {
 	}
 	{{- if or (eq .Tool "sqlx") (eq .Tool "sqlc")}}
 	defer db.Close()
+	// Run migrations
+	if err := utils.RunMigrations(db, cfg.Database.Type, "./migrations"); err != nil {
+		log.Fatalf("could not run migrations: %v", err)
+	}
 	{{- end}}
 
 	{{if eq .Tool "gorm"}}
@@ -117,7 +120,14 @@ func main() {
 	app.Use(middleware.RequestLogger())
 
 	// Setup routes
+	{{if eq .Architecture "ddd"}}
+	userRepo := persistence.NewSQLUserRepository(db)
+	userService := application.NewUserApplicationService(userRepo)
+	userHandler := handlers.NewUserHandler(userService, validator)
+	routes.Setup(app, userHandler)
+	{{else}}
 	routes.Setup(app, db, validator)
+	{{end}}
 
 	// Create shutdown channel
 	quit := make(chan os.Signal, 1)

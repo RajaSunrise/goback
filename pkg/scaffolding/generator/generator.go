@@ -217,12 +217,14 @@ func (tg *TemplateGenerator) validateConfiguration() error {
 // generateBaseFiles generates the base project files.
 func (tg *TemplateGenerator) generateBaseFiles() error {
 	baseTemplates := map[string]string{
-		"go.mod":       "base/go.mod.tmpl",
-		".gitignore":   "base/gitignore.tmpl",
-		"README.md":    "base/README.md.tmpl",
-		"Makefile":     "base/Makefile.tmpl",
-		".env":         "base/.env.tmpl",
-		".env.example": "base/env.example.tmpl",
+		"go.mod":             "base/go.mod.tmpl",
+		".gitignore":         "base/gitignore.tmpl",
+		"README.md":          "base/README.md.tmpl",
+		"Makefile":           "base/Makefile.tmpl",
+		".env":               "base/.env.tmpl",
+		".env.example":       "base/env.example.tmpl",
+		"Dockerfile":         "base/Dockerfile.tmpl",
+		"docker-compose.yml": "base/docker-compose.yml.tmpl",
 	}
 
 	for dest, src := range baseTemplates {
@@ -353,12 +355,12 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 
 		destPath := relPath
 		switch {
-			case filepath.Base(path) == "model.go.tmpl":
-					destPath = tg.getDestinationPath("models")
-			case filepath.Base(path) == "sqlc.yaml.tmpl":
-					destPath = "sqlc.yaml"
-			case strings.HasSuffix(path, "migrate.go.tmpl"):
-					destPath = tg.getDestinationPath("migrate")
+		case filepath.Base(path) == "model.go.tmpl":
+			destPath = tg.getDestinationPath("models")
+		case filepath.Base(path) == "sqlc.yaml.tmpl":
+			destPath = "sqlc.yaml"
+		case strings.HasSuffix(path, "migrate.go.tmpl"):
+			destPath = tg.getDestinationPath("migrate")
 		}
 
 		templatePath := strings.TrimPrefix(path, templatesDir+string(filepath.Separator))
