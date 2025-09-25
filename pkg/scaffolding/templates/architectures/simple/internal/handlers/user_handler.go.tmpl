@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 	{{- end}}
 
-	// --- Import dinamis berdasarkan framework ---
+	// --- Dynamic import based on framework ---
 	{{- if eq .Framework "fiber" }}
 	"github.com/gofiber/fiber/v2"
 	{{- else if eq .Framework "gin" }}
@@ -27,30 +27,30 @@ import (
 	{{- end}}
 )
 
-// Tipe ID dinamis berdasarkan pilihan database
+// Dynamic ID type based on database selection
 {{- if eq .Database "postgresql" }}
 type UserID = uuid.UUID
 {{- else}}
 type UserID = uint
 {{- end}}
 
-// UserHandler menangani request HTTP yang berhubungan dengan User.
+// UserHandler handles HTTP requests related to Users.
 type UserHandler struct {
 	userService services.UserService
 	validator  *utils.Validator
 }
 
-// NewUserHandler membuat instance baru dari UserHandler.
+// NewUserHandler creates a new instance of UserHandler.
 func NewUserHandler(userService services.UserService, validator *utils.Validator) *UserHandler {
 	return &UserHandler{
 		userService: userService,
 		validator:   validator,
 	}
 }
-{{/* --- =================== BLOK KODE UNTUK GO FIBER =================== --- */}}
+{{/* --- =================== CODE BLOCK FOR GO FIBER =================== --- */}}
 {{- if eq .Framework "fiber" }}
 
-// CreateUser menangani request POST untuk membuat user baru.
+// CreateUser handles POST requests to create a new user.
 func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	var req models.CreateUserRequest
 	if err := c.BodyParser(&req); err != nil {
@@ -63,7 +63,7 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 
 	user, err := h.userService.CreateUser(c.Context(), &req)
 	if err != nil {
-		// Di sini kita bisa memeriksa tipe error untuk memberikan status code yang lebih baik
+		// Here we can check the error type to provide a better status code
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
@@ -72,7 +72,7 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 	})
 }
 
-// GetUsers menangani request GET untuk mendapatkan daftar user dengan paginasi.
+// GetUsers handles GET requests to get a list of users with pagination.
 func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	perPage, _ := strconv.Atoi(c.Query("per_page", "10"))
@@ -84,7 +84,7 @@ func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
 	return c.JSON(response)
 }
 
-// GetUser menangani request GET untuk mendapatkan satu user berdasarkan ID.
+// GetUser handles GET requests to get a single user by ID.
 func (h *UserHandler) GetUser(c *fiber.Ctx) error {
 	id, err := parseUserID(c.Params("id"))
 	if err != nil {
@@ -98,7 +98,7 @@ func (h *UserHandler) GetUser(c *fiber.Ctx) error {
 	return c.JSON(user)
 }
 
-// UpdateUser menangani request PUT untuk memperbarui data user.
+// UpdateUser handles PUT requests to update user data.
 func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 	id, err := parseUserID(c.Params("id"))
 	if err != nil {
@@ -124,7 +124,7 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
 	})
 }
 
-// DeleteUser menangani request DELETE untuk menghapus user.
+// DeleteUser handles DELETE requests to delete a user.
 func (h *UserHandler) DeleteUser(c *fiber.Ctx) error {
 	id, err := parseUserID(c.Params("id"))
 	if err != nil {
@@ -138,10 +138,10 @@ func (h *UserHandler) DeleteUser(c *fiber.Ctx) error {
 }
 
 {{- end }}
-{{/* --- =================== BLOK KODE UNTUK GIN =================== --- */}}
+{{/* --- =================== CODE BLOCK FOR GIN =================== --- */}}
 {{- if eq .Framework "gin" }}
 
-// CreateUser menangani request POST untuk membuat user baru.
+// CreateUser handles POST requests to create a new user.
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req models.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -162,7 +162,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 	c.JSON(http.StatusCreated, user)
 }
 
-// GetUsers menangani request GET untuk mendapatkan daftar user dengan paginasi.
+// GetUsers handles GET requests to get a list of users with pagination.
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	perPage, _ := strconv.Atoi(c.DefaultQuery("per_page", "10"))
@@ -175,7 +175,7 @@ func (h *UserHandler) GetUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// GetUser menangani request GET untuk mendapatkan satu user berdasarkan ID.
+// GetUser handles GET requests to get a single user by ID.
 func (h *UserHandler) GetUser(c *gin.Context) {
 	id, err := parseUserID(c.Param("id"))
 	if err != nil {
@@ -191,7 +191,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// UpdateUser menangani request PUT untuk memperbarui data user.
+// UpdateUser handles PUT requests to update user data.
 func (h *UserHandler) UpdateUser(c *gin.Context) {
 	id, err := parseUserID(c.Param("id"))
 	if err != nil {
@@ -218,7 +218,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-// DeleteUser menangani request DELETE untuk menghapus user.
+// DeleteUser handles DELETE requests to delete a user.
 func (h *UserHandler) DeleteUser(c *gin.Context) {
 	id, err := parseUserID(c.Param("id"))
 	if err != nil {
@@ -234,10 +234,10 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 }
 {{- end }}
 
-{{/* --- =================== BLOK KODE UNTUK CHI =================== --- */}}
+{{/* --- =================== CODE BLOCK FOR CHI =================== --- */}}
 {{- if eq .Framework "chi" }}
 
-// CreateUser menangani request POST untuk membuat user baru.
+// CreateUser handles POST requests to create a new user.
 func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	var req models.CreateUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -263,7 +263,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(user)
 }
 
-// GetUsers menangani request GET untuk mendapatkan daftar user dengan paginasi.
+// GetUsers handles GET requests to get a list of users with pagination.
 func (h *UserHandler) GetUsers(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	if page == 0 { page = 1 }
@@ -281,7 +281,7 @@ func (h *UserHandler) GetUsers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-// GetUser menangani request GET untuk mendapatkan satu user berdasarkan ID.
+// GetUser handles GET requests to get a single user by ID.
 func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUserID(chi.URLParam(r, "id"))
 	if err != nil {
@@ -300,7 +300,7 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(user)
 }
 
-// UpdateUser menangani request PUT untuk memperbarui data user.
+// UpdateUser handles PUT requests to update user data.
 func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUserID(chi.URLParam(r, "id"))
 	if err != nil {
@@ -332,7 +332,7 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(user)
 }
 
-// DeleteUser menangani request DELETE untuk menghapus user.
+// DeleteUser handles DELETE requests to delete a user.
 func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUserID(chi.URLParam(r, "id"))
 	if err != nil {
@@ -348,10 +348,10 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 }
 {{- end }}
 
-{{/* --- =================== BLOK KODE UNTUK ECHO =================== --- */}}
+{{/* --- =================== CODE BLOCK FOR ECHO =================== --- */}}
 {{- if eq .Framework "echo" }}
 
-// CreateUser menangani request POST untuk membuat user baru.
+// CreateUser handles POST requests to create a new user.
 func (h *UserHandler) CreateUser(c echo.Context) error {
 	var req models.CreateUserRequest
 	if err := c.Bind(&req); err != nil {
@@ -369,7 +369,7 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 	return c.JSON(http.StatusCreated, user)
 }
 
-// GetUsers menangani request GET untuk mendapatkan daftar user dengan paginasi.
+// GetUsers handles GET requests to get a list of users with pagination.
 func (h *UserHandler) GetUsers(c echo.Context) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page == 0 { page = 1 }
@@ -383,7 +383,7 @@ func (h *UserHandler) GetUsers(c echo.Context) error {
 	return c.JSON(http.StatusOK, response)
 }
 
-// GetUser menangani request GET untuk mendapatkan satu user berdasarkan ID.
+// GetUser handles GET requests to get a single user by ID.
 func (h *UserHandler) GetUser(c echo.Context) error {
 	id, err := parseUserID(c.Param("id"))
 	if err != nil {
@@ -397,7 +397,7 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 	return c.JSON(http.StatusOK, user)
 }
 
-// UpdateUser menangani request PUT untuk memperbarui data user.
+// UpdateUser handles PUT requests to update user data.
 func (h *UserHandler) UpdateUser(c echo.Context) error {
 	id, err := parseUserID(c.Param("id"))
 	if err != nil {
@@ -420,7 +420,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	return c.JSON(http.StatusOK, user)
 }
 
-// DeleteUser menangani request DELETE untuk menghapus user.
+// DeleteUser handles DELETE requests to delete a user.
 func (h *UserHandler) DeleteUser(c echo.Context) error {
 	id, err := parseUserID(c.Param("id"))
 	if err != nil {
@@ -434,7 +434,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 }
 {{- end }}
 
-// parseUserID adalah helper untuk mengurai ID dari string, beradaptasi dengan tipe database.
+// parseUserID is a helper to parse the ID from a string, adapting to the database type.
 func parseUserID(idStr string) (UserID, error) {
 	{{if eq .Database "postgresql" }}
 	id, err := uuid.Parse(idStr)

@@ -16,9 +16,9 @@ type MenuModel struct {
 func NewMenuModel() *MenuModel {
 	return &MenuModel{
 		choices: []string{
-			"Mulai Proyek Baru",
+			"Start New Project",
 			"Version",
-			"Keluar",
+			"Exit",
 		},
 	}
 }
@@ -41,7 +41,7 @@ func (m *MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case keyEnter, keySpace:
 			m.selected = m.choices[m.cursor]
 		case keyQ, keyCtrlC:
-			m.selected = "Keluar"
+			m.selected = "Exit"
 		}
 	}
 	return m, nil

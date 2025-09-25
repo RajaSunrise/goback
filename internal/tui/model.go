@@ -118,12 +118,12 @@ func (m *MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			choice := m.MenuModel.Selected()
 			m.MenuModel.ResetSelected()
 			switch choice {
-			case "Mulai Proyek Baru":
+			case "Start New Project":
 				m.State = StateFrameworkSelection
 				m.ConfigModel.SetStep(models.StepFramework)
 			case "Version":
 				m.State = StateVersion
-			case "Keluar":
+			case "Exit":
 				return m, tea.Quit
 			}
 		}
@@ -318,7 +318,7 @@ func (m *MainModel) View() string {
 	case StateVersion:
 		view = m.VersionModel.View()
 	default:
-		view = "State tidak dikenal"
+		view = "Unknown state"
 	}
 
 	// Apply window constraints if available
@@ -343,20 +343,20 @@ func (m *MainModel) renderSuccessView() string {
 		Border(lipgloss.RoundedBorder())
 
 	content := fmt.Sprintf(`
-✅ Proyek berhasil dibuat!
+✅ Project created successfully!
 
-📁 Nama: %s
-📂 Lokasi: %s
+📁 Name: %s
+📂 Location: %s
 🏗️  Framework: %s
 🗄️  Database: %s
-🏛️  Arsitektur: %s
+🏛️  Architecture: %s
 
-Langkah selanjutnya:
+Next steps:
   cd %s
   go mod tidy
-  go run main.go
+  go run cmd/api/main.go
 
-Tekan '%s' untuk keluar
+Press '%s' to exit
 `, m.Config.ProjectName, m.Config.OutputDir, m.Config.Framework.String(),
 		m.Config.Database.String(), m.Config.Architecture.String(), m.Config.OutputDir, keyQ)
 
@@ -372,18 +372,18 @@ func (m *MainModel) renderErrorView() string {
 		Padding(1).
 		Border(lipgloss.RoundedBorder())
 
-	errorMsg := "Terjadi kesalahan yang tidak diketahui"
+	errorMsg := "An unknown error occurred"
 	if m.Error != nil {
 		errorMsg = m.Error.Error()
 	}
 
 	content := fmt.Sprintf(`
-❌ Gagal membuat proyek!
+❌ Failed to create project!
 
 Error: %s
 
-Tekan '%s' untuk kembali ke menu utama
-Tekan '%s' untuk keluar
+Press '%s' to return to the main menu
+Press '%s' to exit
 `, errorMsg, keyR, keyQ)
 
 	return style.Render(content)

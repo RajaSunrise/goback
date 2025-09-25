@@ -21,12 +21,12 @@ var cfgFile string
 var rootCmd = &cobra.Command{
 	Use:   "goback",
 	Short: "GoBack - TUI Backend Project Scaffolding Tool",
-	Long: `GoBack adalah TUI (Terminal User Interface) yang dibangun dengan Bubble Tea
-untuk memudahkan developer backend dalam membuat project backend dengan berbagai
-pilihan framework, database, Tool, arsitektur, dan DevOps tools.
+	Long: `GoBack is a TUI (Terminal User Interface) built with Bubble Tea
+to make it easier for backend developers to create backend projects with various
+choices of frameworks, databases, tools, architectures, and DevOps tools.
 
-Gunakan tanpa argumen untuk membuka interface TUI interaktif, atau gunakan
-subcommands untuk operasi CLI langsung.`,
+Use without arguments to open the interactive TUI, or use
+subcommands for direct CLI operations.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Default behavior: start TUI
 		startTUI()
@@ -37,7 +37,7 @@ subcommands untuk operasi CLI langsung.`,
 var tuiCmd = &cobra.Command{
 	Use:   "tui",
 	Short: "Start interactive TUI interface",
-	Long:  `Memulai antarmuka TUI interaktif untuk membuat proyek backend`,
+	Long:  `Starts the interactive TUI to create a backend project.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		startTUI()
 	},
@@ -47,7 +47,7 @@ var tuiCmd = &cobra.Command{
 var newCmd = &cobra.Command{
 	Use:   "new [project-name]",
 	Short: "Create a new backend project",
-	Long:  `Membuat proyek backend baru dengan konfigurasi yang ditentukan via flags`,
+	Long:  `Creates a new backend project with the configuration specified via flags.`,
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		createProjectViaCLI(cmd, args)
@@ -58,7 +58,7 @@ var newCmd = &cobra.Command{
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List available frameworks, databases, and architectures",
-	Long:  `Menampilkan daftar framework, database, Tool, dan arsitektur yang tersedia`,
+	Long:  `Lists the available frameworks, databases, tools, and architectures.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("GoBack offers the following options for your project:")
 
@@ -126,7 +126,7 @@ func printChoiceList[T any](items []T) {
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage GoBack configuration",
-	Long:  `Mengelola konfigurasi GoBack, termasuk pengaturan default dan preferensi`,
+	Long:  `Manages GoBack configuration, including default settings and preferences.`,
 }
 
 var configShowCmd = &cobra.Command{

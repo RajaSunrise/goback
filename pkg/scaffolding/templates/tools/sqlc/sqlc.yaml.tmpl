@@ -1,6 +1,12 @@
 version: "2"
 sql:
-  - engine: "{{ lower .Database }}"
+{{- if eq .Database "postgresql"}}
+ - engine: "postgresql"
+{{- else if eq .Database "mysql"}}
+ - engine: "mysql"
+{{- else if eq .Database "sqlite"}}
+ - engine: "sqlite"
+    {{ end}}
     queries: "db/queries"
     schema: "db/migrations"
     gen:
@@ -8,11 +14,14 @@ sql:
         package: "db"
         out: "db/sqlc"
         {{- if eq .Database "postgresql"}}
-        sql_package: "github.com/jackc/pgx/v5"
+        sql_package: "pgx/v5"
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
         {{- else if eq .Database "mysql"}}
-        sql_package: "github.com/go-sql-driver/mysql"
+        sql_package: "mysql"
         {{- else if eq .Database "sqlite"}}
-        sql_package: "modernc.org/sqlite"
+        sql_package: "sqlite"
         {{- else}}
         sql_package: "database/sql"
         {{- end}}

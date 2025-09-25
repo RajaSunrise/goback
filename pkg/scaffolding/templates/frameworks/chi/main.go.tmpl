@@ -18,6 +18,7 @@ import (
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/routes"
+	"{{.ModulePath}}/internal/migrate"
 	"{{.ModulePath}}/internal/utils"
 	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/config"
@@ -64,7 +65,8 @@ func main() {
 
 	{{if eq .Tool "gorm"}}
 	// Run migrations
-	log.Println("Running GORM auto-migration...")
+	migrate.RunGormAutoMigration(db)
+	
 	{{if or (eq .Architecture "ddd") (eq .Architecture "clean")}}
 	if err := db.AutoMigrate(repositories.UserPersistence{}); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
