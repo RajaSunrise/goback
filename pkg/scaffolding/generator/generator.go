@@ -151,7 +151,7 @@ func (tg *TemplateGenerator) generateFileFromTemplate(destPath, templatePath str
 		return fmt.Errorf("failed to parse template %s: %w", templatePath, err)
 	}
 
-	// Menggunakan tg.Config secara langsung agar template bisa mengakses .Architecture.String(), dll.
+	// Use tg.Config directly so the template can access .Architecture.String(), etc.
 	if err := parsedTmpl.Execute(outputFile, tg.Config); err != nil {
 		return fmt.Errorf("failed to execute template %s: %w", templatePath, err)
 	}
@@ -174,7 +174,7 @@ func (tg *TemplateGenerator) getDestinationPath(fileType string) string {
 		"migrate":    "internal/migrate/migrate.go",
 	}
 
-	// PERBAIKAN gocritic (ifElseChain): Mengubah if-else menjadi switch.
+	// gocritic (ifElseChain) fix: Changed if-else to switch.
 	switch arch {
 	case "ddd":
 		paths["config"] = pathConfig

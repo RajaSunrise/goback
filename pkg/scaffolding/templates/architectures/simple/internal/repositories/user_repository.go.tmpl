@@ -36,7 +36,6 @@ type UserRepository interface {
 	Delete(ctx context.Context, id UserID) error
 }
 
-
 {{/* --- IMPLEMENTASI UNTUK GORM --- */}}
 {{ if eq .Tool "gorm" }}
 type userRepository struct {
@@ -108,7 +107,6 @@ func (r *userRepository) Delete(ctx context.Context, id UserID) error {
 	return nil
 }
 {{ end }}
-
 
 {{/* --- IMPLEMENTASI UNTUK SQLC --- */}}
 {{ if eq .Tool "sqlc" }}
@@ -213,7 +211,6 @@ func (r *userRepository) Delete(ctx context.Context, id UserID) error {
 	return r.Queries.DeleteUser(ctx, id)
 }
 {{ end }}
-
 
 {{/* --- IMPLEMENTASI UNTUK SQLX --- */}}
 {{ if eq .Tool "sqlx" }}

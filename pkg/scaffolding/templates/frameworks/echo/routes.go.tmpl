@@ -21,7 +21,7 @@ func Setup(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sq
 	// Initialize dependencies
 	userRepository := repositories.NewUserRepository(db)
 	userService := services.NewUserService(userRepository)
-	userHandler := handlers.NewUserHandler(*userService, validator)
+	userHandler := handlers.NewUserHandler(userService, validator)
 
 	// API routes
 	api := e.Group("/api/v1")

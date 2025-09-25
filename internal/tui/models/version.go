@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var version string = "Version 0.1.1"
+var version string = "0.1.1"
 
 type VersionModel struct {
 	selected bool
@@ -48,15 +48,15 @@ func (m *VersionModel) View() string {
 	description := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("250")).
 		MarginBottom(2).
-		Render("GoBack adalah TUI (Terminal User Interface) yang dibangun dengan Bubble Tea\n" +
-			"untuk memudahkan developer backend dalam membuat project backend dengan\n" +
-			"berbagai pilihan framework, database, ORM, arsitektur, dan DevOps tools.")
+		Render("GoBack is a TUI (Terminal User Interface) built with Bubble Tea\n" +
+			"to make it easier for backend developers to create backend projects with\n" +
+			"various choices of frameworks, databases, ORMs, architectures, and DevOps tools.")
 
 	features := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("86")).
 		Bold(true).
 		MarginBottom(1).
-		Render("✨ Fitur Utama:")
+		Render("✨ Main Features:")
 
 	featuresList := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("250")).
@@ -74,17 +74,17 @@ func (m *VersionModel) View() string {
 		Foreground(lipgloss.Color("86")).
 		Bold(true).
 		MarginBottom(1).
-		Render("⚡ Teknologi:")
+		Render("⚡ Technology:")
 
 	techList := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("250")).
 		MarginLeft(2).
 		MarginBottom(2).
 		Render(`• Built with: Go + Bubble Tea TUI
-• Templates: Go templates dengan validasi
-• Generator: Scaffolding otomatis
+• Templates: Go templates with validation
+• Generator: Automatic scaffolding
 • Config: YAML/JSON support
-• Validation: Input dan business rules`)
+• Validation: Input and business rules`)
 
 	author := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("240")).
@@ -97,7 +97,7 @@ func (m *VersionModel) View() string {
 		MarginBottom(2).
 		Render("🔗 Repository: https://github.com/NarmadaWeb/goback")
 
-	help := styles.HelpStyle.Render("enter/esc: kembali ke menu • ctrl+c: keluar")
+	help := styles.HelpStyle.Render("enter/esc: back to menu • ctrl+c: exit")
 
 	return lipgloss.JoinVertical(
 		lipgloss.Left,

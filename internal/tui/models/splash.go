@@ -52,13 +52,13 @@ func (m *SplashModel) View() string {
 	}
 
 	logo := `
-   ____       ____             _
+____       ____             _
   / ___| ___ | __ )  __ _  ___| | __
  | |  _ / _ \|  _ \ / _' |/ __| |/ /
  | |_| | (_) | |_) | (_| | (__|   <
   \____|\___/|____/ \__,_|\___|_|\_\
 
-    Backend Project Scaffolding Tool
+    Backend Project Scaffolding Tool by NarmadaWeb
 `
 
 	style := lipgloss.NewStyle().

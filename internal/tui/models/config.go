@@ -85,15 +85,15 @@ func NewConfigModel() *ConfigModel {
 
 		switch i {
 		case 0:
-			t.Placeholder = "proyek-backend-saya"
+			t.Placeholder = "my-backend-project"
 			t.Focus()
 			t.Prompt = "❯ "
 		case 1:
-			t.Placeholder = "github.com/user/proyek-backend-saya"
+			t.Placeholder = "github.com/user/my-backend-project"
 		case 2:
-			t.Placeholder = "Deskripsi singkat proyek (opsional)"
+			t.Placeholder = "Short project description (optional)"
 		case 3:
-			t.Placeholder = "./proyek-backend-saya"
+			t.Placeholder = "./my-backend-project"
 		}
 		m.inputs[i] = t
 	}
@@ -240,7 +240,7 @@ func (m *ConfigModel) handleSelection() (tea.Model, tea.Cmd) {
 		m.architecture = m.getArchitectureFromString(selected)
 		m.completeStep()
 	case StepDevOpsOptions:
-		m.devopsEnabled = (selected == "Ya, gunakan DevOps tools")
+		m.devopsEnabled = (selected == "Yes, use DevOps tools")
 		m.completeStep()
 	case StepDevOpsTools:
 		tool := m.getDevOpsToolFromString(selected)
@@ -318,7 +318,7 @@ func (m *ConfigModel) setupStep() {
 			"Hexagonal Architecture",
 		}
 	case StepDevOpsOptions:
-		m.choices = []string{"Ya, gunakan DevOps tools", "Tidak menggunakan DevOps tools"}
+		m.choices = []string{"Yes, use DevOps tools", "No, do not use DevOps tools"}
 	case StepDevOpsTools:
 		m.choices = []string{"Kubernetes", "Helm", "Terraform", "Ansible"}
 	case StepProjectDetails:
@@ -354,8 +354,8 @@ func (m *ConfigModel) validateInputs() bool {
 }
 
 func (m *ConfigModel) renderConfigReview() string {
-	title := styles.TitleStyle.Render("🔍 Review Konfigurasi Proyek")
-	subtitle := styles.SubtitleStyle.Render("Pastikan semua detail sudah benar sebelum melanjutkan.")
+	title := styles.TitleStyle.Render("🔍 Review Project Configuration")
+	subtitle := styles.SubtitleStyle.Render("Please ensure all details are correct before proceeding.")
 
 	var content strings.Builder
 	addRow := func(icon, label, value string) {
@@ -363,17 +363,17 @@ func (m *ConfigModel) renderConfigReview() string {
 			icon, styles.FieldLabelStyle.Render(label), styles.FieldValueStyle.Render(value)))
 	}
 
-	addRow("📁", "Nama Proyek", m.GetProjectName())
+	addRow("📁", "Project Name", m.GetProjectName())
 	addRow("📦", "Module Path", m.GetModulePath())
 	if desc := m.GetDescription(); desc != "" {
-		addRow("📝", "Deskripsi", desc)
+		addRow("📝", "Description", desc)
 	}
-	addRow("📂", "Direktori Output", m.GetOutputDir())
+	addRow("📂", "Output Directory", m.GetOutputDir())
 	content.WriteString("\n")
 	addRow("🏗️ ", "Framework", m.framework.String())
 	addRow("🗄️ ", "Database", m.database.String())
 	addRow("🔗", "Tool", m.tool.String())
-	addRow("🏛️ ", "Arsitektur", m.architecture.String())
+	addRow("🏛️ ", "Architecture", m.architecture.String())
 
 	if m.devopsEnabled && len(m.devopsTools) > 0 {
 		content.WriteString("\n")
@@ -383,23 +383,23 @@ func (m *ConfigModel) renderConfigReview() string {
 	separator := lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Render(strings.Repeat("─", 50))
 	content.WriteString("\n" + separator + "\n\n")
 
-	content.WriteString(styles.ConfirmStyle.Render("Apakah Anda siap untuk membuat proyek ini?"))
+	content.WriteString(styles.ConfirmStyle.Render("Are you ready to create this project?"))
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("86")).
 		Padding(1, 2).
 		Render(content.String())
-	help := styles.HelpStyle.Render("✅ y/enter: Ya, Lanjutkan  |  ✏️ e/esc: Edit/Kembali  |  ❌ ctrl+c: Keluar")
+	help := styles.HelpStyle.Render("✅ y/enter: Yes, Continue | ✏️ e/esc: Edit/Back | ❌ ctrl+c: Exit")
 
 	return lipgloss.JoinVertical(lipgloss.Left, title, subtitle, box, "\n", help)
 }
 
 func (m *ConfigModel) renderProjectDetails() string {
-	title := styles.TitleStyle.Render("📝 Detail Proyek")
-	subtitle := styles.SubtitleStyle.Render("Masukkan detail untuk proyek Anda.")
+	title := styles.TitleStyle.Render("📝 Project Details")
+	subtitle := styles.SubtitleStyle.Render("Enter the details for your project.")
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s\n%s\n\n", title, subtitle)
-	labels := []string{"Nama Proyek *", "Go Module Path *", "Deskripsi (Opsional)", "Direktori Output *"}
+	labels := []string{"Project Name *", "Go Module Path *", "Description (Optional)", "Output Directory *"}
 
 	for i := range m.inputs {
 		b.WriteString(labels[i] + "\n")
@@ -416,7 +416,7 @@ func (m *ConfigModel) renderProjectDetails() string {
 		b.WriteString("\n" + errorContent.String() + "\n")
 	}
 
-	help := styles.HelpStyle.Render("↑/↓/tab: navigasi • enter: lanjut • esc: kembali • ctrl+c: keluar")
+	help := styles.HelpStyle.Render("↑/↓/tab: navigate • enter: continue • esc: back • ctrl+c: exit")
 	b.WriteString("\n" + help)
 	return b.String()
 }
@@ -440,28 +440,28 @@ func (m *ConfigModel) renderGenericChoiceView(titleText, subtitleText string) st
 }
 
 func (m *ConfigModel) renderFrameworkSelection() string {
-	return m.renderGenericChoiceView("🏗️  Pilih Framework Backend", "Framework web yang akan digunakan untuk proyek Anda.")
+	return m.renderGenericChoiceView("🏗️  Select Backend Framework", "The web framework to be used for your project.")
 }
 
 func (m *ConfigModel) renderDatabaseSelection() string {
-	return m.renderGenericChoiceView("🗄️  Pilih Database", "Database yang akan digunakan untuk proyek Anda.")
+	return m.renderGenericChoiceView("🗄️  Select Database", "The database to be used for your project.")
 }
 
 func (m *ConfigModel) renderToolSelection() string {
-	return m.renderGenericChoiceView("🔗 Pilih Database Tool", "Tool untuk berinteraksi dengan database.")
+	return m.renderGenericChoiceView("🔗 Select Database Tool", "The tool to interact with the database.")
 }
 
 func (m *ConfigModel) renderArchitectureSelection() string {
-	return m.renderGenericChoiceView("🏛️  Pilih Arsitektur Proyek", "Pola arsitektur untuk struktur proyek Anda.")
+	return m.renderGenericChoiceView("🏛️  Select Project Architecture", "The architectural pattern for your project structure.")
 }
 
 func (m *ConfigModel) renderDevOpsOptions() string {
-	return m.renderGenericChoiceView("🚀 Konfigurasi DevOps", "Apakah Anda ingin menambahkan file konfigurasi DevOps?")
+	return m.renderGenericChoiceView("🚀 DevOps Configuration", "Do you want to add DevOps configuration files?")
 }
 
 func (m *ConfigModel) renderDevOpsToolsSelection() string {
-	title := styles.TitleStyle.Render("🚀 Pilih DevOps Tools")
-	subtitle := styles.SubtitleStyle.Render("Gunakan spasi untuk memilih/membatalkan, 'c' untuk melanjutkan.")
+	title := styles.TitleStyle.Render("🚀 Select DevOps Tools")
+	subtitle := styles.SubtitleStyle.Render("Use space to select/deselect, 'c' to continue.")
 	var options strings.Builder
 	for i, choice := range m.choices {
 		cursor := "  "
