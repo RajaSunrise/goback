@@ -2,9 +2,7 @@ package repositories
 
 import (
 	"context"
-	"database/sql"
 	"errors"
-	"time"
 
 	"{{.ModulePath}}/internal/models"
 
@@ -17,6 +15,9 @@ import (
 	{{- end}}
 
 	{{- if eq .Tool "sqlx" }}
+	"time"
+		"database/sql"
+	
 	"github.com/jmoiron/sqlx"
 	{{- end }}
 

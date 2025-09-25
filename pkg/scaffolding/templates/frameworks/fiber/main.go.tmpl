@@ -73,7 +73,7 @@ func main() {
 
 	{{if eq .Tool "gorm"}}
 	// Run migrations
-	log.Println("Running GORM auto-migration...")
+	migrate.RunGormAutoMigration(db)
 	{{if or (eq .Architecture "ddd") (eq .Architecture "clean")}}
 	if err := db.AutoMigrate(&repositories.UserPersistence{}); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
@@ -83,7 +83,6 @@ func main() {
 		log.Fatalf("Failed to migrate database: %v", err)
 	}
 	{{end}}
-	log.Println("GORM auto-migration completed.")
 	{{end}}
 
 	// Initialize validator
