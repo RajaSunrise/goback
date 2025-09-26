@@ -13,13 +13,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	
+	{{/* Imports needed for database cleanup and type assertions */}}
+	{{if or (eq .Tool "gorm") (eq .Tool "sqlc") (eq .Tool "sqlx")}}
+	"database/sql"
+	"github.com/jackc/pgx/v5/pgxpool"
+	{{end}}
 
 	"{{.ModulePath}}/internal/utils"
 	{{if eq .Architecture "simple" -}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/routes"
-	"{{.ModulePath}}/internal/migrate"
+	{{if eq .Tool "gorm"}}"{{.ModulePath}}/internal/migrate"{{end}}
 	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/application"
 	"{{.ModulePath}}/config"
@@ -58,17 +64,33 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
+	
+	// Handle database cleanup and migrations based on the tool
 	{{- if or (eq .Tool "sqlx") (eq .Tool "sqlc")}}
-	defer db.Close()
-	// Run migrations
+	// db is db.DBTX (which can be *pgxpool.Pool for Postgres or *sql.DB for others)
+	defer func() {
+		if pool, ok := db.(*pgxpool.Pool); ok && pool != nil {
+			pool.Close()
+			log.Println("PostgreSQL connection pool closed.")
+		} else if sqlDB, ok := db.(*sql.DB); ok && sqlDB != nil {
+			sqlDB.Close()
+			log.Println("Standard SQL database connection closed.")
+		}
+	}()
+
+	// Run standard SQL migrations
 	if err := utils.RunMigrations(db, cfg.Database.Type, "./migrations"); err != nil {
 		log.Fatalf("could not run migrations: %v", err)
 	}
 	{{- end}}
 
 	{{if eq .Tool "gorm"}}
-	// Run migrations
+	// Run Gorm migrations
+	
+	{{if eq .Architecture "simple"}}
+	// Gorm needs to be closed later using db.DB()
 	migrate.RunGormAutoMigration(db)
+	{{end}}
 	{{if or (eq .Architecture "ddd") (eq .Architecture "clean")}}
 	if err := db.AutoMigrate(repositories.UserPersistence{}); err != nil {
 		log.Fatalf("Failed to migrate database: %v", err)
@@ -106,14 +128,16 @@ func main() {
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%s", cfg.Server.Port),
 		Handler:      r,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
+		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
 	}
 
 	// Start server in goroutine
 	go func() {
 		log.Printf("Starting server on port %s", cfg.Server.Port)
+		log.Printf("Version: %s, Commit: %s, Build Time: %s", version, commit, buildTime)
+
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Could not listen on %s: %v\n", cfg.Server.Port, err)
 		}
@@ -131,6 +155,14 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
+
+	{{- if eq .Tool "gorm"}}
+	// Gorm wraps the standard sql.DB, which must be closed manually during graceful shutdown.
+	if sqlDB, err := db.DB(); err == nil && sqlDB != nil {
+		sqlDB.Close()
+		log.Println("Gorm underlying SQL database connection closed.")
+	}
+	{{- end}}
 
 	log.Println("Server exiting")
 }

@@ -12,12 +12,12 @@ import (
 	{{- else if eq .Tool "sqlx"}}
 	"github.com/jmoiron/sqlx"
 	{{- else if eq .Tool "sqlc"}}
-	"database/sql"
+	db_sqlc "{{.ModulePath}}/db/sqlc"
 	{{- end}}
 )
 
 // Setup configures all the routes
-func Setup(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+func Setup(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
 	// Initialize dependencies
 	userRepository := repositories.NewUserRepository(db)
 	userService := services.NewUserService(userRepository)
@@ -54,12 +54,12 @@ import (
 	{{- else if eq .Tool "sqlx"}}
 	"github.com/jmoiron/sqlx"
 	{{- else if eq .Tool "sqlc"}}
-	"database/sql"
+	db_sqlc "{{.ModulePath}}/db/sqlc"
 	{{- end}}
 )
 
 // Setup configures all the routes
-func Setup(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+func Setup(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
 	// Setup repositories
 	var userRepository usecases.UserRepository
 	{{if eq .Tool "gorm"}}
@@ -107,12 +107,12 @@ import (
 	{{- else if eq .Tool "sqlx"}}
 	"github.com/jmoiron/sqlx"
 	{{- else if eq .Tool "sqlc"}}
-	"database/sql"
+	db_sqlc "{{.ModulePath}}/db/sqlc"
 	{{- end}}
 )
 
 // Setup configures all the routes
-func Setup(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+func Setup(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
 	// Initialize dependencies
 	var userRepository repositories.UserRepository
 	{{if eq .Tool "gorm"}}
@@ -158,12 +158,12 @@ import (
 	{{- else if eq .Tool "sqlx"}}
 	"github.com/jmoiron/sqlx"
 	{{- else if eq .Tool "sqlc"}}
-	"database/sql"
+	db_sqlc "{{.ModulePath}}/db/sqlc"
 	{{- end}}
 )
 
 // Setup configures all the routes
-func Setup(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+func Setup(app *fiber.App, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
 	// Setup repositories
 	var userRepository ports.UserRepository
 	{{if eq .Tool "gorm"}}

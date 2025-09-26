@@ -18,7 +18,7 @@ type User struct {
 	{{- if eq .Database "postgresql" }}
 	ID        uuid.UUID `json:"id" {{if eq .Tool "gorm"}}gorm:"type:uuid;primary_key;default:gen_random_uuid()"{{else}}db:"id"{{end}}`
 	{{- else}}
-	ID        uint      `json:"id" {{if eq .Tool "gorm"}}gorm:"primary_key"{{else}}db:"id"{{end}}`
+	ID        int       `json:"id" {{if eq .Tool "gorm"}}gorm:"primary_key"{{else}}db:"id"{{end}}`
 	{{- end}}
 	Name      string    `json:"name" {{if eq .Tool "gorm"}}gorm:"type:varchar(255);not null"{{else}}db:"name"{{end}}`
 	Email     string    `json:"email" {{if eq .Tool "gorm"}}gorm:"type:varchar(255);unique;not null"{{else}}db:"email"{{end}}`
@@ -49,7 +49,7 @@ type UserResponse struct {
 	{{- if eq .Database "postgresql" }}
 	ID        uuid.UUID `json:"id"`
 	{{- else}}
-	ID        uint      `json:"id"`
+	ID        int       `json:"id"`
 	{{- end}}
 	Name      string    `json:"name"`
 	Email     string    `json:"email"`

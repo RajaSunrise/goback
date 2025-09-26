@@ -2,7 +2,13 @@ version: "2"
 sql:
 - schema: "db/migrations" # Path to migrations folder
   queries: "db/queries"  # Path to queries folder
-  engine: "{{.Database}}"
+{{- if eq .Database "postgresql"}}
+  engine: "postgresql"
+{{- else if eq .Database "mysql"}}
+  engine: "mysql"
+{{- else}}
+  engine: "sqlite"
+{{- end}}
   gen:
     go:
       package: "db"

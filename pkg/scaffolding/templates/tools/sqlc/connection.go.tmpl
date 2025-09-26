@@ -1,50 +1,84 @@
 package database
 
 import (
-	"database/sql"
+	"context"
 	"fmt"
 	"time"
 
+	"database/sql"
+	
 	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/jackc/pgx/v5/pgxpool"
 
-	{{if eq .Architecture.String "simple"}}"{{.ModulePath}}/internal/config"{{else}}"{{.ModulePath}}/config"{{end}}
+	{{if eq .Architecture "simple"}}
+	"{{.ModulePath}}/internal/config"
+	{{else}}
+	"{{.ModulePath}}/config"
+	{{end}}
+	db "{{.ModulePath}}/db/sqlc"
 )
 
-// Connect establishes a connection to the configured database using the standard library.
-func Connect(cfg *config.DatabaseConfig) (*sql.DB, error) {
-	var driverName string
+// Connect establishes a connection to the configured database and returns a DBTX compatible object.
+// DBTX can be either *pgxpool.Pool (for Postgres) or *sql.DB (for MySQL/SQLite).
+func Connect(cfg *config.DatabaseConfig) (db.DBTX, error) {
 	dsn := cfg.GetDSN()
 
 	switch cfg.Type {
 	case "postgres", "postgresql":
-		driverName = "postgres"
-	case "mysql":
-		driverName = "mysql"
-	case "sqlite":
-		driverName = "sqlite3"
+		// --- PostgreSQL (using pgxpool) ---
+		
+		// Use pgxpool.New for simple connection establishment
+		pool, err := pgxpool.New(context.Background(), dsn)
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to database: %w", err)
+		}
+		
+		// Set connection pool settings (Configuration applied after New is called)
+		pool.Config().MaxConns = int32(cfg.MaxOpenConns)
+		pool.Config().MinConns = int32(cfg.MaxIdleConns)
+		pool.Config().MaxConnLifetime = time.Hour 
+
+		// Test the connection
+		if err := pool.Ping(context.Background()); err != nil {
+			// Ensure pool is closed if ping fails
+			pool.Close()
+			return nil, fmt.Errorf("failed to ping database: %w", err)
+		}
+
+		return pool, nil
+		
+	case "mysql", "sqlite":
+		// --- Standard SQL (using database/sql for MySQL/SQLite) ---
+		var driverName string
+		
+		if cfg.Type == "mysql" {
+			driverName = "mysql"
+		} else {
+			driverName = "sqlite3"
+		}
+
+		sqlDB, err := sql.Open(driverName, dsn)
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to database: %w", err)
+		}
+
+		// Apply connection pool settings (ignored by SQLite, but crucial for MySQL)
+		if cfg.Type != "sqlite" {
+			sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+			sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
+			sqlDB.SetConnMaxLifetime(time.Hour)
+
+			// Test the connection
+			if err := sqlDB.Ping(); err != nil {
+				sqlDB.Close() 
+				return nil, fmt.Errorf("failed to ping database: %w", err)
+			}
+		}
+
+		return sqlDB, nil
+
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
 	}
-
-	db, err := sql.Open(driverName, dsn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	// For SQLite, connection pool settings are not typically needed or supported in the same way.
-	if cfg.Type != "sqlite" {
-		// Set connection pool settings
-		db.SetMaxOpenConns(cfg.MaxOpenConns)
-		db.SetMaxIdleConns(cfg.MaxIdleConns)
-		db.SetConnMaxLifetime(time.Hour)
-
-		// Test the connection
-		if err := db.Ping(); err != nil {
-			return nil, fmt.Errorf("failed to ping database: %w", err)
-		}
-	}
-
-	return db, nil
 }

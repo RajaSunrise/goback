@@ -13,11 +13,11 @@ import (
 	{{- else if eq .Tool "sqlx"}}
 	"github.com/jmoiron/sqlx"
 	{{- else if eq .Tool "sqlc"}}
-	"database/sql"
+	db_sqlc "{{.ModulePath}}/db/sqlc"
 	{{- end}}
 )
 
-func Setup(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+func Setup(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
 	// Initialize dependencies
 	userRepository := repositories.NewUserRepository(db)
 	userService := services.NewUserService(userRepository)
@@ -51,9 +51,11 @@ func healthCheckHandler(c echo.Context) error {
 {{else if eq .Architecture "clean"}}package http
 
 import (
+	"net/http" // Tambahkan import http untuk health check
 	"{{.ModulePath}}/domain/usecases"
-	"{{.ModulePath}}/infrastructure/database"
+	"{{.ModulePath}}/infrastructure/repositories" // Sesuaikan path repo jika Clean Architecture
 	"{{.ModulePath}}/interfaces/handlers"
+	"{{.ModulePath}}/domain/utils" // Asumsi validator ada di domain/utils atau diimpor di setup
 
 	"github.com/labstack/echo/v4"
 	{{- if eq .Tool "gorm"}}
@@ -61,26 +63,27 @@ import (
 	{{- else if eq .Tool "sqlx"}}
 	"github.com/jmoiron/sqlx"
 	{{- else if eq .Tool "sqlc"}}
-	"database/sql"
+	db_sqlc "{{.ModulePath}}/db/sqlc"
 	{{- end}}
 )
 
-func SetupRoutes(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}) {
+// Menambahkan argumen validator sesuai kebutuhan aplikasi
+func SetupRoutes(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
 	// Setup repositories
 	var userRepository usecases.UserRepository
 	{{if eq .Tool "gorm"}}
-	userRepository = database.NewGormUserRepository(db)
+	userRepository = repositories.NewGormUserRepository(db)
 	{{else if eq .Tool "sqlx"}}
-	userRepository = database.NewSqlxUserRepository(db)
+	userRepository = repositories.NewSqlxUserRepository(db)
 	{{else if eq .Tool "sqlc"}}
-	userRepository = database.NewSqlcUserRepository(db)
+	userRepository = repositories.NewSqlcUserRepository(db)
 	{{end}}
 
 	// Setup services
 	userService := usecases.NewUserUsecase(userRepository)
 
 	// Setup handlers
-	userHandler := handlers.NewUserHandler(userService)
+	userHandler := handlers.NewUserHandler(*userService, validator)
 
 	// API version 1 routes
 	v1 := e.Group("/api/v1")
@@ -94,6 +97,9 @@ func SetupRoutes(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .To
 			users.DELETE("/:id", userHandler.DeleteUser)
 		}
 	}
+	
+	// Health check
+	e.GET("/health", handlers.HealthCheck)
 }
 {{else if eq .Architecture "ddd"}}package routes
 
@@ -110,11 +116,11 @@ import (
 	{{- else if eq .Tool "sqlx"}}
 	"github.com/jmoiron/sqlx"
 	{{- else if eq .Tool "sqlc"}}
-	"database/sql"
+	db_sqlc "{{.ModulePath}}/db/sqlc"
 	{{- end}}
 )
 
-func Setup(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}, validator *utils.Validator) {
+func Setup(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
 	// Initialize dependencies
 	var userRepository repositories.UserRepository
 	{{if eq .Tool "gorm"}}
@@ -148,9 +154,11 @@ func Setup(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sq
 {{else if eq .Architecture "hexagonal"}}package routes
 
 import (
+	"{{.ModulePath}}/adapters/primary/http/handlers" // Tambahkan import handlers
 	"{{.ModulePath}}/adapters/secondary/database"
-	"{{.ModulePath}}/applications/services"
-	"{{.ModulePath}}/ports"
+	"{{.ModulePath}}/application/services"
+	"{{.ModulePath}}/domain/ports"
+	"{{.ModulePath}}/domain/utils" // Asumsi validator ada di domain/utils
 
 	"github.com/labstack/echo/v4"
 	{{- if eq .Tool "gorm"}}
@@ -158,11 +166,12 @@ import (
 	{{- else if eq .Tool "sqlx"}}
 	"github.com/jmoiron/sqlx"
 	{{- else if eq .Tool "sqlc"}}
-	"database/sql"
+	db_sqlc "{{.ModulePath}}/db/sqlc"
 	{{- end}}
 )
 
-func SetupRoutes(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}*sql.DB{{end}}) {
+// Menambahkan validator argumen
+func SetupRoutes(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
 	// Setup repositories
 	var userRepository ports.UserRepository
 	{{if eq .Tool "gorm"}}
@@ -177,7 +186,7 @@ func SetupRoutes(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .To
 	userService := services.NewUserService(userRepository)
 
 	// Setup handlers
-	userHandler := NewUserHandler(userService)
+	userHandler := handlers.NewUserHandler(userService, validator) // Menggunakan handlers.NewUserHandler
 
 	// API version 1 routes
 	v1 := e.Group("/api/v1")
@@ -191,5 +200,8 @@ func SetupRoutes(e *echo.Echo, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .To
 			users.DELETE("/:id", userHandler.Delete)
 		}
 	}
+	
+	// Health check
+	e.GET("/health", handlers.HealthCheck)
 }
 {{end}}
