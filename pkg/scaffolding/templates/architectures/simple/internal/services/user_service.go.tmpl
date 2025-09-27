@@ -19,7 +19,7 @@ import (
 {{- if eq .Database "postgresql" }}
 type UserID = uuid.UUID
 {{- else}}
-type UserID = uint
+type UserID = int32
 {{- end}}
 
 type UserService interface {
@@ -124,14 +124,13 @@ func (s *userService) DeleteUser(ctx context.Context, id UserID) error {
 	return s.userRepo.Delete(ctx, id)
 }
 
-
 // toUserResponse adalah helper untuk mengonversi model User ke DTO UserResponse.
 func toUserResponse(u *models.User) *models.UserResponse {
 	return &models.UserResponse{
 		ID:        u.ID,
 		Name:      u.Name,
 		Email:     u.Email,
-		Active:  u.Active,
+		Active:    u.Active,
 		CreatedAt: u.CreatedAt,
 		UpdatedAt: u.UpdatedAt,
 	}

@@ -1,63 +1,97 @@
-# {{.ProjectName | title}}
+# 🚀 {{.ProjectName | title}} Backend Service
 
-{{if .Description}}{{.Description}}{{else}}A modern backend application built with Go.{{end}}
+{{if .Description}}{{.Description}}{{else}}A modern, robust, and high-performance backend application built with Go, utilizing the **{{.Architecture | printf "%s" | title}}** architectural pattern.{{end}}
 
-## 🚀 Quick Start
+## ✨ Features
 
-### Prerequisites
+-   **Architecture:** Implements the **{{.Architecture | printf "%s" | title}}** pattern for scalable and maintainable code.
+-   **Database Tooling:** Uses **{{.Tool}}** for efficient data interaction.
+-   **Web Framework:** Powered by the **{{.Framework}}** web framework.
+-   **Observability:** Built-in logging and error handling.
 
-- Go 1.21+
+## 🛠️ Prerequisites
+
+Before getting started, ensure you have the following installed:
+
+-   Go (1.21 or newer)
 {{- if .Database}}
-- {{.Database | printf "%s" | toTitle}} Database Server
+-   A running **{{.Database | printf "%s" | toTitle}}** Database instance.
 {{- end}}
-- Docker (optional, for containerization)
-- Make (optional, for automation)
-
-### Installation
-
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/{{.ProjectName}}.git
-    cd {{.ProjectName}}
-    ```
-
-2.  **Set up environment variables:**
-    ```bash
-    cp .env.example .env
-    ```
-    *Update the `.env` file with your configuration, especially database credentials.*
-
-3.  **Install dependencies:**
-    ```bash
-    go mod tidy
-    ```
-
-{{- if .Database}}
-
-4.  **Database Setup:**
-
-    {{if eq .Tool.String "gorm"}}
-    *Ensure your database server is running and the credentials in `.env` are correct, then run the migrations:*
-    ```bash
-    make migrate
-    ```
-    {{else if eq .Tool.String "sqlc"}}
-    *This project uses **sqlc** to generate type-safe Go code from your SQL queries. After modifying any `.sql` files in the `storage/queries` directory, you must regenerate the code:*
-    ```bash
-    make sqlc-generate
-    ```
-    **Note on Migrations:** For `sqlc`, migrations are not handled automatically. You are responsible for managing database schema changes. We recommend using a tool like [golang-migrate/migrate](https://github.com/golang-migrate/migrate).
-    {{else if eq .Tool.String "sqlx"}}
-    **Note on Migrations:** For `sqlx`, migrations are not handled automatically. You are responsible for managing database schema changes. We recommend using a tool like [golang-migrate/migrate](https://github.com/golang-migrate/migrate).
-    {{end}}
+-   `make` utility (for automation scripts)
+-   `migrate` CLI tool (required for managing schema migrations)
+{{- if eq .Tool "sqlc"}}
+-   `sqlc` CLI tool (required for generating data access code)
 {{- end}}
 
-5.  **Run the application:**
-    ```bash
-    make dev
-    ```
-    The server will start on `http://localhost:8080` (or the port specified in `.env`).
+## 📦 Getting Started
 
-## 📁 Project Structure
+### 1. Installation
 
-A brief overview of the project structure based on the **{{.Architecture | printf "%s" | title}} Architecture**:
+```bash
+# Clone the repository
+git clone https://github.com/your-username/{{.ProjectName}}.git
+cd {{.ProjectName}}
+
+# Download Go dependencies
+go mod tidy
+```
+
+### 2. Database Preparation & Code Generation
+
+This step is crucial for synchronizing your Go code with the database schema.
+
+{{- if eq .Tool "sqlc"}}
+#### 3. Generate Type-Safe Code (SQLC)
+
+Since we use **sqlc**, you must generate the Go code from the `.sql` query files before compiling:
+
+```bash
+sqlc generate
+```
+
+#### 4. Apply Schema Migrations
+
+Apply the initial database schema using the `make` utility:
+
+```bash
+make migrate/up
+```
+
+{{- else if eq .Tool "sqlx"}}
+#### Apply Schema Migrations (SQLX)
+
+Apply the initial database schema using the `make` utility:
+
+```bash
+make migrate/up
+```
+{{- end}}
+
+### 4. Running the Application
+
+Start the development server with hot reloading enabled (requires `air`):
+
+```bash
+make dev
+```
+The service will be accessible at `http://localhost:8080`.
+
+---
+
+## ⚙️ Development Commands
+
+Use the provided `Makefile` for streamlined development tasks:
+
+| Command | Action |
+| :--- | :--- |
+| `make help` | Info command. |
+| `make dev` | Run the server with hot reload. |
+| `make build` | Build the final executable binary. |
+| `make test` | Run all unit tests. |
+| `make lint` | Execute code linting using `golangci-lint`. |
+| `make migrate/create name=new_feature` | Create new timestamped migration files. |
+| `make migrate/up` | Apply all pending migrations. |
+{{- if eq .Tool "sqlc"}}
+| `make sqlc-generate` | Manually run SQLC code generation. |
+{{- end}}
+```

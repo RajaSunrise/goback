@@ -3,29 +3,30 @@ package repositories
 import (
 	"context"
 	"errors"
-	
+
 	{{- if eq .Database "postgresql" }}
 	"github.com/google/uuid"
-	{{- else}}
-	"database/sql"
 	{{- end}}
-	
+
 	{{- if eq .Tool "gorm" }}
 	"gorm.io/gorm"
 	{{- end}}
 
 	{{- if eq .Tool "sqlx" }}
+	"fmt"
+	"time"
 	"github.com/jmoiron/sqlx"
-	{{- end }}
+	{{- end}}
 
 	{{- if eq .Tool "sqlc" }}
-	db_sqlc "{{.ModulePath}}/db/sqlc" // Import generated SQLC code
+	db_sqlc "{{.ModulePath}}/db/sqlc"
 		{{- if eq .Database "postgresql" }}
 		"github.com/jackc/pgx/v5"
 		"github.com/jackc/pgx/v5/pgtype"
-		{{- end }}
-	{{- end }}
-
+		{{- else}}
+		"database/sql"
+		{{- end}}
+	{{- end}}
 	"{{.ModulePath}}/internal/models"
 )
 
@@ -33,7 +34,7 @@ import (
 {{- if eq .Database "postgresql" }}
 type UserID = uuid.UUID
 {{- else}}
-type UserID = int64 // Use int64 for generic non-UUID primary keys
+type UserID = int32 // Use int32 for MySQL/SQLite
 {{- end}}
 
 // UserRepository is a consistent interface for User data operations.
@@ -145,17 +146,16 @@ func (r *userRepository) toModel(u db_sqlc.User) *models.User {
 		Name:      u.Name,
 		Email:     u.Email,
 		Password:  u.Password,
-		
 		{{- if eq .Database "postgresql" }}
 		ID:        u.ID,
 		Active:    u.Active.Bool,
 		CreatedAt: u.CreatedAt.Time,
 		UpdatedAt: u.UpdatedAt.Time,
 		{{- else}}
-		ID:        UserID(u.ID),
-		Active:    u.Active,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
+		ID:        int(u.ID),
+		Active:    u.Active.Bool,
+		CreatedAt: u.CreatedAt.Time,
+		UpdatedAt: u.UpdatedAt.Time,
 		{{- end}}
 	}
 	return user
@@ -169,22 +169,37 @@ func (r *userRepository) Create(ctx context.Context, user *models.User) (*models
 		{{- if eq .Database "postgresql" }}
 		Active:   pgtype.Bool{Bool: user.Active, Valid: true},
 		{{- else}}
-		Active:   user.Active,
+		Active:   sql.NullBool{Bool: user.Active, Valid: true},
 		{{- end}}
 	}
+
+	{{- if eq .Database "postgresql" }}
 	createdUser, err := r.queries.CreateUser(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 	return r.toModel(createdUser), nil
+	{{- else}}
+	// For MySQL/SQLite, use INSERT and then fetch the inserted record
+	_, err := r.queries.CreateUser(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	// Retrieve the inserted record by email to get all fields (including timestamps)
+	sqlcUser, err := r.queries.GetUserByEmail(ctx, user.Email)
+	if err != nil {
+		return nil, err
+	}
+	return r.toModel(sqlcUser), nil
+	{{- end}}
 }
 
 func (r *userRepository) FindByID(ctx context.Context, id UserID) (*models.User, error) {
 	{{- if eq .Database "postgresql" }}
-	user, err := r.queries.GetUserByID(ctx, id)
+	sqlcUser, err := r.queries.GetUserByID(ctx, id)
 	errNoRows := pgx.ErrNoRows
 	{{- else}}
-	user, err := r.queries.GetUserByID(ctx, int64(id))
+	sqlcUser, err := r.queries.GetUserByID(ctx, int32(id))
 	errNoRows := sql.ErrNoRows
 	{{- end}}
 
@@ -194,15 +209,14 @@ func (r *userRepository) FindByID(ctx context.Context, id UserID) (*models.User,
 		}
 		return nil, err
 	}
-	return r.toModel(user), nil
+	return r.toModel(sqlcUser), nil
 }
 
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
+	sqlcUser, err := r.queries.GetUserByEmail(ctx, email)
 	{{- if eq .Database "postgresql" }}
-	user, err := r.queries.GetUserByEmail(ctx, email)
 	errNoRows := pgx.ErrNoRows
 	{{- else}}
-	user, err := r.queries.GetUserByEmail(ctx, email)
 	errNoRows := sql.ErrNoRows
 	{{- end}}
 
@@ -212,7 +226,7 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*models
 		}
 		return nil, err
 	}
-	return r.toModel(user), nil
+	return r.toModel(sqlcUser), nil
 }
 
 func (r *userRepository) FindAll(ctx context.Context, page, perPage int) ([]models.User, int64, error) {
@@ -243,20 +257,30 @@ func (r *userRepository) FindAll(ctx context.Context, page, perPage int) ([]mode
 func (r *userRepository) Update(ctx context.Context, user *models.User) (*models.User, error) {
 	params := db_sqlc.UpdateUserParams{
 		{{- if eq .Database "postgresql" }}
-		ID: user.ID,
+		ID:     user.ID,
 		Active: pgtype.Bool{Bool: user.Active, Valid: true},
 		{{- else}}
-		ID: int64(user.ID),
-		Active: user.Active,
+		ID:     int32(user.ID),
+		Active: sql.NullBool{Bool: user.Active, Valid: true},
 		{{- end}}
-		Name:     user.Name,
-		Email:    user.Email,
+		Name:   user.Name,
+		Email:  user.Email,
 	}
+
+	{{- if eq .Database "postgresql" }}
 	updatedUser, err := r.queries.UpdateUser(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 	return r.toModel(updatedUser), nil
+	{{- else}}
+	err := r.queries.UpdateUser(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	// Retrieve updated record
+	return r.FindByID(ctx, UserID(user.ID))
+	{{- end}}
 }
 
 func (r *userRepository) Delete(ctx context.Context, id UserID) error {
@@ -264,7 +288,7 @@ func (r *userRepository) Delete(ctx context.Context, id UserID) error {
 	err := r.queries.DeleteUser(ctx, id)
 	errNoRows := pgx.ErrNoRows
 	{{- else}}
-	err := r.queries.DeleteUser(ctx, int64(id))
+	err := r.queries.DeleteUser(ctx, int32(id))
 	errNoRows := sql.ErrNoRows
 	{{- end}}
 
@@ -301,55 +325,49 @@ func getPlaceholder(dbType string) string {
 }
 
 func (r *userRepository) Create(ctx context.Context, user *models.User) (*models.User, error) {
-	// Note: RETURNING is primarily for Postgres. For MySQL/SQLite, rely on lastInsertId.
-	query := `INSERT INTO users (name, email, password, active, created_at, updated_at) VALUES (:name, :email, :password, :active, NOW(), NOW())`
-	
+	ph := getPlaceholder(r.db.DriverName())
+	query := fmt.Sprintf(
+		"INSERT INTO users (name, email, password, active, created_at, updated_at) VALUES (%s1, %s2, %s3, %s4, NOW(), NOW())",
+		ph, ph, ph, ph,
+	)
+
 	if r.db.DriverName() == "postgres" {
-		query += ` RETURNING id, created_at, updated_at`
+		query += fmt.Sprintf(" RETURNING id, created_at, updated_at")
 	}
-	
-	res, err := r.db.NamedExecContext(ctx, query, user)
+
+	stmt, err := r.db.PrepareContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
-	
-	if r.db.DriverName() != "postgres" {
-		// Handle MySQL/SQLite where RETURNING ID is not standard
-		lastID, err := res.LastInsertId()
-		if err == nil {
-			// Convert lastID (int64) to the correct UserID type
-			{{- if eq .Database "postgresql" }}
-			// This path should ideally not be hit if postgres is correctly configured
-			return nil, errors.New("SQLX Postgres requires RETURNING clause or proper uuid handling")
-			{{- else}}
-			user.ID = UserID(lastID)
-			// For non-Postgres, we manually fetch current timestamps since we can't use RETURNING
-			now := time.Now()
-			user.CreatedAt = now
-			user.UpdatedAt = now
-			{{- end}}
-		}
-	} else {
-		// Re-fetch the created user to get the auto-generated ID/timestamps (Postgres specific method)
-		// Since NamedExec doesn't return rows, if we need fields, we should use NamedQueryContext
-		if r.db.DriverName() == "postgres" {
-			query = `INSERT INTO users (name, email, password, active) VALUES (:name, :email, :password, :active) RETURNING id, created_at, updated_at`
-			rows, err := r.db.NamedQueryContext(ctx, query, user)
-			if err != nil {
-				return nil, err
-			}
-			defer rows.Close()
-			if rows.Next() {
-				if err := rows.Scan(&user.ID, &user.CreatedAt, &user.UpdatedAt); err != nil {
-					return nil, err
-				}
-			} else {
-				return nil, errors.New("failed to retrieve ID after user creation (Postgres)")
-			}
-		}
-	}
+	defer stmt.Close()
 
-	return user, nil
+	if r.db.DriverName() == "postgres" {
+		var id UserID
+		var createdAt, updatedAt time.Time
+		err := stmt.QueryRowContext(ctx, user.Name, user.Email, user.Password, user.Active).Scan(&id, &createdAt, &updatedAt)
+		if err != nil {
+			return nil, err
+		}
+		user.ID = id
+		user.CreatedAt = createdAt
+		user.UpdatedAt = updatedAt
+		return user, nil
+	} else {
+		// For MySQL/SQLite
+		result, err := stmt.ExecContext(ctx, user.Name, user.Email, user.Password, user.Active)
+		if err != nil {
+			return nil, err
+		}
+		lastID, err := result.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+		user.ID = UserID(lastID)
+		now := time.Now()
+		user.CreatedAt = now
+		user.UpdatedAt = now
+		return user, nil
+	}
 }
 
 func (r *userRepository) FindByID(ctx context.Context, id UserID) (*models.User, error) {
@@ -384,19 +402,18 @@ func (r *userRepository) FindAll(ctx context.Context, page, perPage int) ([]mode
 	var users []models.User
 	var total int64
 	ph := getPlaceholder(r.db.DriverName())
-	
+
 	// Count
 	if err := r.db.GetContext(ctx, &total, "SELECT COUNT(*) FROM users"); err != nil {
 		return nil, 0, err
 	}
 
 	offset := (page - 1) * perPage
-	
+
 	// Select
-	// Note: LIMIT/OFFSET syntax is standard across Postgres/MySQL/SQLite
 	query := fmt.Sprintf("SELECT id, name, email, password, active, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT %s1 OFFSET %s2", ph, ph)
 	err := r.db.SelectContext(ctx, &users, query, perPage, offset)
-	
+
 	if err != nil {
 		return nil, 0, err
 	}
@@ -404,45 +421,23 @@ func (r *userRepository) FindAll(ctx context.Context, page, perPage int) ([]mode
 }
 
 func (r *userRepository) Update(ctx context.Context, user *models.User) (*models.User, error) {
-	query := `UPDATE users SET name = :name, email = :email, active = :active, updated_at = NOW()`
-	
-	// Add RETURNING clause if PostgreSQL is used, otherwise rely on rows affected check
-	if r.db.DriverName() == "postgres" {
-		query += ` WHERE id = :id RETURNING created_at, updated_at`
-	} else {
-		query += ` WHERE id = :id`
+	ph := getPlaceholder(r.db.DriverName())
+	query := fmt.Sprintf("UPDATE users SET name = %s1, email = %s2, active = %s3, updated_at = NOW() WHERE id = %s4", ph, ph, ph, ph)
+
+	result, err := r.db.ExecContext(ctx, query, user.Name, user.Email, user.Active, user.ID)
+	if err != nil {
+		return nil, err
 	}
 
-	if r.db.DriverName() == "postgres" {
-		// Use NamedQuery for PostgreSQL to retrieve returned values (timestamps)
-		rows, err := r.db.NamedQueryContext(ctx, query, user)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-
-		if rows.Next() {
-			if err := rows.Scan(&user.CreatedAt, &user.UpdatedAt); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, errors.New("user not found or update failed (Postgres)")
-		}
-	} else {
-		// Use NamedExec for MySQL/SQLite
-		res, err := r.db.NamedExecContext(ctx, query, user)
-		if err != nil {
-			return nil, err
-		}
-		rowsAffected, err := res.RowsAffected()
-		if err != nil || rowsAffected == 0 {
-			return nil, errors.New("user not found or no changes made")
-		}
-		// Manually update timestamps for non-Postgres databases
-		now := time.Now()
-		user.UpdatedAt = now
+	rowsAffected, err := result.RowsAffected()
+	if err != nil || rowsAffected == 0 {
+		return nil, errors.New("user not found or no changes made")
 	}
-	
+
+	// Update timestamps in memory
+	now := time.Now()
+	user.UpdatedAt = now
+
 	return user, nil
 }
 
@@ -459,5 +454,4 @@ func (r *userRepository) Delete(ctx context.Context, id UserID) error {
 	}
 	return nil
 }
-
 {{- end }}

@@ -57,7 +57,7 @@ func NewProjectConfig() *ProjectConfig {
 		ModulePath:   GetConfig().DefaultModulePrefix + "/" + defaultName,
 		OutputDir:    defaultOutputDir,
 		Framework:    FrameworkFiber,     // Default to Fiber
-		Database:     DatabasePostgreSQL, // Default to PostgreSQL
+		Database:     DatabasepostgresQL, // Default to postgresQL
 		Tool:         ToolSqlx,           // Default to SQLX
 		Architecture: ArchitectureSimple, // Default to Simple
 		DevOps: DevOpsConfig{

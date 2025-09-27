@@ -88,33 +88,6 @@ func RateLimiter() gin.HandlerFunc {
 	})
 }
 
-// AuthRequired returns an authentication middleware
-func AuthRequired() gin.HandlerFunc {
-	return gin.HandlerFunc(func(c *gin.Context) {
-		token := c.GetHeader("Authorization")
-		if token == "" {
-			c.JSON(401, gin.H{
-				"error": "Authorization header required",
-			})
-			c.Abort()
-			return
-		}
-
-		// Validate token here
-		// This is a placeholder implementation
-		if token == "Bearer invalid" {
-			c.JSON(401, gin.H{
-				"error": "Invalid token",
-			})
-			c.Abort()
-			return
-		}
-
-		c.Set("UserID", "user123") // Set user context
-		c.Next()
-	})
-}
-
 // Timeout returns a timeout middleware
 func Timeout(timeout time.Duration) gin.HandlerFunc {
 	return gin.HandlerFunc(func(c *gin.Context) {

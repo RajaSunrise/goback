@@ -31,7 +31,7 @@ import (
 {{- if eq .Database "postgresql" }}
 type UserID = uuid.UUID
 {{- else}}
-type UserID = uint
+type UserID = int32
 {{- end}}
 
 // UserHandler handles HTTP requests related to Users.
@@ -440,7 +440,7 @@ func parseUserID(idStr string) (UserID, error) {
 	id, err := uuid.Parse(idStr)
 	return id, err
 	{{else}}
-	id, err := strconv.ParseUint(idStr, 10, 32)
-	return uint(id), err
+	id, err := strconv.ParseInt(idStr, 10, 32)
+	return int32(id), err
 	{{end}}
 }

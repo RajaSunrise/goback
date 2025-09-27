@@ -12,11 +12,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	
-	{{/* Imports needed for database cleanup and type assertions */}}
-	{{if or (eq .Tool "gorm") (eq .Tool "sqlc") (eq .Tool "sqlx")}}
+
+	{{- if or (eq .Tool "gorm") (eq .Tool "sqlc") }}
 	"database/sql"
-	"github.com/jackc/pgx/v5/pgxpool"
+	{{if eq .Database "postgresql"}}"github.com/jackc/pgx/v5/pgxpool"{{end}}
 	{{end}}
 
 	"{{.ModulePath}}/internal/utils"
@@ -24,11 +23,12 @@ import (
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/middleware"
-	"{{.ModulePath}}/internal/migrate"
+	{{if eq .Tool "gorm"}}"{{.ModulePath}}/internal/migrate" {{end}}
 	"{{.ModulePath}}/internal/routes"
 	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/application"
 	"{{.ModulePath}}/config"
+	"{{.ModulePath}}/domain/model"
 	"{{.ModulePath}}/infrastructure/database"
 	"{{.ModulePath}}/infrastructure/persistence"
 	"{{.ModulePath}}/interfaces/handlers"
@@ -36,8 +36,9 @@ import (
 	"{{.ModulePath}}/interfaces/routes"
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
+	"{{.ModulePath}}/domain"
 	"{{.ModulePath}}/infrastructure/database"
-	{{if eq .Tool "gorm"}}"{{.ModulePath}}/infrastructure/repositories"{{end}}
+	"{{.ModulePath}}/infrastructure/repositories"
 	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
 	{{else if eq .Architecture "hexagonal" -}}
@@ -45,7 +46,8 @@ import (
 	"{{.ModulePath}}/adapters/primary/http/middleware"
 	"{{.ModulePath}}/adapters/primary/http/routes"
 	"{{.ModulePath}}/adapters/secondary/database"
-	{{end -}}
+	"{{.ModulePath}}/application/domain"
+	{{end}}
 )
 
 var (
@@ -62,48 +64,48 @@ func main() {
 	}
 
 	// Set Gin mode
-	gin.SetMode(cfg.Server.Mode)
-
+	if cfg.Server.Mode == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		gin.SetMode(gin.DebugMode)
+	}
+	
 	// Initialize database
 	cfg.Database.Type = strings.ToLower(cfg.Database.Type)
+	{{- if eq .Tool "sqlc" }}
+	db, err := database.Connect(&cfg.Database)
+	{{- else}}
 	db, err := database.Connect(cfg.Database)
+	{{end}}
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	
-	// Handle database cleanup and migrations based on the tool
-	{{- if or (eq .Tool "sqlx") (eq .Tool "sqlc")}}
-	// db is db.DBTX (which can be *pgxpool.Pool for Postgres or *sql.DB for others)
+	// Handle database cleanup based on the tool
+	{{- if eq .Tool "sqlc"}}
 	defer func() {
 		if pool, ok := db.(*pgxpool.Pool); ok && pool != nil {
 			pool.Close()
 			log.Println("PostgreSQL connection pool closed.")
-		} else if sqlDB, ok := db.(*sql.DB); ok && sqlDB != nil {
-			sqlDB.Close()
-			log.Println("Standard SQL database connection closed.")
 		}
 	}()
-	
-	// Run standard SQL migrations
-	if err := utils.RunMigrations(db, cfg.Database.Type, "./migrations"); err != nil {
-		log.Fatalf("could not run migrations: %v", err)
-	}
-	{{- end}}
+	{{end}}
 
 	{{if eq .Tool "gorm"}}
-	// Run Gorm migrations
-	
+	// Run Gorm migrations.
 	{{if eq .Architecture "simple"}}
-	// Gorm needs to be closed later using db.DB()
 	migrate.RunGormAutoMigration(db)
-	{{end}}
-	{{if or (eq .Architecture "ddd") (eq .Architecture "clean")}}
-	if err := db.AutoMigrate(&repositories.UserPersistence{}); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+	{{else if eq .Architecture "ddd"}}
+	if err := db.AutoMigrate(&model.User{}); err != nil {
+		log.Fatalf("Failed to auto-migrate database: %v", err)
+	}
+	{{else if eq .Architecture "clean"}}
+	if err := db.AutoMigrate(&domain.User{}); err != nil {
+		log.Fatalf("Failed to auto-migrate database: %v", err)
 	}
 	{{else if eq .Architecture "hexagonal"}}
-	if err := db.AutoMigrate(&database.UserPersistence{}); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+	if err := db.AutoMigrate(&domain.User{}); err != nil {
+		log.Fatalf("Failed to auto-migrate database: %v", err)
 	}
 	{{end}}
 	{{end}}
@@ -112,11 +114,15 @@ func main() {
 	validator := utils.NewValidator()
 
 	// Create Gin router
+	// Using gin.New() instead of gin.Default() for more control over middleware
 	router := gin.New()
 
 	// Add middleware
-	router.Use(gin.Logger())
-	router.Use(gin.Recovery())
+	router.Use(gin.Logger())   // Standard logger
+	router.Use(gin.Recovery()) // Recovery from panics
+	
+	// Custom or third-party middleware can be added here
+	// Assuming you have a custom CORS middleware in your project structure
 	router.Use(middleware.CORS())
 	router.Use(middleware.RequestID())
 
@@ -127,52 +133,51 @@ func main() {
 	userHandler := handlers.NewUserHandler(userService, validator)
 	routes.Setup(router, userHandler)
 	{{else}}
-	routes.Setup(router, db, cfg, validator)
+	routes.Setup(router, db, validator)
 	{{end}}
 
 	// Create HTTP server
 	server := &http.Server{
-		Addr:           fmt.Sprintf(":%s", cfg.Server.Port),
-		Handler:        router,
-		ReadTimeout:    time.Duration(cfg.Server.ReadTimeout) * time.Second,
-		WriteTimeout:   time.Duration(cfg.Server.WriteTimeout) * time.Second,
-		IdleTimeout:    time.Duration(cfg.Server.IdleTimeout) * time.Second,
-		MaxHeaderBytes: cfg.Server.MaxHeaderBytes,
+		Addr:         fmt.Sprintf(":%s", cfg.Server.Port),
+		Handler:      router,
+		ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
+		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
 	}
 
-	// Start server in goroutine
-	go func() {
-		log.Printf("Starting server on port %s", cfg.Server.Port)
-		log.Printf("Version: %s, Commit: %s, Build Time: %s", version, commit, buildTime)
+	// Create shutdown channel
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
+	// Start server in a goroutine
+	go func() {
+		log.Printf("Starting Gin server on port %s", cfg.Server.Port)
+		log.Printf("Version: %s, Commit: %s, Build Time: %s", version, commit, buildTime)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			log.Fatalf("Could not start server: %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	// Wait for interrupt signal
 	<-quit
-
 	log.Println("Shutting down server...")
 
-	// Create a deadline for shutdown
+	// Create a context for shutdown
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Shutdown server
+	// Shutdown the server
 	if err := server.Shutdown(ctx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
 
 	{{- if eq .Tool "gorm"}}
-	// Gorm wraps the standard sql.DB, which must be closed manually during graceful shutdown.
+	// Close Gorm's underlying database connection
 	if sqlDB, err := db.DB(); err == nil && sqlDB != nil {
 		sqlDB.Close()
 		log.Println("Gorm underlying SQL database connection closed.")
 	}
 	{{- end}}
 
-	log.Println("Server exited")
+	log.Println("Server exited gracefully")
 }

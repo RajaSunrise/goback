@@ -41,7 +41,7 @@ GoBack offers a wide range of options to build your perfect stack:
 | Category      | Supported Options                                         |
 | :------------ | :-------------------------------------------------------- |
 | **Frameworks** | `Fiber`, `Gin`, `Chi`, `Echo`                             |
-| **Databases** | `PostgreSQL`, `MySQL`, `SQLite`                           |
+| **Databases** | `postgresQL`, `MySQL`, `SQLite`                           |
 | **ORM / Tools** | `GORM`, `SQLC`, `SQLX`                                    |
 | **Architecture**| `Simple`, `DDD`, `Clean Architecture`, `Hexagonal`        |
 | **DevOps** | `Kubernetes`, `Helm`, `Terraform`, `Ansible`, `Docker`    |
@@ -105,7 +105,7 @@ The TUI will guide you through:
 For scripting and automation, use the `new` command with flags.
 
 ```bash
-# Generate a simple Fiber API with PostgreSQL and GORM
+# Generate a simple Fiber API with postgresQL and GORM
 goback new my-api \
   --framework fiber \
   --database postgresql \

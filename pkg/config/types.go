@@ -50,7 +50,7 @@ const (
 
 // Database choices
 const (
-	DatabasePostgreSQL DatabaseChoice = "postgresql"
+	DatabasepostgresQL DatabaseChoice = "postgresql"
 	DatabaseMySQL      DatabaseChoice = "mysql"
 	DatabaseSQLite     DatabaseChoice = "sqlite"
 )
@@ -99,7 +99,7 @@ func IsValidFramework(framework FrameworkChoice) bool {
 // IsValidDatabase checks if database choice is valid
 func IsValidDatabase(database DatabaseChoice) bool {
 	validDatabases := []DatabaseChoice{
-		DatabasePostgreSQL,
+		DatabasepostgresQL,
 		DatabaseMySQL,
 		DatabaseSQLite,
 	}
@@ -174,7 +174,7 @@ func GetValidFrameworks() []FrameworkChoice {
 // GetValidDatabases returns list of valid database choices
 func GetValidDatabases() []DatabaseChoice {
 	return []DatabaseChoice{
-		DatabasePostgreSQL,
+		DatabasepostgresQL,
 		DatabaseMySQL,
 		DatabaseSQLite,
 	}
@@ -227,8 +227,8 @@ func (f FrameworkChoice) String() string {
 
 func (d DatabaseChoice) String() string {
 	switch d {
-	case DatabasePostgreSQL:
-		return "PostgreSQL"
+	case DatabasepostgresQL:
+		return "postgresQL"
 	case DatabaseMySQL:
 		return "MySQL"
 	case DatabaseSQLite:
@@ -285,7 +285,7 @@ func (f FrameworkChoice) Description() string {
 
 func (d DatabaseChoice) Description() string {
 	switch d {
-	case DatabasePostgreSQL:
+	case DatabasepostgresQL:
 		return "Advanced open-source relational database"
 	case DatabaseMySQL:
 		return "Popular open-source relational database"
@@ -350,8 +350,8 @@ func IsCompatible(framework FrameworkChoice, database DatabaseChoice, tool ToolC
 // GetRecommendedTool returns recommended Tool for given database
 func GetRecommendedTool(database DatabaseChoice) ToolChoice {
 	switch database {
-	case DatabasePostgreSQL, DatabaseMySQL:
-		return ToolSqlx // SQLX works well with PostgreSQL and MySQL
+	case DatabasepostgresQL, DatabaseMySQL:
+		return ToolSqlx // SQLX works well with postgresQL and MySQL
 	case DatabaseSQLite:
 		return ToolSqlx // SQLX also supports SQLite
 	default:
@@ -406,7 +406,7 @@ func (t ToolChoice) HasCodeGeneration() bool {
 // SupportsRelations checks if database supports relations
 func (d DatabaseChoice) SupportsRelations() bool {
 	switch d {
-	case DatabasePostgreSQL, DatabaseMySQL:
+	case DatabasepostgresQL, DatabaseMySQL:
 		return true
 	case DatabaseSQLite:
 		return true // SQLite supports foreign keys
@@ -418,7 +418,7 @@ func (d DatabaseChoice) SupportsRelations() bool {
 // RequiresServer checks if database requires external server
 func (d DatabaseChoice) RequiresServer() bool {
 	switch d {
-	case DatabasePostgreSQL, DatabaseMySQL:
+	case DatabasepostgresQL, DatabaseMySQL:
 		return true
 	case DatabaseSQLite:
 		return false // SQLite is embedded

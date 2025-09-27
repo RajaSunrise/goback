@@ -1,16 +1,17 @@
 package database
 
 import (
-	"context"
 	"fmt"
 	"time"
-
-	"database/sql"
 	
+	{{- if eq .Database "postgresql" }}
+	"context"
+	"github.com/jackc/pgx/v5/pgxpool"
+	{{- else}}
+	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/mattn/go-sqlite3"
-	"github.com/jackc/pgx/v5/pgxpool"
-
+	{{end}}
 	{{if eq .Architecture "simple"}}
 	"{{.ModulePath}}/internal/config"
 	{{else}}
@@ -23,62 +24,52 @@ import (
 // DBTX can be either *pgxpool.Pool (for Postgres) or *sql.DB (for MySQL/SQLite).
 func Connect(cfg *config.DatabaseConfig) (db.DBTX, error) {
 	dsn := cfg.GetDSN()
-
-	switch cfg.Type {
-	case "postgres", "postgresql":
-		// --- PostgreSQL (using pgxpool) ---
+	{{- if eq .Database "postgresql"}}
+	// --- PostgreSQL (using pgxpool) ---
+	// Use pgxpool.New for simple connection establishment
+	pool, err := pgxpool.New(context.Background(), dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
 		
-		// Use pgxpool.New for simple connection establishment
-		pool, err := pgxpool.New(context.Background(), dsn)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to database: %w", err)
-		}
-		
-		// Set connection pool settings (Configuration applied after New is called)
-		pool.Config().MaxConns = int32(cfg.MaxOpenConns)
-		pool.Config().MinConns = int32(cfg.MaxIdleConns)
-		pool.Config().MaxConnLifetime = time.Hour 
+	// Set connection pool settings (Configuration applied after New is called)
+	pool.Config().MaxConns = int32(cfg.MaxOpenConns)
+	pool.Config().MinConns = int32(cfg.MaxIdleConns)
+	pool.Config().MaxConnLifetime = time.Hour 
 
-		// Test the connection
-		if err := pool.Ping(context.Background()); err != nil {
-			// Ensure pool is closed if ping fails
-			pool.Close()
-			return nil, fmt.Errorf("failed to ping database: %w", err)
-		}
+	// Test the connection
+	if err := pool.Ping(context.Background()); err != nil {
+		// Ensure pool is closed if ping fails
+		pool.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+	return pool, nil
+    {{- else}}
+    var driverName string
+	if cfg.Type == "mysql" {
+		driverName = "mysql"
+	} else {
+		driverName = "sqlite3"
+	}
 
-		return pool, nil
-		
-	case "mysql", "sqlite":
-		// --- Standard SQL (using database/sql for MySQL/SQLite) ---
-		var driverName string
-		
-		if cfg.Type == "mysql" {
-			driverName = "mysql"
-		} else {
-			driverName = "sqlite3"
-		}
-
-		sqlDB, err := sql.Open(driverName, dsn)
-		if err != nil {
-			return nil, fmt.Errorf("failed to connect to database: %w", err)
-		}
+	sqlDB, err := sql.Open(driverName, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
+	}
 
 		// Apply connection pool settings (ignored by SQLite, but crucial for MySQL)
-		if cfg.Type != "sqlite" {
-			sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
-			sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
-			sqlDB.SetConnMaxLifetime(time.Hour)
+	if cfg.Type != "sqlite" {
+		sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+		sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
+		sqlDB.SetConnMaxLifetime(time.Hour)
 
 			// Test the connection
-			if err := sqlDB.Ping(); err != nil {
-				sqlDB.Close() 
-				return nil, fmt.Errorf("failed to ping database: %w", err)
-			}
+		if err := sqlDB.Ping(); err != nil {
+			sqlDB.Close() 
+			return nil, fmt.Errorf("failed to ping database: %w", err)
 		}
-
-		return sqlDB, nil
-
-	default:
-		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
 	}
+
+	return sqlDB, nil
+	{{end}}
 }

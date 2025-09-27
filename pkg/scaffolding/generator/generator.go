@@ -182,7 +182,6 @@ func (tg *TemplateGenerator) getDestinationPath(fileType string) string {
 		paths["routes"] = pathRoutes
 		paths["handlers"] = pathHandlers
 		paths["middleware"] = pathMiddleware
-		paths["models"] = "domain/models/base_model.go"
 		paths["migrate"] = pathMigrate
 	case "clean":
 		paths["config"] = pathConfig
@@ -190,7 +189,6 @@ func (tg *TemplateGenerator) getDestinationPath(fileType string) string {
 		paths["routes"] = pathRoutes
 		paths["handlers"] = pathHandlers
 		paths["middleware"] = pathMiddleware
-		paths["models"] = "domain/entities/base_model.go"
 		paths["migrate"] = pathMigrate
 	case "hexagonal":
 		paths["config"] = pathConfig
@@ -198,7 +196,6 @@ func (tg *TemplateGenerator) getDestinationPath(fileType string) string {
 		paths["routes"] = "adapters/primary/http/routes.go"
 		paths["handlers"] = "adapters/primary/http/handlers.go"
 		paths["middleware"] = "adapters/primary/http/middleware.go"
-		paths["models"] = "domain/model/base_model.go"
 		paths["migrate"] = pathMigrate
 	}
 

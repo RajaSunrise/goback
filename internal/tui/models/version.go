@@ -63,7 +63,7 @@ func (m *VersionModel) View() string {
 		MarginLeft(2).
 		MarginBottom(2).
 		Render(`• Framework: Go Fiber, Gin, Chi, Echo
-• Database: PostgreSQL, MySQL, SQLite
+• Database: postgresQL, MySQL, SQLite
 • Tools: SQLX, SQLC
 • Arsitektur: Simple, DDD, Clean, Hexagonal
 • DevOps: Kubernetes, Helm, Terraform, Ansible
