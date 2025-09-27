@@ -307,7 +307,7 @@ func (m *ConfigModel) setupStep() {
 	case StepFramework:
 		m.choices = []string{"Go Fiber", "Go Gin", "Go Chi", "Go Echo"}
 	case StepDatabase:
-		m.choices = []string{"PostgreSQL", "MySQL", "SQLite"}
+		m.choices = []string{"postgresQL", "MySQL", "SQLite"}
 	case StepTool:
 		m.choices = []string{"SQLX", "SQLC", "GORM"}
 	case StepArchitecture:
@@ -518,8 +518,8 @@ func (m *ConfigModel) getFrameworkFromString(s string) config.FrameworkChoice {
 
 func (m *ConfigModel) getDatabaseFromString(s string) config.DatabaseChoice {
 	switch s {
-	case "PostgreSQL":
-		return config.DatabasePostgreSQL
+	case "postgresQL":
+		return config.DatabasepostgresQL
 	case "MySQL":
 		return config.DatabaseMySQL
 	case "SQLite":

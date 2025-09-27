@@ -16,10 +16,8 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
 	
-	{{/* Imports needed for database cleanup and type assertions */}}
-	{{if or (eq .Tool "gorm") (eq .Tool "sqlc") (eq .Tool "sqlx")}}
-	"database/sql"
-	"github.com/jackc/pgx/v5/pgxpool"
+	{{- if eq .Tool "sqlc" }}
+	{{if eq .Database "postgresql"}}"github.com/jackc/pgx/v5/pgxpool"{{end}}
 	{{end}}
 
 	"{{.ModulePath}}/internal/utils"
@@ -27,7 +25,7 @@ import (
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/middleware"
-	"{{.ModulePath}}/internal/migrate"
+	{{if eq .Tool "gorm"}}"{{.ModulePath}}/internal/migrate" {{end}}
 	"{{.ModulePath}}/internal/routes"
 	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/application"
@@ -40,7 +38,9 @@ import (
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/infrastructure/database"
-	{{if eq .Tool "gorm"}}"{{.ModulePath}}/infrastructure/repositories"{{end}}
+	{{if eq .Tool "gorm"}}"
+	{{.ModulePath}}/infrastructure/repositories"
+	{{end}}
 	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
 	{{else if eq .Architecture "hexagonal" -}}
@@ -66,13 +66,18 @@ func main() {
 
 	// Initialize database
 	cfg.Database.Type = strings.ToLower(cfg.Database.Type)
+	{{- if eq .Tool "sqlc" }}
 	db, err := database.Connect(&cfg.Database)
+	{{- else}}
+	db, err := database.Connect(cfg.Database)
+	{{end}}
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	
 	// Handle database cleanup based on the tool (SQLC/SQLX vs Gorm)
-	{{- if or (eq .Tool "sqlx") (eq .Tool "sqlc")}}
+	{{- if eq .Tool "sqlc"}}
+	{{if eq .Database "postgresql"}}
 	// db is db.DBTX (which can be *pgxpool.Pool for Postgres or *sql.DB for others)
 	defer func() {
 		if pool, ok := db.(*pgxpool.Pool); ok && pool != nil {
@@ -80,6 +85,7 @@ func main() {
 			log.Println("PostgreSQL connection pool closed.")
 		} 
 	}()
+	{{end}}
 	{{- else if eq .Tool "gorm"}}
 	// Run Gorm migrations
 	

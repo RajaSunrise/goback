@@ -1,3 +1,4 @@
+{{/* File: main.go.tmpl (for Chi) */}}
 package main
 
 import (
@@ -13,36 +14,39 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	
-	{{/* Imports needed for database cleanup and type assertions */}}
-	{{if or (eq .Tool "gorm") (eq .Tool "sqlc") (eq .Tool "sqlx")}}
+	{{- if or (eq .Tool "gorm") (eq .Tool "sqlc") }}
 	"database/sql"
-	"github.com/jackc/pgx/v5/pgxpool"
+	{{if eq .Database "postgresql"}}"github.com/jackc/pgx/v5/pgxpool"{{end}}
 	{{end}}
 
 	"{{.ModulePath}}/internal/utils"
 	{{if eq .Architecture "simple" -}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
+	{{if eq .Tool "gorm"}}"{{.ModulePath}}/internal/migrate" {{end}}
 	"{{.ModulePath}}/internal/routes"
-	{{if eq .Tool "gorm"}}"{{.ModulePath}}/internal/migrate"{{end}}
 	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/application"
 	"{{.ModulePath}}/config"
+	"{{.ModulePath}}/domain/model"
 	"{{.ModulePath}}/infrastructure/database"
 	"{{.ModulePath}}/infrastructure/persistence"
 	"{{.ModulePath}}/interfaces/handlers"
 	"{{.ModulePath}}/interfaces/routes"
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
+	"{{.ModulePath}}/domain"
 	"{{.ModulePath}}/infrastructure/database"
-	{{if eq .Tool "gorm"}}"{{.ModulePath}}/infrastructure/repositories"{{end}}
+	"{{.ModulePath}}/infrastructure/repositories"
 	"{{.ModulePath}}/interfaces/routes"
 	{{else if eq .Architecture "hexagonal" -}}
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/adapters/primary/http/routes"
 	"{{.ModulePath}}/adapters/secondary/database"
-	{{end -}}
+	"{{.ModulePath}}/application/domain"
+	{{end}}
 )
 
 var (
@@ -60,44 +64,43 @@ func main() {
 
 	// Initialize database
 	cfg.Database.Type = strings.ToLower(cfg.Database.Type)
+	{{- if eq .Tool "sqlc" }}
+	db, err := database.Connect(&cfg.Database)
+	{{- else}}
 	db, err := database.Connect(cfg.Database)
+	{{end}}
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	
-	// Handle database cleanup and migrations based on the tool
-	{{- if or (eq .Tool "sqlx") (eq .Tool "sqlc")}}
-	// db is db.DBTX (which can be *pgxpool.Pool for Postgres or *sql.DB for others)
+	// Handle database cleanup based on the tool
+	{{- if eq .Tool "sqlc"}}
+	// For SQLC, db is an interface. We need to check the underlying type to close it.
 	defer func() {
 		if pool, ok := db.(*pgxpool.Pool); ok && pool != nil {
 			pool.Close()
 			log.Println("PostgreSQL connection pool closed.")
-		} else if sqlDB, ok := db.(*sql.DB); ok && sqlDB != nil {
-			sqlDB.Close()
-			log.Println("Standard SQL database connection closed.")
 		}
 	}()
-
-	// Run standard SQL migrations
-	if err := utils.RunMigrations(db, cfg.Database.Type, "./migrations"); err != nil {
-		log.Fatalf("could not run migrations: %v", err)
-	}
-	{{- end}}
+	{{end}}
 
 	{{if eq .Tool "gorm"}}
-	// Run Gorm migrations
-	
+	// For Gorm, the connection is closed later during graceful shutdown.
+	// Run Gorm migrations.
 	{{if eq .Architecture "simple"}}
-	// Gorm needs to be closed later using db.DB()
 	migrate.RunGormAutoMigration(db)
-	{{end}}
-	{{if or (eq .Architecture "ddd") (eq .Architecture "clean")}}
-	if err := db.AutoMigrate(repositories.UserPersistence{}); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+	{{else if eq .Architecture "ddd"}}
+	// Assuming you have a GORM model struct in your domain
+	if err := db.AutoMigrate(&model.User{}); err != nil {
+		log.Fatalf("Failed to auto-migrate database: %v", err)
+	}
+	{{else if eq .Architecture "clean"}}
+	if err := db.AutoMigrate(&domain.User{}); err != nil {
+		log.Fatalf("Failed to auto-migrate database: %v", err)
 	}
 	{{else if eq .Architecture "hexagonal"}}
-	if err := db.AutoMigrate(database.UserPersistence{}); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+	if err := db.AutoMigrate(&domain.User{}); err != nil {
+		log.Fatalf("Failed to auto-migrate database: %v", err)
 	}
 	{{end}}
 	{{end}}
@@ -108,11 +111,21 @@ func main() {
 	// Create Chi router
 	r := chi.NewRouter()
 
-	// Add middleware
+	// Add common middleware
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
+	r.Use(middleware.Logger) // Chi's logger is simple and effective
 	r.Use(middleware.Recoverer)
+
+	// Add CORS middleware
+	r.Use(cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300, // Maximum value not ignored by any major browsers
+	}).Handler)
 
 	// Setup routes
 	{{if eq .Architecture "ddd"}}
@@ -133,36 +146,39 @@ func main() {
 		IdleTimeout:  time.Duration(cfg.Server.IdleTimeout) * time.Second,
 	}
 
-	// Start server in goroutine
-	go func() {
-		log.Printf("Starting server on port %s", cfg.Server.Port)
-		log.Printf("Version: %s, Commit: %s, Build Time: %s", version, commit, buildTime)
+	// Create shutdown channel
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
+	// Start server in a goroutine
+	go func() {
+		log.Printf("Starting Chi server on port %s", cfg.Server.Port)
+		log.Printf("Version: %s, Commit: %s, Build Time: %s", version, commit, buildTime)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Could not listen on %s: %v\n", cfg.Server.Port, err)
+			log.Fatalf("Could not start server: %v", err)
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	// Wait for interrupt signal
 	<-quit
 	log.Println("Shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Create a context for shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Shutdown the server
 	if err := server.Shutdown(ctx); err != nil {
 		log.Fatalf("Server forced to shutdown: %v", err)
 	}
-
+	
 	{{- if eq .Tool "gorm"}}
-	// Gorm wraps the standard sql.DB, which must be closed manually during graceful shutdown.
+	// Gorm wraps the standard sql.DB, which must be closed manually after server shutdown.
 	if sqlDB, err := db.DB(); err == nil && sqlDB != nil {
 		sqlDB.Close()
 		log.Println("Gorm underlying SQL database connection closed.")
 	}
 	{{- end}}
 
-	log.Println("Server exiting")
+	log.Println("Server exited gracefully")
 }

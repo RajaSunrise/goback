@@ -1,151 +1,64 @@
-{{if eq .Architecture "simple"}}package routes
+{{/* File: internal/routes/routes.go.tmpl (for Gin) */}}
+package routes
 
 import (
 	"net/http"
+	
+	"github.com/gin-gonic/gin"
+	{{- if eq .Tool "gorm" }}
+	"gorm.io/gorm"
+	{{- else if eq .Tool "sqlx" }}
+	"github.com/jmoiron/sqlx"
+	{{- else if eq .Tool "sqlc" }}
+	db_sqlc "{{.ModulePath}}/db/sqlc"
+	{{- end }}
 
-	"{{.ModulePath}}/internal/config"
+	{{if eq .Architecture "simple" -}}
 	"{{.ModulePath}}/internal/handlers"
 	"{{.ModulePath}}/internal/repositories"
 	"{{.ModulePath}}/internal/services"
 	"{{.ModulePath}}/internal/utils"
-
-	"github.com/gin-gonic/gin"
-	{{- if eq .Tool "gorm"}}
-	"gorm.io/gorm"
-	{{- else if eq .Tool "sqlx"}}
-	"github.com/jmoiron/sqlx"
-	{{- else if eq .Tool "sqlc"}}
-	db_sqlc "{{.ModulePath}}/db/sqlc"
-	{{- end}}
+	{{else if eq .Architecture "clean" -}}
+	"{{.ModulePath}}/domain/usecases"
+	"{{.ModulePath}}/infrastructure/repositories"
+	"{{.ModulePath}}/interfaces/handlers"
+	"{{.ModulePath}}/internal/utils"
+	{{else if eq .Architecture "ddd" -}}
+	"{{.ModulePath}}/application"
+	"{{.ModulePath}}/infrastructure/persistence"
+	"{{.ModulePath}}/interfaces/handlers"
+	"{{.ModulePath}}/internal/utils"
+	{{else if eq .Architecture "hexagonal" -}}
+	"{{.ModulePath}}/adapters/primary/http/handlers"
+	"{{.ModulePath}}/adapters/secondary/database"
+	"{{.ModulePath}}/application/services"
+	"{{.ModulePath}}/application/ports"
+	"{{.ModulePath}}/internal/utils"
+	{{end}}
 )
 
-// Setup configures all the routes
-func Setup(router *gin.Engine, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, cfg *config.Config, validator *utils.Validator) {
-	// Initialize dependencies
+// DBType is a generic alias for the database connection type.
+type DBType {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}
+
+// Setup configures all the application routes on the Gin router.
+func Setup(router *gin.Engine, db DBType, validator *utils.Validator) {
+	{{if eq .Architecture "simple" -}}
 	userRepository := repositories.NewUserRepository(db)
 	userService := services.NewUserService(userRepository)
 	userHandler := handlers.NewUserHandler(userService, validator)
-
-	// Health check endpoint
-	router.GET("/health", handlers.HealthCheck)
-
-	// API version 1 routes
-	v1 := router.Group("/api/v1")
-	{
-		// User routes
-		users := v1.Group("/users")
-		{
-			users.GET("", userHandler.GetUsers)
-			users.GET("/:id", userHandler.GetUser)
-			users.POST("", userHandler.CreateUser)
-			users.PUT("/:id", userHandler.UpdateUser)
-			users.DELETE("/:id", userHandler.DeleteUser)
-		}
-	}
-
-	// Catch-all route for undefined endpoints
-	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Route not found",
-			"path":  c.Request.URL.Path,
-		})
-	})
-}
-{{else if eq .Architecture "clean"}}package routes
-
-import (
-	"net/http"
-
-	"{{.ModulePath}}/domain/usecases"
-	infra_repo "{{.ModulePath}}/infrastructure/repositories"
-	"{{.ModulePath}}/interfaces/handlers"
-	"{{.ModulePath}}/domain/utils"
-
-	"github.com/gin-gonic/gin"
-	{{- if eq .Tool "gorm"}}
-	"gorm.io/gorm"
-	{{- else if eq .Tool "sqlx"}}
-	"github.com/jmoiron/sqlx"
-	{{- else if eq .Tool "sqlc"}}
-	db_sqlc "{{.ModulePath}}/db/sqlc"
-	{{- end}}
-)
-
-// Setup configures all the routes
-func Setup(router *gin.Engine, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
-	// Initialize dependencies
-	var userRepository usecases.UserRepository
-	{{if eq .Tool "gorm"}}
-	userRepository = infra_repo.NewGormUserRepository(db)
-	{{else if eq .Tool "sqlx"}}
-	userRepository = infra_repo.NewSqlxUserRepository(db)
-	{{else if eq .Tool "sqlc"}}
-	userRepository = infra_repo.NewSqlcUserRepository(db)
-	{{end}}
-
+	{{else if eq .Architecture "clean" -}}
+	userRepository := repositories.NewUserRepository(db)
 	userUsecase := usecases.NewUserUsecase(userRepository)
 	userHandler := handlers.NewUserHandler(userUsecase, validator)
-
-	// Health check endpoint
-	router.GET("/health", handlers.HealthCheck)
-
-	// API version 1 routes
-	v1 := router.Group("/api/v1")
-	{
-		// User routes
-		users := v1.Group("/users")
-		{
-			users.GET("", userHandler.GetAllUsers)
-			users.GET("/:id", userHandler.GetUser)
-			users.POST("", userHandler.CreateUser)
-			users.PUT("/:id", userHandler.UpdateUser)
-			users.DELETE("/:id", userHandler.DeleteUser)
-		}
-	}
-	
-	// Catch-all route for undefined endpoints
-	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Route not found",
-			"path":  c.Request.URL.Path,
-		})
-	})
-}
-{{else if eq .Architecture "ddd"}}package routes
-
-import (
-	"net/http"
-
-	"{{.ModulePath}}/domain/repositories"
-	"{{.ModulePath}}/domain/services"
-	infra_repo "{{.ModulePath}}/infrastructure/repositories"
-	"{{.ModulePath}}/interfaces/handlers"
-	"{{.ModulePath}}/domain/utils"
-
-	"github.com/gin-gonic/gin"
-	{{- if eq .Tool "gorm"}}
-	"gorm.io/gorm"
-	{{- else if eq .Tool "sqlx"}}
-	"github.com/jmoiron/sqlx"
-	{{- else if eq .Tool "sqlc"}}
-	db_sqlc "{{.ModulePath}}/db/sqlc"
-	{{- end}}
-)
-
-// Setup configures all the routes
-func Setup(router *gin.Engine, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
-	// Initialize dependencies
-	var userRepository repositories.UserRepository
-	{{if eq .Tool "gorm"}}
-	userRepository = infra_repo.NewGormUserRepository(db)
-	{{else if eq .Tool "sqlx"}}
-	userRepository = infra_repo.NewSqlxUserRepository(db)
-	{{else if eq .Tool "sqlc"}}
-	userRepository = infra_repo.NewSqlcUserRepository(db)
-	{{end}}
-
+	{{else if eq .Architecture "ddd" -}}
+	userRepository := persistence.NewSQLUserRepository(db)
+	userAppService := application.NewUserApplicationService(userRepository)
+	userHandler := handlers.NewUserHandler(userAppService, validator)
+	{{else if eq .Architecture "hexagonal" -}}
+	userRepository := database.NewUserRepository(db)
 	userService := services.NewUserService(userRepository)
 	userHandler := handlers.NewUserHandler(userService, validator)
+	{{end}}
 
 	// Health check endpoint
 	router.GET("/health", handlers.HealthCheck)
@@ -153,85 +66,18 @@ func Setup(router *gin.Engine, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .To
 	// API version 1 routes
 	v1 := router.Group("/api/v1")
 	{
-		// User routes
 		users := v1.Group("/users")
 		{
 			users.GET("", userHandler.GetAll)
-			users.GET("/:id", userHandler.GetByID)
 			users.POST("", userHandler.Create)
+			users.GET("/:id", userHandler.GetByID)
 			users.PUT("/:id", userHandler.Update)
 			users.DELETE("/:id", userHandler.Delete)
 		}
 	}
-	
-	// Catch-all route for undefined endpoints
+
+	// Handle routes that are not found
 	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Route not found",
-			"path":  c.Request.URL.Path,
-		})
+		c.JSON(http.StatusNotFound, gin.H{"error": "route not found"})
 	})
 }
-{{else if eq .Architecture "hexagonal"}}package routes
-
-import (
-	"net/http"
-	
-	"{{.ModulePath}}/adapters/primary/http/handlers" // Import handlers
-	"{{.ModulePath}}/adapters/secondary/database"
-	"{{.ModulePath}}/application/services"
-	"{{.ModulePath}}/domain/ports"
-	"{{.ModulePath}}/domain/utils" // Import utils/validator
-
-	"github.com/gin-gonic/gin"
-	{{- if eq .Tool "gorm"}}
-	"gorm.io/gorm"
-	{{- else if eq .Tool "sqlx"}}
-	"github.com/jmoiron/sqlx"
-	{{- else if eq .Tool "sqlc"}}
-	db_sqlc "{{.ModulePath}}/db/sqlc"
-	{{- end}}
-)
-
-func SetupRoutes(router *gin.Engine, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
-	// Setup repositories
-	var userRepository ports.UserRepository
-	{{if eq .Tool "gorm"}}
-	userRepository = database.NewGormUserRepository(db)
-	{{else if eq .Tool "sqlx"}}
-	userRepository = database.NewSqlxUserRepository(db)
-	{{else if eq .Tool "sqlc"}}
-	userRepository = database.NewSqlcUserRepository(db)
-	{{end}}
-	
-	// Setup services
-	userService := services.NewUserService(userRepository)
-
-	// Setup handlers
-	userHandler := handlers.NewUserHandler(userService, validator) // Gunakan handlers dari primary/http
-	
-	// Health check endpoint
-	router.GET("/health", handlers.HealthCheck) // Asumsi HealthCheck ada di handlers
-
-	// API version 1 routes
-	v1 := router.Group("/api/v1")
-	{
-		users := v1.Group("/users")
-		{
-			users.POST("", userHandler.Create)
-			users.GET("/:id", userHandler.GetByID)
-			users.GET("", userHandler.GetAll)
-			users.PUT("/:id", userHandler.Update)
-			users.DELETE("/:id", userHandler.Delete)
-		}
-	}
-	
-	// Catch-all route for undefined endpoints
-	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Route not found",
-			"path":  c.Request.URL.Path,
-		})
-	})
-}
-{{end}}

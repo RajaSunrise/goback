@@ -1,3 +1,4 @@
+{{- if eq .Database "postgresql"}}
 -- name: CreateUser :one
 INSERT INTO users (
   name, email, password, active
@@ -33,3 +34,39 @@ RETURNING *;
 -- name: DeleteUser :exec
 DELETE FROM users
 WHERE id = $1;
+{{- else}}
+-- name: CreateUser :execresult
+INSERT INTO users (
+  name, email, password, active
+) VALUES (
+  ?, ?, ?, ?
+);
+
+-- name: GetUserByID :one
+SELECT id, name, email, password, active, created_at, updated_at FROM users
+WHERE id = ? LIMIT 1;
+
+-- name: GetUserByEmail :one
+SELECT id, name, email, password, active, created_at, updated_at FROM users
+WHERE email = ? LIMIT 1;
+
+-- name: ListUsers :many
+SELECT id, name, email, password, active, created_at, updated_at FROM users
+ORDER BY created_at DESC
+LIMIT ? OFFSET ?;
+
+-- name: CountUsers :one
+SELECT COUNT(*) FROM users;
+
+-- name: UpdateUser :exec
+UPDATE users
+SET
+  name = ?,
+  email = ?,
+  active = ?
+WHERE id = ?;
+
+-- name: DeleteUser :exec
+DELETE FROM users
+WHERE id = ?;
+{{end}}
