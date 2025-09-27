@@ -18,6 +18,11 @@ import (
 	{{- else if eq .Tool "sqlx" }}
 	"github.com/jmoiron/sqlx"
 	{{- else if eq .Tool "sqlc" }}
+	{{- if eq .Database "postgresql"}}
+	"github.com/jackc/pgx/v5"
+	{{- else}}
+	"database/sql"
+	{{- end}}
 	"{{.ModulePath}}/infrastructure/database/sqlc"
 	{{- end}}
 )
@@ -391,26 +396,29 @@ func (r *SqlxUserRepository) ExistsByEmail(ctx context.Context, email string) (b
 
 {{/* =================== IMPLEMENTASI UNTUK SQLC =================== */}}
 {{ if eq .Tool "sqlc" }}
-type SqlcUserRepository struct { 
-	queries *sqlc.Queries 
+type SqlcUserRepository struct {
+	queries *sqlc.Queries
+	db      sqlc.DBTX
 }
 
-func NewSqlcUserRepository(db *sql.DB) repositories.UserRepository { 
-	return &SqlcUserRepository{queries: sqlc.New(db)} 
+func NewSqlcUserRepository(db sqlc.DBTX) repositories.UserRepository {
+	return &SqlcUserRepository{queries: sqlc.New(db), db: db}
 }
 
 func (r *SqlcUserRepository) Save(ctx context.Context, user *entities.User) error {
 	model := fromEntity(user)
 	
-	{{ if eq .Database "postgresql" }}
+ 	{{ if eq .Database "postgresql" }}
 	if user.ID == uuid.Nil { // New user
 		params := sqlc.CreateUserParams{
-			Name:      model.Name,
-			Email:     model.Email,
-			Password:  model.Password,
-			IsActive:  model.IsActive,
-			CreatedAt: model.CreatedAt,
-			UpdatedAt: model.UpdatedAt,
+			Name:     model.Name,
+			Email:    model.Email,
+			Password: model.Password,
+			{{- if eq .Database "postgresql"}}
+			Active:   pgtype.Bool{Bool: model.IsActive, Valid: true},
+			{{- else}}
+			Active:   model.IsActive,
+			{{- end}}
 		}
 		result, err := r.queries.CreateUser(ctx, params)
 		if err != nil {
@@ -419,12 +427,14 @@ func (r *SqlcUserRepository) Save(ctx context.Context, user *entities.User) erro
 		user.ID = result.ID
 	} else { // Update existing user
 		params := sqlc.UpdateUserParams{
-			ID:        model.ID,
-			Name:      model.Name,
-			Email:     model.Email,
-			Password:  model.Password,
-			IsActive:  model.IsActive,
-			UpdatedAt: model.UpdatedAt,
+			ID:    model.ID,
+			Name:  model.Name,
+			Email: model.Email,
+			{{- if eq .Database "postgresql"}}
+			Active: pgtype.Bool{Bool: model.IsActive, Valid: true},
+			{{- else}}
+			Active: model.IsActive,
+			{{- end}}
 		}
 		return r.queries.UpdateUser(ctx, params)
 	}
@@ -465,9 +475,13 @@ func (r *SqlcUserRepository) FindByID(ctx context.Context, id entities.UserID) (
 	{{ else }}
 	user, err := r.queries.GetUserByID(ctx, int64(id))
 	{{ end }}
-	
+
 	if err != nil {
+		{{- if eq .Database "postgresql"}}
+		if errors.Is(err, pgx.ErrNoRows) {
+		{{- else}}
 		if errors.Is(err, sql.ErrNoRows) {
+		{{- end}}
 			return nil, nil
 		}
 		return nil, err
@@ -493,7 +507,11 @@ func (r *SqlcUserRepository) FindByID(ctx context.Context, id entities.UserID) (
 func (r *SqlcUserRepository) FindByEmail(ctx context.Context, email string) (*entities.User, error) {
 	user, err := r.queries.GetUserByEmail(ctx, email)
 	if err != nil {
+		{{- if eq .Database "postgresql"}}
+		if errors.Is(err, pgx.ErrNoRows) {
+		{{- else}}
 		if errors.Is(err, sql.ErrNoRows) {
+		{{- end}}
 			return nil, nil
 		}
 		return nil, err
@@ -542,12 +560,18 @@ func (r *SqlcUserRepository) FindAll(ctx context.Context, page, perPage int) ([]
 			{{ else }}
 			ID:        uint(user.ID),
 			{{ end }}
-			Name:      user.Name,
-			Email:     user.Email,
-			Password:  user.Password,
-			IsActive:  user.IsActive,
+			Name:     user.Name,
+			Email:    user.Email,
+			Password: user.Password,
+			{{- if eq .Database "postgresql"}}
+			IsActive:  user.Active.Bool,
+			CreatedAt: user.CreatedAt.Time,
+			UpdatedAt: user.UpdatedAt.Time,
+			{{- else}}
+			IsActive:  user.Active.Bool,
 			CreatedAt: user.CreatedAt,
 			UpdatedAt: user.UpdatedAt,
+			{{- end}}
 		}
 		entities[i] = *toEntity(model)
 	}

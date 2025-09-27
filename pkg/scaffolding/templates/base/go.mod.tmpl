@@ -30,7 +30,9 @@ require (
 {{- else if eq .Tool "sqlx" }}
 	github.com/jmoiron/sqlx v1.3.5
 {{- else if eq .Tool "sqlc" }}
-	github.com/sqlc-dev/sqlc v1.24.0
+	{{- if eq .Database "postgresql"}}
+	github.com/jackc/pgx/v5 v5.5.0
+	{{- end}}
 {{- end }}
 {{- end }}
 	github.com/joho/godotenv v1.4.0

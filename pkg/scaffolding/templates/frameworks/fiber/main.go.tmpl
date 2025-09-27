@@ -15,6 +15,12 @@ import (
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/gofiber/fiber/v2/middleware/requestid"
+	
+	{{/* Imports needed for database cleanup and type assertions */}}
+	{{if or (eq .Tool "gorm") (eq .Tool "sqlc") (eq .Tool "sqlx")}}
+	"database/sql"
+	"github.com/jackc/pgx/v5/pgxpool"
+	{{end}}
 
 	"{{.ModulePath}}/internal/utils"
 	{{if eq .Architecture "simple" -}}
@@ -60,30 +66,28 @@ func main() {
 
 	// Initialize database
 	cfg.Database.Type = strings.ToLower(cfg.Database.Type)
-	db, err := database.Connect(cfg.Database)
+	db, err := database.Connect(&cfg.Database)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
+	
+	// Handle database cleanup based on the tool (SQLC/SQLX vs Gorm)
 	{{- if or (eq .Tool "sqlx") (eq .Tool "sqlc")}}
-	defer db.Close()
-	// Run migrations
-	if err := utils.RunMigrations(db, cfg.Database.Type, "./migrations"); err != nil {
-		log.Fatalf("could not run migrations: %v", err)
-	}
-	{{- end}}
-
-	{{if eq .Tool "gorm"}}
-	// Run migrations
+	// db is db.DBTX (which can be *pgxpool.Pool for Postgres or *sql.DB for others)
+	defer func() {
+		if pool, ok := db.(*pgxpool.Pool); ok && pool != nil {
+			pool.Close()
+			log.Println("PostgreSQL connection pool closed.")
+		} 
+	}()
+	{{- else if eq .Tool "gorm"}}
+	// Run Gorm migrations
+	
+	{{if eq .Architecture "simple"}}
+	// Gorm needs to be closed later using db.DB()
 	migrate.RunGormAutoMigration(db)
-	{{if or (eq .Architecture "ddd") (eq .Architecture "clean")}}
-	if err := db.AutoMigrate(&repositories.UserPersistence{}); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
-	}
-	{{else if eq .Architecture "hexagonal"}}
-	if err := db.AutoMigrate(&database.UserPersistence{}); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
-	}
 	{{end}}
+	// Note: For DDD/Clean/Hexagonal, Gorm migration should target specific models.
 	{{end}}
 
 	// Initialize validator
@@ -117,7 +121,9 @@ func main() {
 	app.Use(requestid.New())
 
 	// Custom middleware
+	{{if eq .Architecture "simple"}}
 	app.Use(middleware.RequestLogger())
+	{{end}}
 
 	// Setup routes
 	{{if eq .Architecture "ddd"}}
@@ -133,7 +139,7 @@ func main() {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
-	// Start server in goroutine
+	// Start server
 	go func() {
 		log.Printf("Starting Fiber server on port %s", cfg.Server.Port)
 		log.Printf("Version: %s, Commit: %s, Build Time: %s", version, commit, buildTime)
@@ -147,7 +153,7 @@ func main() {
 	<-quit
 	log.Println("Shutting down server...")
 
-	// Create shutdown context with timeout
+	// Create shutdown context
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -157,10 +163,10 @@ func main() {
 	}
 
 	{{- if eq .Tool "gorm"}}
-	// Close database connection
-	sqlDB, err := db.DB()
-	if err == nil {
+	// Gorm wraps the standard sql.DB, which must be closed manually during graceful shutdown.
+	if sqlDB, err := db.DB(); err == nil && sqlDB != nil {
 		sqlDB.Close()
+		log.Println("Gorm underlying SQL database connection closed.")
 	}
 	{{- end}}
 

@@ -3,13 +3,13 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 {{- end}}
 
 CREATE TABLE IF NOT EXISTS users (
-    id {{if eq .Database "postgresql"}}UUID PRIMARY KEY DEFAULT uuid_generate_v4(){{else}}INTEGER PRIMARY KEY AUTOINCREMENT{{end}},
+    id {{if eq .Database "postgresql"}}UUID PRIMARY KEY DEFAULT uuid_generate_v4(){{else if eq .Database "mysql"}}INT AUTO_INCREMENT PRIMARY KEY{{else}}INTEGER PRIMARY KEY AUTOINCREMENT{{end}},
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     active BOOLEAN DEFAULT TRUE, -- Consistent column name: 'active'
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at {{if eq .Database "postgresql"}}TIMESTAMP WITH TIME ZONE{{else if eq .Database "mysql"}}TIMESTAMP{{else}}DATETIME{{end}} DEFAULT CURRENT_TIMESTAMP,
+    updated_at {{if eq .Database "postgresql"}}TIMESTAMP WITH TIME ZONE{{else if eq .Database "mysql"}}TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP{{else}}DATETIME{{end}} DEFAULT CURRENT_TIMESTAMP
 );
 
 {{- if eq .Database "postgresql" }}
@@ -26,4 +26,12 @@ CREATE TRIGGER update_users_updated_at
 BEFORE UPDATE ON users
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
+{{- else if eq .Database "sqlite" }}
+-- Trigger for updated_at in SQLite
+CREATE TRIGGER update_users_updated_at
+AFTER UPDATE ON users
+FOR EACH ROW
+BEGIN
+    UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+END;
 {{- end}}
