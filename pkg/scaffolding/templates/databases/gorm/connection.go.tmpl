@@ -4,7 +4,11 @@ import (
 	"fmt"
 	"time"
 
-	{{if eq .Architecture "simple"}}"{{.ModulePath}}/internal/config"{{else}}"{{.ModulePath}}/config"{{end}}
+	{{if eq .Architecture "simple"}}
+	"{{.ModulePath}}/internal/config"
+	{{else}}
+	"{{.ModulePath}}/config"
+	{{end}}
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
@@ -52,6 +56,5 @@ func Connect(cfg config.DatabaseConfig) (*gorm.DB, error) {
 			return nil, fmt.Errorf("failed to ping database: %w", err)
 		}
 	}
-
 	return db, nil
 }

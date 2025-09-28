@@ -1,4 +1,3 @@
-{{/* File: internal/routes/routes.go.tmpl (for Gin) */}}
 package routes
 
 import (
@@ -18,42 +17,49 @@ import (
 	"{{.ModulePath}}/internal/repositories"
 	"{{.ModulePath}}/internal/services"
 	"{{.ModulePath}}/internal/utils"
+	{{else if eq .Architecture "ddd" -}}
+	"{{.ModulePath}}/domain/repositories"
+	"{{.ModulePath}}/domain/services"
+	infra_repo "{{.ModulePath}}/infrastructure/repositories"
+	"{{.ModulePath}}/interfaces/handlers"
+	"{{.ModulePath}}/domain/utils"
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/domain/usecases"
 	"{{.ModulePath}}/infrastructure/repositories"
 	"{{.ModulePath}}/interfaces/handlers"
-	"{{.ModulePath}}/internal/utils"
-	{{else if eq .Architecture "ddd" -}}
-	"{{.ModulePath}}/application"
-	"{{.ModulePath}}/infrastructure/persistence"
-	"{{.ModulePath}}/interfaces/handlers"
-	"{{.ModulePath}}/internal/utils"
+	"{{.ModulePath}}/domain/utils"
 	{{else if eq .Architecture "hexagonal" -}}
 	"{{.ModulePath}}/adapters/primary/http/handlers"
 	"{{.ModulePath}}/adapters/secondary/database"
 	"{{.ModulePath}}/application/services"
-	"{{.ModulePath}}/application/ports"
-	"{{.ModulePath}}/internal/utils"
+	"{{.ModulePath}}/domain/ports"
+	"{{.ModulePath}}/domain/utils"
 	{{end}}
 )
 
-// DBType is a generic alias for the database connection type.
-type DBType {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}
-
 // Setup configures all the application routes on the Gin router.
-func Setup(router *gin.Engine, db DBType, validator *utils.Validator) {
+func Setup(router *gin.Engine, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
 	{{if eq .Architecture "simple" -}}
 	userRepository := repositories.NewUserRepository(db)
 	userService := services.NewUserService(userRepository)
+	userHandler := handlers.NewUserHandler(userService, validator)
+	{{else if eq .Architecture "ddd" -}}
+	// Initialize dependencies
+	var userRepository repositories.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = infra_repo.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = infra_repo.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = infra_repo.NewSqlcUserRepository(db)
+	{{end}}
+
+	userService := services.NewUserApplicationService(userRepository)
 	userHandler := handlers.NewUserHandler(userService, validator)
 	{{else if eq .Architecture "clean" -}}
 	userRepository := repositories.NewUserRepository(db)
 	userUsecase := usecases.NewUserUsecase(userRepository)
 	userHandler := handlers.NewUserHandler(userUsecase, validator)
-	{{else if eq .Architecture "ddd" -}}
-	userRepository := persistence.NewSQLUserRepository(db)
-	userAppService := application.NewUserApplicationService(userRepository)
-	userHandler := handlers.NewUserHandler(userAppService, validator)
 	{{else if eq .Architecture "hexagonal" -}}
 	userRepository := database.NewUserRepository(db)
 	userService := services.NewUserService(userRepository)

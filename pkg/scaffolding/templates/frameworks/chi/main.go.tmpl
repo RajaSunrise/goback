@@ -16,24 +16,21 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	
-	{{- if or (eq .Tool "gorm") (eq .Tool "sqlc") }}
-	"database/sql"
+	{{- if eq .Tool "sqlc" }}
 	{{if eq .Database "postgresql"}}"github.com/jackc/pgx/v5/pgxpool"{{end}}
 	{{end}}
 
-	"{{.ModulePath}}/internal/utils"
 	{{if eq .Architecture "simple" -}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
+	"{{.ModulePath}}/internal/utils"
 	{{if eq .Tool "gorm"}}"{{.ModulePath}}/internal/migrate" {{end}}
 	"{{.ModulePath}}/internal/routes"
 	{{else if eq .Architecture "ddd" -}}
-	"{{.ModulePath}}/application"
 	"{{.ModulePath}}/config"
-	"{{.ModulePath}}/domain/model"
+	"{{.ModulePath}}/pkg/migrate"
+	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/infrastructure/database"
-	"{{.ModulePath}}/infrastructure/persistence"
-	"{{.ModulePath}}/interfaces/handlers"
 	"{{.ModulePath}}/interfaces/routes"
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
@@ -90,10 +87,7 @@ func main() {
 	{{if eq .Architecture "simple"}}
 	migrate.RunGormAutoMigration(db)
 	{{else if eq .Architecture "ddd"}}
-	// Assuming you have a GORM model struct in your domain
-	if err := db.AutoMigrate(&model.User{}); err != nil {
-		log.Fatalf("Failed to auto-migrate database: %v", err)
-	}
+	migrate.RunGormAutoMigration(db)
 	{{else if eq .Architecture "clean"}}
 	if err := db.AutoMigrate(&domain.User{}); err != nil {
 		log.Fatalf("Failed to auto-migrate database: %v", err)
@@ -128,14 +122,7 @@ func main() {
 	}).Handler)
 
 	// Setup routes
-	{{if eq .Architecture "ddd"}}
-	userRepo := persistence.NewSQLUserRepository(db)
-	userService := application.NewUserApplicationService(userRepo)
-	userHandler := handlers.NewUserHandler(userService, validator)
-	routes.Setup(r, userHandler)
-	{{else}}
 	routes.Setup(r, db, validator)
-	{{end}}
 
 	// Create HTTP server
 	server := &http.Server{

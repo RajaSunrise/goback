@@ -7,7 +7,7 @@ import (
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/domain/entities"
 	{{else if eq .Architecture "ddd" -}}
-	"{{.ModulePath}}/domain/models"
+	"{{.ModulePath}}/domain/entities"
 	{{else if eq .Architecture "hexagonal" -}}
 	"{{.ModulePath}}/domain"
 	{{end -}}
@@ -20,7 +20,7 @@ func RunGormAutoMigration(db *gorm.DB) {
 	log.Println("Running GORM auto-migration...")
 
 	err := db.AutoMigrate(
-		{{if eq .Architecture "clean"}}entities.User{}{{else if eq .Architecture "hexagonal"}}domain.User{}{{else}}models.User{}{{end}},
+		{{if eq .Architecture "clean"}}entities.User{}{{else if eq .Architecture "hexagonal"}}domain.User{}{{else if eq .Architecture "ddd"}}entities.User{}{{else}}models.User{}{{end}},
 	)
 	if err != nil {
 		log.Fatalf("Failed to migrate database with GORM: %v", err)

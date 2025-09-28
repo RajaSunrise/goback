@@ -19,22 +19,21 @@ import (
 	{{- if eq .Tool "sqlc" }}
 	{{if eq .Database "postgresql"}}"github.com/jackc/pgx/v5/pgxpool"{{end}}
 	{{end}}
-
-	"{{.ModulePath}}/internal/utils"
 	{{if eq .Architecture "simple" -}}
+	"{{.ModulePath}}/internal/utils"
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/middleware"
 	{{if eq .Tool "gorm"}}"{{.ModulePath}}/internal/migrate" {{end}}
 	"{{.ModulePath}}/internal/routes"
+	
 	{{else if eq .Architecture "ddd" -}}
-	"{{.ModulePath}}/application"
 	"{{.ModulePath}}/config"
+	"{{.ModulePath}}/pkg/migrate"
+	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/infrastructure/database"
-	"{{.ModulePath}}/infrastructure/persistence"
-	"{{.ModulePath}}/interfaces/handlers"
-	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
+	
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/infrastructure/database"
@@ -88,12 +87,12 @@ func main() {
 	{{end}}
 	{{- else if eq .Tool "gorm"}}
 	// Run Gorm migrations
-	
 	{{if eq .Architecture "simple"}}
-	// Gorm needs to be closed later using db.DB()
+	migrate.RunGormAutoMigration(db)
+	{{else if eq .Architecture "ddd"}}
 	migrate.RunGormAutoMigration(db)
 	{{end}}
-	// Note: For DDD/Clean/Hexagonal, Gorm migration should target specific models.
+	
 	{{end}}
 
 	// Initialize validator
@@ -132,14 +131,7 @@ func main() {
 	{{end}}
 
 	// Setup routes
-	{{if eq .Architecture "ddd"}}
-	userRepo := persistence.NewSQLUserRepository(db)
-	userService := application.NewUserApplicationService(userRepo)
-	userHandler := handlers.NewUserHandler(userService, validator)
-	routes.Setup(app, userHandler)
-	{{else}}
 	routes.Setup(app, db, validator)
-	{{end}}
 
 	// Create shutdown channel
 	quit := make(chan os.Signal, 1)
@@ -175,6 +167,5 @@ func main() {
 		log.Println("Gorm underlying SQL database connection closed.")
 	}
 	{{- end}}
-
 	log.Println("Server exited")
 }
