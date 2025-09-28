@@ -2,13 +2,11 @@ package repositories
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
 
 	"{{.ModulePath}}/domain/entities"
 	"{{.ModulePath}}/domain/repositories"
-	
 	{{- if eq .Database "postgresql" }}
 	"github.com/google/uuid"
 	{{- end}}
@@ -17,11 +15,17 @@ import (
 	"gorm.io/gorm"
 	{{- else if eq .Tool "sqlx" }}
 	"github.com/jmoiron/sqlx"
+	{{if eq .Database "postgresql"}} 
+	{{else}}
+	"database/sql"
+	{{end}}
 	{{- else if eq .Tool "sqlc" }}
 	{{- if eq .Database "postgresql"}}
 	"github.com/jackc/pgx/v5"
-	{{- else}}
+	{{if eq .Database "postgresql"}} 
+	{{else}}
 	"database/sql"
+	{{end}}
 	{{- end}}
 	"{{.ModulePath}}/infrastructure/database/sqlc"
 	{{- end}}
@@ -56,7 +60,6 @@ type UserPersistenceModel struct {
 {{ if eq .Tool "gorm" }}
 func (UserPersistenceModel) TableName() string { return "users" }
 {{ end }}
-
 // Mapping functions
 func toEntity(p *UserPersistenceModel) *entities.User {
 	var userID entities.UserID
@@ -67,7 +70,7 @@ func toEntity(p *UserPersistenceModel) *entities.User {
 	createdAt = p.CreatedAt
 	updatedAt = p.UpdatedAt
 	{{- else }}
-	userID = p.ID
+	userID = entities.UserID(p.ID)
 	createdAt = p.CreatedAt
 	updatedAt = p.UpdatedAt
 	{{- end}}
@@ -92,21 +95,18 @@ func fromEntity(e *entities.User) *UserPersistenceModel {
 	}
 
 	{{- if eq .Database "postgresql" }}
-	p.ID = e.ID
+	p.ID = uuid.UUID(e.ID)
 	{{- else }}
 	p.ID = e.ID
 	{{- end}}
 	
-	{{ if ne .Tool "gorm" }}
+	{{ if eq .Tool "gorm" }}
 	p.CreatedAt = e.CreatedAt
 	p.UpdatedAt = e.UpdatedAt
 	{{ end }}
-
 	return p
 }
 
-
-{{/* =================== IMPLEMENTASI UNTUK GORM =================== */}}
 {{ if eq .Tool "gorm" }}
 type GormUserRepository struct { 
 	db *gorm.DB 
@@ -128,16 +128,9 @@ func (r *GormUserRepository) Save(ctx context.Context, user *entities.User) erro
 	
 	// After saving, the model's ID is populated (if it was a new record).
 	// We update the entity's ID to reflect this, handling both uint and uuid cases.
-	{{- if eq .Database "postgresql" }}
-	if user.ID != model.ID {
-		user.ID = model.ID
-	}
-	{{- else }}
 	if user.ID != entities.UserID(model.ID) {
 		user.ID = entities.UserID(model.ID)
 	}
-	{{- end }}
-	
 	return nil
 }
 
@@ -224,8 +217,6 @@ func (r *GormUserRepository) ExistsByEmail(ctx context.Context, email string) (b
 }
 {{ end }}
 
-
-{{/* =================== IMPLEMENTASI UNTUK SQLX =================== */}}
 {{ if eq .Tool "sqlx" }}
 type SqlxUserRepository struct { 
 	db *sqlx.DB 
@@ -393,8 +384,6 @@ func (r *SqlxUserRepository) ExistsByEmail(ctx context.Context, email string) (b
 }
 {{ end }}
 
-
-{{/* =================== IMPLEMENTASI UNTUK SQLC =================== */}}
 {{ if eq .Tool "sqlc" }}
 type SqlcUserRepository struct {
 	queries *sqlc.Queries

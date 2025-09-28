@@ -11,28 +11,25 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
-	{{- if or (eq .Tool "gorm") (eq .Tool "sqlc") }}
-	"database/sql"
+	{{- if eq .Tool "sqlc" }}
 	{{if eq .Database "postgresql"}}"github.com/jackc/pgx/v5/pgxpool"{{end}}
 	{{end}}
 
-	"{{.ModulePath}}/internal/utils"
 	{{if eq .Architecture "simple" -}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
 	"{{.ModulePath}}/internal/middleware"
+	"{{.ModulePath}}/internal/utils"
 	{{if eq .Tool "gorm"}}"{{.ModulePath}}/internal/migrate" {{end}}
 	"{{.ModulePath}}/internal/routes"
 	{{else if eq .Architecture "ddd" -}}
-	"{{.ModulePath}}/application"
 	"{{.ModulePath}}/config"
-	"{{.ModulePath}}/domain/model"
+	"{{.ModulePath}}/pkg/migrate"
+	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/infrastructure/database"
-	"{{.ModulePath}}/infrastructure/persistence"
-	"{{.ModulePath}}/interfaces/handlers"
-	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
@@ -96,9 +93,7 @@ func main() {
 	{{if eq .Architecture "simple"}}
 	migrate.RunGormAutoMigration(db)
 	{{else if eq .Architecture "ddd"}}
-	if err := db.AutoMigrate(&model.User{}); err != nil {
-		log.Fatalf("Failed to auto-migrate database: %v", err)
-	}
+	migrate.RunGormAutoMigration(db)
 	{{else if eq .Architecture "clean"}}
 	if err := db.AutoMigrate(&domain.User{}); err != nil {
 		log.Fatalf("Failed to auto-migrate database: %v", err)
@@ -114,27 +109,22 @@ func main() {
 	validator := utils.NewValidator()
 
 	// Create Gin router
-	// Using gin.New() instead of gin.Default() for more control over middleware
 	router := gin.New()
 
 	// Add middleware
 	router.Use(gin.Logger())   // Standard logger
 	router.Use(gin.Recovery()) // Recovery from panics
-	
-	// Custom or third-party middleware can be added here
-	// Assuming you have a custom CORS middleware in your project structure
-	router.Use(middleware.CORS())
-	router.Use(middleware.RequestID())
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge: 12 * time.Hour,
+	}))
 
 	// Setup routes
-	{{if eq .Architecture "ddd"}}
-	userRepo := persistence.NewSQLUserRepository(db)
-	userService := application.NewUserApplicationService(userRepo)
-	userHandler := handlers.NewUserHandler(userService, validator)
-	routes.Setup(router, userHandler)
-	{{else}}
 	routes.Setup(router, db, validator)
-	{{end}}
 
 	// Create HTTP server
 	server := &http.Server{

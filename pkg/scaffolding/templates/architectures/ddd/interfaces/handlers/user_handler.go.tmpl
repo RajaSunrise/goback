@@ -1,17 +1,15 @@
 package handlers
 
 import (
-	"{{.ModulePath}}/application"
 	"{{.ModulePath}}/domain/entities"
-	"{{.ModulePath}}/interfaces/utils"
+	"{{.ModulePath}}/domain/services"
+	"{{.ModulePath}}/domain/utils"
 	"net/http"
 	"strconv"
 
 	{{if eq .Database "postgresql"}}
 	"github.com/google/uuid" // Import for UUID parsing, used with PostgreSQL
 	{{end}}
-
-	// --- Dynamic imports based on framework ---
 	{{if eq .Framework "fiber"}}
 	"github.com/gofiber/fiber/v2" // Fiber framework import
 	{{else if eq .Framework "gin"}}
@@ -26,12 +24,12 @@ import (
 
 // UserHandler is the adapter that translates HTTP requests to application service calls.
 type UserHandler struct {
-	userService *application.UserApplicationService // Dependency on the user application service
+	userService *services.UserApplicationService // Dependency on the user application service
 	validator   *utils.Validator                 // Dependency on a request validator utility
 }
 
 // NewUserHandler creates a new UserHandler instance.
-func NewUserHandler(userService *application.UserApplicationService, validator *utils.Validator) *UserHandler {
+func NewUserHandler(userService *services.UserApplicationService, validator *utils.Validator) *UserHandler {
 	return &UserHandler{
 		userService: userService,
 		validator:   validator,
@@ -39,7 +37,6 @@ func NewUserHandler(userService *application.UserApplicationService, validator *
 }
 
 // --- Response helpers ---
-
 // handleServiceError translates application service errors into appropriate HTTP status codes and messages.
 func handleServiceError(err error) (int, map[string]string) {
 	var status int
@@ -67,16 +64,15 @@ func handleServiceError(err error) (int, map[string]string) {
 {{/* =================== CODE BLOCK FOR GO FIBER =================== */}}
 {{if eq .Framework "fiber"}}
 // Create handles the creation of a new user.
-// It parses the request body, validates it, and calls the application service.
 func (h *UserHandler) Create(c *fiber.Ctx) error {
-	var req application.CreateUserRequest
+	var req services.CreateUserRequest
 	// Parse request body into CreateUserRequest struct
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid request body"})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 	// Validate the request struct
 	if err := h.validator.Validate(req); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.H{"errors": err})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"errors": err})
 	}
 	// Call the application service to create the user
 	user, err := h.userService.Create(c.Context(), req)
@@ -96,13 +92,13 @@ func (h *UserHandler) GetByID(c *fiber.Ctx) error {
 	// Parse UUID from URL parameters for PostgreSQL
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid UUID format"})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid UUID format"})
 	}
 	{{else}}
 	// Parse integer ID from URL parameters for other databases
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid ID format"})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 	{{end}}
 	// Call the application service to get the user by ID
@@ -117,7 +113,6 @@ func (h *UserHandler) GetByID(c *fiber.Ctx) error {
 }
 
 // GetAll retrieves a list of all users with pagination.
-// It parses page and per_page query parameters and calls the application service.
 func (h *UserHandler) GetAll(c *fiber.Ctx) error {
 	// Parse page and per_page query parameters with default values
 	page, _ := strconv.Atoi(c.Query("page", "1"))
@@ -134,29 +129,28 @@ func (h *UserHandler) GetAll(c *fiber.Ctx) error {
 }
 
 // Update handles updating an existing user.
-// It parses the user ID from URL parameters, request body, validates it, and calls the application service.
 func (h *UserHandler) Update(c *fiber.Ctx) error {
 	{{if eq .Database "postgresql"}}
 	// Parse UUID from URL parameters for PostgreSQL
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid UUID format"})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid UUID format"})
 	}
 	{{else}}
 	// Parse integer ID from URL parameters for other databases
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid ID format"})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 	{{end}}
-	var req application.UpdateUserRequest
+	var req services.UpdateUserRequest
 	// Parse request body into UpdateUserRequest struct
 	if err := c.BodyParser(&req); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid request body"})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request body"})
 	}
 	// Validate the request struct
 	if err := h.validator.Validate(req); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.H{"errors": err})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"errors": err})
 	}
 	// Call the application service to update the user
 	user, err := h.userService.Update(c.Context(), entities.UserID(id), req)
@@ -170,19 +164,18 @@ func (h *UserHandler) Update(c *fiber.Ctx) error {
 }
 
 // Delete handles deleting a user by ID.
-// It parses the ID from URL parameters and calls the application service.
 func (h *UserHandler) Delete(c *fiber.Ctx) error {
 	{{if eq .Database "postgresql"}}
 	// Parse UUID from URL parameters for PostgreSQL
 	id, err := uuid.Parse(c.Params("id"))
 	if err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid UUID format"})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid UUID format"})
 	}
 	{{else}}
 	// Parse integer ID from URL parameters for other databases
 	id, err := strconv.ParseInt(c.Params("id"), 10, 64)
 	if err != nil {
-		return c.Status(http.StatusBadRequest).JSON(fiber.H{"error": "Invalid ID format"})
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Invalid ID format"})
 	}
 	{{end}}
 	// Call the application service to delete the user
@@ -201,7 +194,7 @@ func (h *UserHandler) Delete(c *fiber.Ctx) error {
 // Create handles the creation of a new user.
 // It parses the request body, validates it, and calls the application service.
 func (h *UserHandler) Create(c *gin.Context) {
-	var req application.CreateUserRequest
+	var req services.CreateUserRequest
 	// Bind request JSON body to CreateUserRequest struct
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -290,7 +283,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 	{{end}}
-	var req application.UpdateUserRequest
+	var req services.UpdateUserRequest
 	// Bind request JSON body to UpdateUserRequest struct
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -348,7 +341,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 // Create handles the creation of a new user.
 // It parses the request body, validates it, and calls the application service.
 func (h *UserHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var req application.CreateUserRequest
+	var req services.CreateUserRequest
 	// Decode request JSON body into CreateUserRequest struct
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -452,7 +445,7 @@ func (h *UserHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	{{end}}
-	var req application.UpdateUserRequest
+	var req services.UpdateUserRequest
 	// Decode request JSON body into UpdateUserRequest struct
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -517,7 +510,7 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 // Create handles the creation of a new user.
 // It parses the request body, validates it, and calls the application service.
 func (h *UserHandler) Create(c echo.Context) error {
-	var req application.CreateUserRequest
+	var req services.CreateUserRequest
 	// Bind request JSON body to CreateUserRequest struct
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request body"})
@@ -600,7 +593,7 @@ func (h *UserHandler) Update(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid ID format"})
 	}
 	{{end}}
-	var req application.UpdateUserRequest
+	var req services.UpdateUserRequest
 	// Bind request JSON body to UpdateUserRequest struct
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request body"})

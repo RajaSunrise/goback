@@ -14,24 +14,21 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
-	{{- if or (eq .Tool "gorm") (eq .Tool "sqlc") }}
-	"database/sql"
+	{{- if eq .Tool "sqlc" }}
 	{{if eq .Database "postgresql"}}"github.com/jackc/pgx/v5/pgxpool"{{end}}
 	{{end}}
 
-	"{{.ModulePath}}/internal/utils"
 	{{if eq .Architecture "simple" -}}
 	"{{.ModulePath}}/internal/config"
 	"{{.ModulePath}}/internal/database"
+	"{{.ModulePath}}/internal/utils"
 	{{if eq .Tool "gorm"}}"{{.ModulePath}}/internal/migrate" {{end}}
 	"{{.ModulePath}}/internal/routes"
 	{{else if eq .Architecture "ddd" -}}
-	"{{.ModulePath}}/application"
 	"{{.ModulePath}}/config"
-	"{{.ModulePath}}/domain/model"
+	"{{.ModulePath}}/pkg/migrate"
+	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/infrastructure/database"
-	"{{.ModulePath}}/infrastructure/persistence"
-	"{{.ModulePath}}/interfaces/handlers"
 	"{{.ModulePath}}/interfaces/routes"
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
@@ -86,9 +83,7 @@ func main() {
 	{{if eq .Architecture "simple"}}
 	migrate.RunGormAutoMigration(db)
 	{{else if eq .Architecture "ddd"}}
-	if err := db.AutoMigrate(&model.User{}); err != nil {
-		log.Fatalf("Failed to auto-migrate database: %v", err)
-	}
+	migrate.RunGormAutoMigration(db)
 	{{else if eq .Architecture "clean"}}
 	if err := db.AutoMigrate(&domain.User{}); err != nil {
 		log.Fatalf("Failed to auto-migrate database: %v", err)
@@ -121,14 +116,7 @@ func main() {
 	}))
 
 	// Setup routes
-	{{if eq .Architecture "ddd"}}
-	userRepo := persistence.NewSQLUserRepository(db)
-	userService := application.NewUserApplicationService(userRepo)
-	userHandler := handlers.NewUserHandler(userService, validator)
-	routes.Setup(e, userHandler)
-	{{else}}
 	routes.Setup(e, db, validator)
-	{{end}}
 	
 	// Create shutdown channel
 	quit := make(chan os.Signal, 1)
