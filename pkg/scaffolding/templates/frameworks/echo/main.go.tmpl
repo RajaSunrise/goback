@@ -24,18 +24,23 @@ import (
 	"{{.ModulePath}}/internal/utils"
 	{{if eq .Tool "gorm"}}"{{.ModulePath}}/internal/migrate" {{end}}
 	"{{.ModulePath}}/internal/routes"
+	
 	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/config"
+	{{- if eq .Tool "gorm"}}
 	"{{.ModulePath}}/pkg/migrate"
+	{{end}}
 	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/infrastructure/database"
 	"{{.ModulePath}}/interfaces/routes"
+	
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/domain"
 	"{{.ModulePath}}/infrastructure/database"
 	"{{.ModulePath}}/infrastructure/repositories"
 	"{{.ModulePath}}/interfaces/routes"
+	
 	{{else if eq .Architecture "hexagonal" -}}
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/adapters/primary/http/routes"

@@ -1,31 +1,39 @@
 package routes
 
 import (
+	"net/http"
 	"github.com/go-chi/chi/v5"
 	{{- if eq .Tool "gorm" }}
 	"gorm.io/gorm"
 	{{- else if eq .Tool "sqlx" }}
 	"github.com/jmoiron/sqlx"
-	{{- else if eq .Tool "sqlc" }}
-	db_sqlc "{{.ModulePath}}/db/sqlc"
-	{{- end }}
+	{{end}}
 
 	{{if eq .Architecture "simple" -}}
 	"{{.ModulePath}}/internal/handlers"
 	"{{.ModulePath}}/internal/repositories"
 	"{{.ModulePath}}/internal/services"
 	"{{.ModulePath}}/internal/utils"
+	{{- if eq .Tool "sqlc" }}
+	db_sqlc "{{.ModulePath}}/db/sqlc"
+	{{- end }}
+	
 	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/domain/repositories"
 	"{{.ModulePath}}/domain/services"
 	infra_repo "{{.ModulePath}}/infrastructure/repositories"
 	"{{.ModulePath}}/interfaces/handlers"
 	"{{.ModulePath}}/domain/utils"
+	{{- if eq .Tool "sqlc" }}
+	db_sqlc "{{.ModulePath}}/infrastructure/database/sqlc"
+	{{- end }}
+	
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/domain/usecases"
 	"{{.ModulePath}}/infrastructure/repositories"
 	"{{.ModulePath}}/interfaces/handlers"
 	"{{.ModulePath}}/domain/utils"
+	
 	{{else if eq .Architecture "hexagonal" -}}
 	"{{.ModulePath}}/adapters/primary/http/handlers"
 	"{{.ModulePath}}/adapters/secondary/database"
@@ -35,13 +43,14 @@ import (
 	{{end}}
 )
 
-// Setup configures all the application routes on the Chi router.
-func Setup(r chi.Router, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
-	{{if eq .Architecture "simple" -}}
+func Setup(app chi.Router, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sqlx"}}*sqlx.DB{{else if eq .Tool "sqlc"}}db_sqlc.DBTX{{end}}, validator *utils.Validator) {
+	{{if eq .Architecture "simple"}}
+	// Initialize dependencies
 	userRepository := repositories.NewUserRepository(db)
 	userService := services.NewUserService(userRepository)
 	userHandler := handlers.NewUserHandler(userService, validator)
-	{{else if eq .Architecture "ddd" -}}
+	
+	{{else if eq .Architecture "ddd"}}
 	// Initialize dependencies
 	var userRepository repositories.UserRepository
 	{{if eq .Tool "gorm"}}
@@ -51,30 +60,75 @@ func Setup(r chi.Router, db {{if eq .Tool "gorm"}}*gorm.DB{{else if eq .Tool "sq
 	{{else if eq .Tool "sqlc"}}
 	userRepository = infra_repo.NewSqlcUserRepository(db)
 	{{end}}
-
 	userService := services.NewUserApplicationService(userRepository)
 	userHandler := handlers.NewUserHandler(userService, validator)
-	{{else if eq .Architecture "clean" -}}
-	userRepository := repositories.NewUserRepository(db)
-	userUsecase := usecases.NewUserUsecase(userRepository)
-	userHandler := handlers.NewUserHandler(userUsecase, validator)
-	{{else if eq .Architecture "hexagonal" -}}
-	userRepository := database.NewUserRepository(db)
+	
+	{{else if eq .Architecture "clean"}}
+	// Setup repositories
+	var userRepository usecases.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = repositories.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = repositories.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = repositories.NewSqlcUserRepository(db)
+	{{end}}
+
+	// Setup services
+	userService := usecases.NewUserUsecase(userRepository)
+	// Setup handlers
+	userHandler := handlers.NewUserHandler(*userService, validator)
+	
+	{{else if eq .Architecture "hexagonal"}}
+	// Setup repositories
+	var userRepository ports.UserRepository
+	{{if eq .Tool "gorm"}}
+	userRepository = database.NewGormUserRepository(db)
+	{{else if eq .Tool "sqlx"}}
+	userRepository = database.NewSqlxUserRepository(db)
+	{{else if eq .Tool "sqlc"}}
+	userRepository = database.NewSqlcUserRepository(db)
+	{{end}}
+
+	// Setup services
 	userService := services.NewUserService(userRepository)
+
+	// Setup handlers
 	userHandler := handlers.NewUserHandler(userService, validator)
 	{{end}}
 
 	// Health check endpoint
-	r.Get("/health", handlers.HealthCheck)
+	app.Get("/health", http.HandlerFunc(handlers.HealthCheck))
 
 	// API version 1 routes
-	r.Route("/api/v1", func(r chi.Router) {
-		r.Route("/users", func(r chi.Router) {
-			r.Get("/", userHandler.GetAll)
-			r.Post("/", userHandler.Create)
-			r.Get("/{id}", userHandler.GetByID)
-			r.Put("/{id}", userHandler.Update)
-			r.Delete("/{id}", userHandler.Delete)
+	app.Route("/api/v1", func(v1 chi.Router) {
+		// User routes
+		v1.Route("/users", func(users chi.Router) {
+		    {{if eq .Architecture "simple"}}
+			users.Get("/", http.HandlerFunc(userHandler.GetUsers))
+			users.Get("/{id}", http.HandlerFunc(userHandler.GetUser))
+			users.Post("/", http.HandlerFunc(userHandler.CreateUser))
+			users.Put("/{id}", http.HandlerFunc(userHandler.UpdateUser))
+			users.Delete("/{id}", http.HandlerFunc(userHandler.DeleteUser))
+			{{else if eq .Architecture "ddd"}}
+			users.Get("/", http.HandlerFunc(userHandler.GetAll))
+			users.Get("/{id}", http.HandlerFunc(userHandler.GetByID))
+			users.Post("/", http.HandlerFunc(userHandler.Create))
+			users.Put("/{id}", http.HandlerFunc(userHandler.Update))
+			users.Delete("/{id}", http.HandlerFunc(userHandler.Delete))
+			{{else if eq .Architecture "clean"}}
+			users.Post("/", http.HandlerFunc(userHandler.CreateUser))
+			users.Get("/{id}", http.HandlerFunc(userHandler.GetUser))
+			users.Get("/", http.HandlerFunc(userHandler.GetAllUsers))
+			users.Put("/{id}", http.HandlerFunc(userHandler.UpdateUser))
+			users.Delete("/{id}", http.HandlerFunc(userHandler.DeleteUser))
+			{{else if eq .Architecture "hexagonal"}}
+			users.Post("/", http.HandlerFunc(userHandler.Create))
+			users.Get("/{id}", http.HandlerFunc(userHandler.GetByID))
+			users.Get("/", http.HandlerFunc(userHandler.GetAll))
+			users.Put("/{id}", http.HandlerFunc(userHandler.Update))
+			users.Delete("/{id}", http.HandlerFunc(userHandler.Delete))
+			{{end}}
 		})
 	})
 }
