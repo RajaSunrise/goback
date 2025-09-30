@@ -350,25 +350,24 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 			return err
 		}
 		var destPath string
-		
+
 		// generateToolFiles for sqlc to ddd architecture
 		isDDD := strings.ToLower(string(tg.Config.Architecture)) == "ddd"
 		slashedRelPath := filepath.ToSlash(relPath)
-		
+
 		// generateToolFiles for sqlc to ddd architecture
-		if isDDD && strings.HasPrefix(slashedRelPath, "db/migrations") {
+		switch {
+		case isDDD && strings.HasPrefix(slashedRelPath, "db/migrations"):
 			// move folder migrations
 			filename := strings.TrimPrefix(slashedRelPath, "db/migrations")
-		
+
 			destPath = filepath.Join("infrastructure/database/migrations", filename)
-			
-		} else if isDDD && strings.HasPrefix(slashedRelPath, "db/queries") {
+		case isDDD && strings.HasPrefix(slashedRelPath, "db/queries"):
 			// move folder query
 			filename := strings.TrimPrefix(slashedRelPath, "db/queries")
-			
+
 			destPath = filepath.Join("infrastructure/database/query", filename)
-			
-		} else {
+		default:
 			// for sqlc simple architecture
 			switch {
 			case filepath.Base(path) == "model.go.tmpl":
@@ -379,7 +378,7 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 				destPath = tg.getDestinationPath("migrate")
 			}
 		}
-		
+
 		templatePath := strings.TrimPrefix(path, templatesDir+string(filepath.Separator))
 		return tg.generateFileFromTemplate(destPath, templatePath)
 	})
