@@ -1,40 +1,40 @@
 version: "2"
 sql:
-- schema: "db/migrations" # Path to migrations folder
-  queries: "db/queries"  # Path to queries folder
-{{- if eq .Database "postgresql"}}
-  engine: "postgresql"
-{{- else if eq .Database "mysql"}}
-  engine: "mysql"
-{{- else}}
-  engine: "sqlite"
-{{- end}}
-  gen:
-    go:
-      package: "db"
-      out: "db/sqlc"
-      {{- if eq .Database "postgresql"}}
-      sql_package: "pgx/v5"
-      overrides:
-        - db_type: "uuid"
-          go_type: "github.com/google/uuid.UUID"
-        - db_type: "boolean"
-          go_type: "bool"
-        - db_type: "timestamp"
-          go_type: "time.Time"
-        - db_type: "timestamptz"
-          go_type: "time.Time"
-        - db_type: "date"
-          go_type: "time.Time"
-      {{- else if eq .Database "mysql"}}
-      sql_package: "database/sql"
-      {{- else if eq .Database "sqlite"}}
-      sql_package: "database/sql"
-      {{- else}}
-      sql_package: "database/sql"
-      {{- end}}
-      emit_json_tags: true
-      emit_prepared_queries: false
-      emit_interface: true
-      emit_exact_table_names: false
-      emit_empty_slices: true
+  - engine: {{ if eq .Database "postgresql" }}"postgresql"{{ else if eq .Database "mysql" }}"mysql"{{ else }}"sqlite"{{ end }}
+  {{- if eq .Architecture "ddd" }}
+    schema: "infrastructure/database/migrations"
+    queries: "infrastructure/database/query"
+  {{- else }}
+    schema: "db/migration"
+    queries: "db/query"
+  {{- end }}
+    gen:
+      go:
+      {{- if eq .Architecture "ddd" }}
+        package: "database"
+        out: "infrastructure/database/sqlc"
+      {{- else }}
+        package: "db"
+        out: "db/sqlc"
+      {{- end }}
+      {{- if eq .Database "postgresql" }}
+        sql_package: "pgx/v5"
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "boolean"
+            go_type: "bool"
+          - db_type: "timestamp"
+            go_type: "time.Time"
+          - db_type: "timestamptz"
+            go_type: "time.Time"
+          - db_type: "date"
+            go_type: "time.Time"
+      {{- else }}
+        sql_package: "database/sql"
+      {{- end }}
+        emit_json_tags: true
+        emit_prepared_queries: false
+        emit_interface: true
+        emit_exact_table_names: false
+        emit_empty_slices: true

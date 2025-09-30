@@ -14,10 +14,11 @@ import (
 	{{end}}
 	{{if eq .Architecture "simple"}}
 	"{{.ModulePath}}/internal/config"
+	db "{{.ModulePath}}/db/sqlc"
 	{{else}}
 	"{{.ModulePath}}/config"
+	db "{{.ModulePath}}/infrastructure/database/sqlc"
 	{{end}}
-	db "{{.ModulePath}}/db/sqlc"
 )
 
 // Connect establishes a connection to the configured database and returns a DBTX compatible object.

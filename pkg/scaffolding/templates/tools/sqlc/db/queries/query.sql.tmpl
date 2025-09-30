@@ -70,3 +70,6 @@ WHERE id = ?;
 DELETE FROM users
 WHERE id = ?;
 {{end}}
+
+-- name: CountUsersByEmail :one
+SELECT COUNT(*) FROM users WHERE email = $1;

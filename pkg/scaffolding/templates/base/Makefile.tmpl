@@ -240,7 +240,7 @@ migrate/up:
 
 migrate/down:
 	@echo "Reverting last migration..."
-	@migrate -database "$(DB_URL)" -path $(MIGRATION_PATH) down -n 1
+	@migrate -database "$(DB_URL)" -path $(MIGRATION_PATH) down
 
 migrate/force:
 	@read -p "Are you sure you want to force migration to version $(v)? This is a destructive action. (y/N) " -n 1 -r; \

@@ -349,15 +349,34 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 		if err != nil {
 			return err
 		}
+		var destPath string
 
-		destPath := relPath
+		// generateToolFiles for sqlc to ddd architecture
+		isDDD := strings.ToLower(string(tg.Config.Architecture)) == "ddd"
+		slashedRelPath := filepath.ToSlash(relPath)
+
+		// generateToolFiles for sqlc to ddd architecture
 		switch {
-		case filepath.Base(path) == "model.go.tmpl":
-			destPath = tg.getDestinationPath("models")
-		case filepath.Base(path) == "sqlc.yaml.tmpl":
-			destPath = "sqlc.yaml"
-		case strings.HasSuffix(path, "migrate.go.tmpl"):
-			destPath = tg.getDestinationPath("migrate")
+		case isDDD && strings.HasPrefix(slashedRelPath, "db/migrations"):
+			// move folder migrations
+			filename := strings.TrimPrefix(slashedRelPath, "db/migrations")
+
+			destPath = filepath.Join("infrastructure/database/migrations", filename)
+		case isDDD && strings.HasPrefix(slashedRelPath, "db/queries"):
+			// move folder query
+			filename := strings.TrimPrefix(slashedRelPath, "db/queries")
+
+			destPath = filepath.Join("infrastructure/database/query", filename)
+		default:
+			// for sqlc simple architecture
+			switch {
+			case filepath.Base(path) == "model.go.tmpl":
+				destPath = tg.getDestinationPath("models")
+			case filepath.Base(path) == "sqlc.yaml.tmpl":
+				destPath = "sqlc.yaml"
+			case strings.HasSuffix(path, "migrate.go.tmpl"):
+				destPath = tg.getDestinationPath("migrate")
+			}
 		}
 
 		templatePath := strings.TrimPrefix(path, templatesDir+string(filepath.Separator))

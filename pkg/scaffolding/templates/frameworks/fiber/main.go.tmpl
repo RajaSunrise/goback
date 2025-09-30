@@ -29,7 +29,7 @@ import (
 	
 	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/config"
-	"{{.ModulePath}}/pkg/migrate"
+	{{if eq .Tool "gorm"}}"{{.ModulePath}}/pkg/migrate"{{end}}
 	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/infrastructure/database"
 	"{{.ModulePath}}/interfaces/routes"

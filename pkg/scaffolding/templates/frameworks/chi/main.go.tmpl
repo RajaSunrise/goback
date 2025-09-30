@@ -1,4 +1,3 @@
-{{/* File: main.go.tmpl (for Chi) */}}
 package main
 
 import (
@@ -26,9 +25,12 @@ import (
 	"{{.ModulePath}}/internal/utils"
 	{{if eq .Tool "gorm"}}"{{.ModulePath}}/internal/migrate" {{end}}
 	"{{.ModulePath}}/internal/routes"
+	
 	{{else if eq .Architecture "ddd" -}}
 	"{{.ModulePath}}/config"
+	{{- if eq .Tool "gorm"}}
 	"{{.ModulePath}}/pkg/migrate"
+	{{end}}
 	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/infrastructure/database"
 	"{{.ModulePath}}/interfaces/routes"
