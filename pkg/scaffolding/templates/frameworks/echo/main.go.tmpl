@@ -73,14 +73,16 @@ func main() {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	
-	// Handle database cleanup based on the tool
 	{{- if eq .Tool "sqlc"}}
+	{{if eq .Database "postgresql"}}
+	// Handle database cleanup based on the tool
 	defer func() {
 		if pool, ok := db.(*pgxpool.Pool); ok && pool != nil {
 			pool.Close()
 			log.Println("PostgreSQL connection pool closed.")
 		}
 	}()
+	{{end}}
 	{{end}}
 
 	{{if eq .Tool "gorm"}}

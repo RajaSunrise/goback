@@ -72,4 +72,4 @@ WHERE id = ?;
 {{end}}
 
 -- name: CountUsersByEmail :one
-SELECT COUNT(*) FROM users WHERE email = $1;
+SELECT COUNT(*) FROM users WHERE email = ?;

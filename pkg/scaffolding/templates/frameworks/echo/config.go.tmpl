@@ -4,110 +4,137 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
+	"github.com/spf13/viper"
 )
 
+// Config holds all configuration for the application.
 type Config struct {
-	Server   ServerConfig   `json:"server"`
-	{{- if .Database}}
-	Database DatabaseConfig `json:"database"`
-	{{- end}}
-	App      AppConfig      `json:"app"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Database DatabaseConfig `mapstructure:"database"`
+	JWT      JWTConfig      `mapstructure:"jwt"`
+	Log      LogConfig      `mapstructure:"log"`
+	CORS     CORSConfig     `mapstructure:"cors"`
 }
 
+// ServerConfig holds server configuration.
 type ServerConfig struct {
-	Port         string `json:"port"`
-	Host         string `json:"host"`
-	ReadTimeout  int    `json:"read_timeout"`
-	WriteTimeout int    `json:"write_timeout"`
-	IdleTimeout  int    `json:"idle_timeout"`
+	Port           string        `mapstructure:"port"`
+	Mode           string        `mapstructure:"mode"`
+	ReadTimeout    time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout   time.Duration `mapstructure:"write_timeout"`
+	IdleTimeout    time.Duration `mapstructure:"idle_timeout"`
+	MaxHeaderBytes int           `mapstructure:"max_header_bytes"`
+	TrustedProxies []string      `mapstructure:"trusted_proxies"`
 }
 
-{{- if .Database}}
+// DatabaseConfig holds database configuration.
 type DatabaseConfig struct {
-	Type         string `json:"type"`
-	Host         string `json:"host"`
-	Port         string `json:"port"`
-	Username     string `json:"username"`
-	Password     string `json:"password"`
-	Name         string `json:"name"`
-	SSLMode      string `json:"ssl_mode"`
-	Timezone     string `json:"timezone"`
-	Path         string `json:"path"`
-	MaxOpenConns int    `json:"max_open_conns"`
-	MaxIdleConns int    `json:"max_idle_conns"`
+	Type            string        `mapstructure:"type"`
+	Host            string        `mapstructure:"host"`
+	Port            int           `mapstructure:"port"`
+	User            string        `mapstructure:"user"`
+	Password        string        `mapstructure:"password"`
+	Name            string        `mapstructure:"name"`
+	SSLMode         string        `mapstructure:"sslmode"`
+	TimeZone        string        `mapstructure:"timezone"`
+	Charset         string        `mapstructure:"charset"`
+	ParseTime       bool          `mapstructure:"parse_time"`
+	Loc             string        `mapstructure:"loc"`
+	Path            string        `mapstructure:"path"`
+	MaxOpenConns    int           `mapstructure:"max_open_conns"`
+	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
 }
 
-// GetDSN returns the Data Source Name for connecting to the database.
-func (c *DatabaseConfig) GetDSN() string {
-	switch c.Type {
-	case "postgres", "postgresql":
-		// Example: "host=localhost user=postgres password=password dbname=test port=5432 sslmode=disable TimeZone=UTC"
-		return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s",
-			c.Host, c.Username, c.Password, c.Name, c.Port, c.SSLMode, c.Timezone)
-	case "mysql":
-		// Example: "user:password@tcp(127.0.0.1:3306)/dbname?parseTime=true"
-		return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true",
-			c.Username, c.Password, c.Host, c.Port, c.Name)
-	case "sqlite":
-		return c.Path
-	default:
-		return ""
-	}
-}
-{{- end}}
-
-type AppConfig struct {
-	Name        string `json:"name"`
-	Version     string `json:"version"`
-	Environment string `json:"environment"`
-	Debug       bool   `json:"debug"`
+// JWTConfig holds JWT configuration.
+type JWTConfig struct {
+	Secret     string        `mapstructure:"secret"`
+	Expiration time.Duration `mapstructure:"expiration"`
+	Issuer     string        `mapstructure:"issuer"`
 }
 
+// LogConfig holds logging configuration.
+type LogConfig struct {
+	Level  string `mapstructure:"level"`
+	Format string `mapstructure:"format"`
+	Output string `mapstructure:"output"`
+}
+
+// CORSConfig holds CORS configuration.
+type CORSConfig struct {
+	AllowedOrigins   []string `mapstructure:"allowed_origins"`
+	AllowedMethods   []string `mapstructure:"allowed_methods"`
+	AllowedHeaders   []string `mapstructure:"allowed_headers"`
+	AllowCredentials bool     `mapstructure:"allow_credentials"`
+}
+
+// Load loads configuration from environment variables and config files.
 func Load() (*Config, error) {
 	// Load .env file if it exists
-	godotenv.Load()
-
-	cfg := &Config{
-		Server: ServerConfig{
-			Port:         getEnv("PORT", "8080"),
-			Host:         getEnv("HOST", "localhost"),
-			ReadTimeout:  getEnvAsInt("READ_TIMEOUT", 30),
-			WriteTimeout: getEnvAsInt("WRITE_TIMEOUT", 30),
-			IdleTimeout:  getEnvAsInt("IDLE_TIMEOUT", 60),
-		},
-		{{- if .Database}}
-		Database: DatabaseConfig{
-			Type:         getEnv("DB_TYPE", "{{.Database}}"),
-			Host:         getEnv("DB_HOST", "localhost"),
-			Port:         getEnv("DB_PORT", "5432"),
-			Username:     getEnv("DB_USERNAME", "postgres"),
-			Password:     getEnv("DB_PASSWORD", "password"),
-			Name:         getEnv("DB_NAME", "{{.ProjectName}}_db"),
-			SSLMode:      getEnv("DB_SSLMODE", "disable"),
-			Timezone:     getEnv("DB_TIMEZONE", "UTC"),
-			Path:         getEnv("DB_PATH", "./{{.ProjectName | snakeCase}}.db"),
-			MaxOpenConns: getEnvAsInt("DB_MAX_OPEN_CONNS", 10),
-			MaxIdleConns: getEnvAsInt("DB_MAX_IDLE_CONNS", 5),
-		},
-		{{- end}}
-		App: AppConfig{
-			Name:        getEnv("APP_NAME", "{{.ProjectName}}"),
-			Version:     getEnv("APP_VERSION", "1.0.0"),
-			Environment: getEnv("APP_ENV", "development"),
-			Debug:       getEnvAsBool("DEBUG", true),
-		},
+	if err := godotenv.Load(".env"); err != nil {
+		fmt.Printf("Warning: .env file not found: %v\n", err)
 	}
 
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+	config := &Config{}
+
+	// Set defaults
+	viper.SetDefault("server.port", getEnv("PORT", "8080"))
+	viper.SetDefault("server.mode", getEnv("FIBER_MODE", "debug"))
+	viper.SetDefault("server.read_timeout", parseDuration(getEnv("READ_TIMEOUT", "30s")))
+	viper.SetDefault("server.write_timeout", parseDuration(getEnv("WRITE_TIMEOUT", "30s")))
+	viper.SetDefault("server.idle_timeout", parseDuration(getEnv("IDLE_TIMEOUT", "60s")))
+	viper.SetDefault("server.max_header_bytes", parseInt(getEnv("MAX_HEADER_BYTES", "1048576")))
+
+	viper.SetDefault("database.type", getEnv("DB_TYPE", "{{.Database}}"))
+	viper.SetDefault("database.host", getEnv("DB_HOST", "localhost"))
+	viper.SetDefault("database.port", parseInt(getEnv("DB_PORT", "0000")))
+	viper.SetDefault("database.user", getEnv("DB_USER", "username"))
+	viper.SetDefault("database.password", getEnv("DB_PASSWORD", "password"))
+	viper.SetDefault("database.name", getEnv("DB_NAME", "{{.ProjectName | snakeCase}}"))
+	viper.SetDefault("database.sslmode", getEnv("DB_SSLMODE", "disable"))
+	viper.SetDefault("database.timezone", getEnv("DB_TIMEZONE", "UTC"))
+	viper.SetDefault("database.charset", getEnv("DB_CHARSET", "utf8mb4"))
+	viper.SetDefault("database.parse_time", parseBool(getEnv("DB_PARSE_TIME", "true")))
+	viper.SetDefault("database.loc", getEnv("DB_LOC", "Local"))
+	viper.SetDefault("database.path", getEnv("DB_PATH", "./{{.ProjectName | snakeCase}}.db"))
+	viper.SetDefault("database.max_open_conns", parseInt(getEnv("DB_MAX_OPEN_CONNS", "25")))
+	viper.SetDefault("database.max_idle_conns", parseInt(getEnv("DB_MAX_IDLE_CONNS", "25")))
+	viper.SetDefault("database.conn_max_lifetime", parseDuration(getEnv("DB_CONN_MAX_LIFETIME", "5m")))
+
+	viper.SetDefault("jwt.secret", getEnv("JWT_SECRET", "your-secret-key"))
+	viper.SetDefault("jwt.expiration", parseDuration(getEnv("JWT_EXPIRATION", "24h")))
+	viper.SetDefault("jwt.issuer", getEnv("JWT_ISSUER", "{{.ProjectName}}"))
+
+	viper.SetDefault("log.level", getEnv("LOG_LEVEL", "info"))
+	viper.SetDefault("log.format", getEnv("LOG_FORMAT", "text"))
+	viper.SetDefault("log.output", getEnv("LOG_OUTPUT", "stdout"))
+
+	viper.SetDefault("cors.allowed_origins", parseStringSlice(getEnv("CORS_ALLOWED_ORIGINS", "*")))
+	viper.SetDefault("cors.allowed_methods", parseStringSlice(getEnv("CORS_ALLOWED_METHODS", "GET,POST,PUT,DELETE,OPTIONS")))
+	viper.SetDefault("cors.allowed_headers", parseStringSlice(getEnv("CORS_ALLOWED_HEADERS", "Content-Type,Authorization,X-Requested-With")))
+	viper.SetDefault("cors.allow_credentials", parseBool(getEnv("CORS_ALLOW_CREDENTIALS", "true")))
+
+	// Bind environment variables
+	viper.AutomaticEnv()
+
+	// Unmarshal into config struct
+	if err := viper.Unmarshal(config); err != nil {
+		return nil, fmt.Errorf("unable to decode config: %v", err)
 	}
 
-	return cfg, nil
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %v", err)
+	}
+
+	return config, nil
 }
 
-// Validate validates the configuration
+// Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
 	if c.Server.Port == "" {
 		return fmt.Errorf("server port is required")
@@ -118,7 +145,7 @@ func (c *Config) Validate() error {
 		if c.Database.Host == "" {
 			return fmt.Errorf("database host is required")
 		}
-		if c.Database.Username == "" {
+		if c.Database.User == "" {
 			return fmt.Errorf("database user is required")
 		}
 		if c.Database.Name == "" {
@@ -130,25 +157,42 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if c.JWT.Secret == "" {
+		return fmt.Errorf("JWT secret must be set")
+	}
+
+	if len(c.CORS.AllowedOrigins) == 0 {
+		return fmt.Errorf("CORS allowed origins must be set")
+	}
+
 	return nil
 }
 
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
+// GetDSN returns the database connection string (DSN).
+func (c *DatabaseConfig) GetDSN() string {
+	switch c.Type {
+	case "postgres", "postgresql":
+		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
+			c.Host, c.Port, c.User, c.Password, c.Name, c.SSLMode, c.TimeZone)
+	case "mysql":
+		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=%t&loc=%s",
+			c.User, c.Password, c.Host, c.Port, c.Name, c.Charset, c.ParseTime, c.Loc)
+	case "sqlite":
+		return c.Path
+	default:
+		return ""
 	}
-	return defaultValue
 }
 
 // GetMigrationDSN returns the database connection string for migrations.
 func (c *DatabaseConfig) GetMigrationDSN() string {
 	switch c.Type {
 	case "postgres", "postgresql":
-		return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-			c.Username, c.Password, c.Host, c.Port, c.Name, c.SSLMode)
+		return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+			c.User, c.Password, c.Host, c.Port, c.Name, c.SSLMode)
 	case "mysql":
-		return fmt.Sprintf("mysql://%s:%s@tcp(%s:%s)/%s",
-			c.Username, c.Password, c.Host, c.Port, c.Name)
+		return fmt.Sprintf("mysql://%s:%s@tcp(%s:%d)/%s",
+			c.User, c.Password, c.Host, c.Port, c.Name)
 	case "sqlite":
 		return fmt.Sprintf("sqlite3://%s", c.Path)
 	default:
@@ -156,20 +200,49 @@ func (c *DatabaseConfig) GetMigrationDSN() string {
 	}
 }
 
-func getEnvAsInt(key string, defaultValue int) int {
+// --- Helper functions ---
+
+// getEnv retrieves an environment variable or returns a default value.
+func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
+		return value
 	}
 	return defaultValue
 }
 
-func getEnvAsBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		if boolValue, err := strconv.ParseBool(value); err == nil {
-			return boolValue
-		}
+// parseInt converts a string to an integer, returning 0 on failure.
+func parseInt(s string) int {
+	if i, err := strconv.Atoi(s); err == nil {
+		return i
 	}
-	return defaultValue
+	return 0
+}
+
+// parseBool converts a string to a boolean, returning false on failure.
+func parseBool(s string) bool {
+	if b, err := strconv.ParseBool(s); err == nil {
+		return b
+	}
+	return false
+}
+
+// parseDuration converts a string to a time.Duration, returning 0 on failure.
+func parseDuration(s string) time.Duration {
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	return 0
+}
+
+// parseStringSlice splits a comma-separated string into a slice of strings.
+func parseStringSlice(s string) []string {
+	if s == "" {
+		return []string{}
+	}
+	parts := strings.Split(s, ",")
+	result := make([]string, len(parts))
+	for i, part := range parts {
+		result[i] = strings.TrimSpace(part)
+	}
+	return result
 }
