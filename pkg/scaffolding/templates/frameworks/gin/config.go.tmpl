@@ -4,126 +4,137 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
-// Config holds all configuration for our application
+// Config holds all configuration for the application.
 type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
 	Database DatabaseConfig `mapstructure:"database"`
 	JWT      JWTConfig      `mapstructure:"jwt"`
 	Log      LogConfig      `mapstructure:"log"`
+	CORS     CORSConfig     `mapstructure:"cors"`
 }
 
-// ServerConfig holds server configuration
+// ServerConfig holds server configuration.
 type ServerConfig struct {
-	Port           string `mapstructure:"port"`
-	Mode           string `mapstructure:"mode"`
-	ReadTimeout    int    `mapstructure:"read_timeout"`
-	WriteTimeout   int    `mapstructure:"write_timeout"`
-	IdleTimeout    int    `mapstructure:"idle_timeout"`
-	MaxHeaderBytes int    `mapstructure:"max_header_bytes"`
+	Port           string        `mapstructure:"port"`
+	Mode           string        `mapstructure:"mode"`
+	ReadTimeout    time.Duration `mapstructure:"read_timeout"`
+	WriteTimeout   time.Duration `mapstructure:"write_timeout"`
+	IdleTimeout    time.Duration `mapstructure:"idle_timeout"`
+	MaxHeaderBytes int           `mapstructure:"max_header_bytes"`
+	TrustedProxies []string      `mapstructure:"trusted_proxies"`
 }
 
-// DatabaseConfig holds database configuration
+// DatabaseConfig holds database configuration.
 type DatabaseConfig struct {
-	Type         string `mapstructure:"type"`
-	Host         string `mapstructure:"host"`
-	Port         int    `mapstructure:"port"`
-	User         string `mapstructure:"user"`
-	Password     string `mapstructure:"password"`
-	DBName       string `mapstructure:"dbname"`
-	SSLMode      string `mapstructure:"sslmode"`
-	Path         string `mapstructure:"path"`
-	MaxOpenConns int    `mapstructure:"max_open_conns"`
-	MaxIdleConns int    `mapstructure:"max_idle_conns"`
+	Type            string        `mapstructure:"type"`
+	Host            string        `mapstructure:"host"`
+	Port            int           `mapstructure:"port"`
+	User            string        `mapstructure:"user"`
+	Password        string        `mapstructure:"password"`
+	Name            string        `mapstructure:"name"`
+	SSLMode         string        `mapstructure:"sslmode"`
+	TimeZone        string        `mapstructure:"timezone"`
+	Charset         string        `mapstructure:"charset"`
+	ParseTime       bool          `mapstructure:"parse_time"`
+	Loc             string        `mapstructure:"loc"`
+	Path            string        `mapstructure:"path"`
+	MaxOpenConns    int           `mapstructure:"max_open_conns"`
+	MaxIdleConns    int           `mapstructure:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `mapstructure:"conn_max_lifetime"`
 }
 
-// JWTConfig holds JWT configuration
+// JWTConfig holds JWT configuration.
 type JWTConfig struct {
-	Secret     string `mapstructure:"secret"`
-	Expiration string `mapstructure:"expiration"`
+	Secret     string        `mapstructure:"secret"`
+	Expiration time.Duration `mapstructure:"expiration"`
+	Issuer     string        `mapstructure:"issuer"`
 }
 
-// LogConfig holds logging configuration
+// LogConfig holds logging configuration.
 type LogConfig struct {
 	Level  string `mapstructure:"level"`
 	Format string `mapstructure:"format"`
+	Output string `mapstructure:"output"`
 }
 
-// Load loads configuration from environment variables and config files
+// CORSConfig holds CORS configuration.
+type CORSConfig struct {
+	AllowedOrigins   []string `mapstructure:"allowed_origins"`
+	AllowedMethods   []string `mapstructure:"allowed_methods"`
+	AllowedHeaders   []string `mapstructure:"allowed_headers"`
+	AllowCredentials bool     `mapstructure:"allow_credentials"`
+}
+
+// Load loads configuration from environment variables and config files.
 func Load() (*Config, error) {
 	// Load .env file if it exists
 	if err := godotenv.Load(".env"); err != nil {
-		// It's okay if .env doesn't exist
 		fmt.Printf("Warning: .env file not found: %v\n", err)
 	}
 
-	cfg := &Config{}
+	config := &Config{}
 
-	// Set default values
-	viper.SetDefault("server.port", "8080")
-	viper.SetDefault("server.mode", "debug")
-	viper.SetDefault("server.read_timeout", 10)
-	viper.SetDefault("server.write_timeout", 10)
-	viper.SetDefault("server.idle_timeout", 60)
-	viper.SetDefault("server.max_header_bytes", 1048576)
+	// Set defaults
+	viper.SetDefault("server.port", getEnv("PORT", "8080"))
+	viper.SetDefault("server.mode", getEnv("FIBER_MODE", "debug"))
+	viper.SetDefault("server.read_timeout", parseDuration(getEnv("READ_TIMEOUT", "30s")))
+	viper.SetDefault("server.write_timeout", parseDuration(getEnv("WRITE_TIMEOUT", "30s")))
+	viper.SetDefault("server.idle_timeout", parseDuration(getEnv("IDLE_TIMEOUT", "60s")))
+	viper.SetDefault("server.max_header_bytes", parseInt(getEnv("MAX_HEADER_BYTES", "1048576")))
 
-	viper.SetDefault("database.type", "{{.Database}}")
-	viper.SetDefault("database.host", "localhost")
-	viper.SetDefault("database.port", 5432)
-	viper.SetDefault("database.user", "user")
-	viper.SetDefault("database.password", "password")
-	viper.SetDefault("database.dbname", "{{.ProjectName | snakeCase}}")
-	viper.SetDefault("database.sslmode", "disable")
-	viper.SetDefault("database.path", "./{{.ProjectName | snakeCase}}.db")
-	viper.SetDefault("database.max_open_conns", 25)
-	viper.SetDefault("database.max_idle_conns", 5)
+	viper.SetDefault("database.type", getEnv("DB_TYPE", "{{.Database}}"))
+	viper.SetDefault("database.host", getEnv("DB_HOST", "localhost"))
+	viper.SetDefault("database.port", parseInt(getEnv("DB_PORT", "0000")))
+	viper.SetDefault("database.user", getEnv("DB_USER", "username"))
+	viper.SetDefault("database.password", getEnv("DB_PASSWORD", "password"))
+	viper.SetDefault("database.name", getEnv("DB_NAME", "{{.ProjectName | snakeCase}}"))
+	viper.SetDefault("database.sslmode", getEnv("DB_SSLMODE", "disable"))
+	viper.SetDefault("database.timezone", getEnv("DB_TIMEZONE", "UTC"))
+	viper.SetDefault("database.charset", getEnv("DB_CHARSET", "utf8mb4"))
+	viper.SetDefault("database.parse_time", parseBool(getEnv("DB_PARSE_TIME", "true")))
+	viper.SetDefault("database.loc", getEnv("DB_LOC", "Local"))
+	viper.SetDefault("database.path", getEnv("DB_PATH", "./{{.ProjectName | snakeCase}}.db"))
+	viper.SetDefault("database.max_open_conns", parseInt(getEnv("DB_MAX_OPEN_CONNS", "25")))
+	viper.SetDefault("database.max_idle_conns", parseInt(getEnv("DB_MAX_IDLE_CONNS", "25")))
+	viper.SetDefault("database.conn_max_lifetime", parseDuration(getEnv("DB_CONN_MAX_LIFETIME", "5m")))
 
-	viper.SetDefault("jwt.secret", "your-secret-key")
-	viper.SetDefault("jwt.expiration", "24h")
+	viper.SetDefault("jwt.secret", getEnv("JWT_SECRET", "your-secret-key"))
+	viper.SetDefault("jwt.expiration", parseDuration(getEnv("JWT_EXPIRATION", "24h")))
+	viper.SetDefault("jwt.issuer", getEnv("JWT_ISSUER", "{{.ProjectName}}"))
 
-	viper.SetDefault("log.level", "info")
-	viper.SetDefault("log.format", "json")
+	viper.SetDefault("log.level", getEnv("LOG_LEVEL", "info"))
+	viper.SetDefault("log.format", getEnv("LOG_FORMAT", "text"))
+	viper.SetDefault("log.output", getEnv("LOG_OUTPUT", "stdout"))
 
-	// Read from config file
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./configs")
-	viper.AddConfigPath(".")
+	viper.SetDefault("cors.allowed_origins", parseStringSlice(getEnv("CORS_ALLOWED_ORIGINS", "*")))
+	viper.SetDefault("cors.allowed_methods", parseStringSlice(getEnv("CORS_ALLOWED_METHODS", "GET,POST,PUT,DELETE,OPTIONS")))
+	viper.SetDefault("cors.allowed_headers", parseStringSlice(getEnv("CORS_ALLOWED_HEADERS", "Content-Type,Authorization,X-Requested-With")))
+	viper.SetDefault("cors.allow_credentials", parseBool(getEnv("CORS_ALLOW_CREDENTIALS", "true")))
 
-	// Read config file (optional)
-	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, fmt.Errorf("failed to read config file: %w", err)
-		}
-	}
-
-	// Override with environment variables
-	viper.SetEnvPrefix("{{.ProjectName | upper | replaceAll "-" "_"}}")
+	// Bind environment variables
 	viper.AutomaticEnv()
 
-	// Environment variable mappings
-	bindEnvVars()
-
-	// Unmarshal into struct
-	if err := viper.Unmarshal(cfg); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
+	// Unmarshal into config struct
+	if err := viper.Unmarshal(config); err != nil {
+		return nil, fmt.Errorf("unable to decode config: %v", err)
 	}
 
-	// Load from environment variables if not set in config
-	loadFromEnv(cfg)
-
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("invalid configuration: %w", err)
+	// Validate configuration
+	if err := config.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid configuration: %v", err)
 	}
 
-	return cfg, nil
+	return config, nil
 }
 
-// Validate validates the configuration
+// Validate checks if the configuration is valid.
 func (c *Config) Validate() error {
 	if c.Server.Port == "" {
 		return fmt.Errorf("server port is required")
@@ -137,7 +148,7 @@ func (c *Config) Validate() error {
 		if c.Database.User == "" {
 			return fmt.Errorf("database user is required")
 		}
-		if c.Database.DBName == "" {
+		if c.Database.Name == "" {
 			return fmt.Errorf("database name is required")
 		}
 	case "sqlite":
@@ -150,94 +161,22 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("JWT secret must be set")
 	}
 
+	if len(c.CORS.AllowedOrigins) == 0 {
+		return fmt.Errorf("CORS allowed origins must be set")
+	}
+
 	return nil
 }
 
-// bindEnvVars binds environment variables to config keys
-func bindEnvVars() {
-	viper.BindEnv("server.port", "PORT")
-	viper.BindEnv("server.mode", "GIN_MODE")
-
-	viper.BindEnv("database.type", "DB_TYPE")
-	viper.BindEnv("database.host", "DB_HOST")
-	viper.BindEnv("database.port", "DB_PORT")
-	viper.BindEnv("database.user", "DB_USER")
-	viper.BindEnv("database.password", "DB_PASSWORD")
-	viper.BindEnv("database.dbname", "DB_NAME")
-	viper.BindEnv("database.sslmode", "DB_SSLMODE")
-	viper.BindEnv("database.path", "DB_PATH")
-
-	viper.BindEnv("jwt.secret", "JWT_SECRET")
-	viper.BindEnv("jwt.expiration", "JWT_EXPIRATION")
-
-	viper.BindEnv("log.level", "LOG_LEVEL")
-	viper.BindEnv("log.format", "LOG_FORMAT")
-}
-
-// loadFromEnv loads configuration from environment variables
-func loadFromEnv(cfg *Config) {
-	// Server configuration
-	if port := os.Getenv("PORT"); port != "" {
-		cfg.Server.Port = port
-	}
-	if mode := os.Getenv("GIN_MODE"); mode != "" {
-		cfg.Server.Mode = mode
-	}
-
-	// Database configuration
-	if dbType := os.Getenv("DB_TYPE"); dbType != "" {
-		cfg.Database.Type = dbType
-	}
-	if host := os.Getenv("DB_HOST"); host != "" {
-		cfg.Database.Host = host
-	}
-	if port := os.Getenv("DB_PORT"); port != "" {
-		if p, err := strconv.Atoi(port); err == nil {
-			cfg.Database.Port = p
-		}
-	}
-	if user := os.Getenv("DB_USER"); user != "" {
-		cfg.Database.User = user
-	}
-	if password := os.Getenv("DB_PASSWORD"); password != "" {
-		cfg.Database.Password = password
-	}
-	if dbname := os.Getenv("DB_NAME"); dbname != "" {
-		cfg.Database.DBName = dbname
-	}
-	if sslmode := os.Getenv("DB_SSLMODE"); sslmode != "" {
-		cfg.Database.SSLMode = sslmode
-	}
-	if path := os.Getenv("DB_PATH"); path != "" {
-		cfg.Database.Path = path
-	}
-
-	// JWT configuration
-	if secret := os.Getenv("JWT_SECRET"); secret != "" {
-		cfg.JWT.Secret = secret
-	}
-	if expiration := os.Getenv("JWT_EXPIRATION"); expiration != "" {
-		cfg.JWT.Expiration = expiration
-	}
-
-	// Log configuration
-	if level := os.Getenv("LOG_LEVEL"); level != "" {
-		cfg.Log.Level = level
-	}
-	if format := os.Getenv("LOG_FORMAT"); format != "" {
-		cfg.Log.Format = format
-	}
-}
-
-// GetDSN returns the database connection string
+// GetDSN returns the database connection string (DSN).
 func (c *DatabaseConfig) GetDSN() string {
 	switch c.Type {
 	case "postgres", "postgresql":
-		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-			c.Host, c.Port, c.User, c.Password, c.DBName, c.SSLMode)
+		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
+			c.Host, c.Port, c.User, c.Password, c.Name, c.SSLMode, c.TimeZone)
 	case "mysql":
-		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-			c.User, c.Password, c.Host, c.Port, c.DBName)
+		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=%s&parseTime=%t&loc=%s",
+			c.User, c.Password, c.Host, c.Port, c.Name, c.Charset, c.ParseTime, c.Loc)
 	case "sqlite":
 		return c.Path
 	default:
@@ -250,13 +189,60 @@ func (c *DatabaseConfig) GetMigrationDSN() string {
 	switch c.Type {
 	case "postgres", "postgresql":
 		return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
-			c.User, c.Password, c.Host, c.Port, c.DBName, c.SSLMode)
+			c.User, c.Password, c.Host, c.Port, c.Name, c.SSLMode)
 	case "mysql":
 		return fmt.Sprintf("mysql://%s:%s@tcp(%s:%d)/%s",
-			c.User, c.Password, c.Host, c.Port, c.DBName)
+			c.User, c.Password, c.Host, c.Port, c.Name)
 	case "sqlite":
 		return fmt.Sprintf("sqlite3://%s", c.Path)
 	default:
 		return ""
 	}
+}
+
+// --- Helper functions ---
+
+// getEnv retrieves an environment variable or returns a default value.
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// parseInt converts a string to an integer, returning 0 on failure.
+func parseInt(s string) int {
+	if i, err := strconv.Atoi(s); err == nil {
+		return i
+	}
+	return 0
+}
+
+// parseBool converts a string to a boolean, returning false on failure.
+func parseBool(s string) bool {
+	if b, err := strconv.ParseBool(s); err == nil {
+		return b
+	}
+	return false
+}
+
+// parseDuration converts a string to a time.Duration, returning 0 on failure.
+func parseDuration(s string) time.Duration {
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	return 0
+}
+
+// parseStringSlice splits a comma-separated string into a slice of strings.
+func parseStringSlice(s string) []string {
+	if s == "" {
+		return []string{}
+	}
+	parts := strings.Split(s, ",")
+	result := make([]string, len(parts))
+	for i, part := range parts {
+		result[i] = strings.TrimSpace(part)
+	}
+	return result
 }

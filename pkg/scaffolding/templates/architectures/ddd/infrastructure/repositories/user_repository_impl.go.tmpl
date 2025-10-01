@@ -15,20 +15,18 @@ import (
 	"gorm.io/gorm"
 	{{- else if eq .Tool "sqlx" }}
 	"github.com/jmoiron/sqlx"
-	"github.com/jackc/pgx/v5/pgtype"
 	{{if eq .Database "postgresql"}} 
+	"github.com/jackc/pgx/v5/pgtype"
 	{{else}}
 	"database/sql"
 	{{end}}
 	{{- else if eq .Tool "sqlc" }}
-	{{- if eq .Database "postgresql"}}
+	{{if eq .Database "postgresql"}}
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
-	{{if eq .Database "postgresql"}} 
 	{{else}}
 	"database/sql"
 	{{end}}
-	{{- end}}
 	sqlc "{{.ModulePath}}/infrastructure/database/sqlc"
 	{{- end}}
 )
@@ -99,9 +97,8 @@ func fromEntity(e *entities.User) *UserPersistenceModel {
 	{{- if eq .Database "postgresql" }}
 	p.ID = uuid.UUID(e.ID)
 	{{- else }}
-	p.ID = unint(e.ID)
+	p.ID = uint(e.ID)
 	{{- end}}
-	
 	{{ if eq .Tool "gorm" }}
 	p.CreatedAt = e.CreatedAt
 	p.UpdatedAt = e.UpdatedAt
@@ -436,23 +433,23 @@ func (r *SqlcUserRepository) Save(ctx context.Context, user *entities.User) erro
 			Name:      model.Name,
 			Email:     model.Email,
 			Password:  model.Password,
-			IsActive:  model.IsActive,
-			CreatedAt: model.CreatedAt,
-			UpdatedAt: model.UpdatedAt,
 		}
 		result, err := r.queries.CreateUser(ctx, params)
 		if err != nil {
 			return err
 		}
-		user.ID = entities.UserID(result.ID)
+		
+		id, err := result.LastInsertId()
+		if err != nil {
+		    return err
+		}
+		
+		user.ID = entities.UserID(id)
 	} else { // Update existing user
 		params := sqlc.UpdateUserParams{
-			ID:        int64(model.ID),
+			ID:        int32(model.ID),
 			Name:      model.Name,
 			Email:     model.Email,
-			Password:  model.Password,
-			IsActive:  model.IsActive,
-			UpdatedAt: model.UpdatedAt,
 		}
 		return r.queries.UpdateUser(ctx, params)
 	}
@@ -465,7 +462,7 @@ func (r *SqlcUserRepository) FindByID(ctx context.Context, id entities.UserID) (
 	{{ if eq .Database "postgresql" }}
 	user, err := r.queries.GetUserByID(ctx, uuid.UUID(id))
 	{{ else }}
-	user, err := r.queries.GetUserByID(ctx, int64(id))
+	user, err := r.queries.GetUserByID(ctx, int32(id))
 	{{ end }}
 
 	if err != nil {
@@ -561,7 +558,6 @@ func (r *SqlcUserRepository) FindAll(ctx context.Context, page, perPage int) ([]
 		}
 		entities[i] = *toEntity(model)
 	}
-	
 	return entities, total, nil
 }
 
@@ -569,7 +565,7 @@ func (r *SqlcUserRepository) Delete(ctx context.Context, id entities.UserID) err
 	{{ if eq .Database "postgresql" }}
 	return r.queries.DeleteUser(ctx, uuid.UUID(id))
 	{{ else }}
-	return r.queries.DeleteUser(ctx, int64(id))
+	return r.queries.DeleteUser(ctx, int32(id))
 	{{ end }}
 }
 

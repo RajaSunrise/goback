@@ -83,12 +83,14 @@ func main() {
 	
 	// Handle database cleanup based on the tool
 	{{- if eq .Tool "sqlc"}}
+	{{if eq .Database "postgresql"}}
 	defer func() {
 		if pool, ok := db.(*pgxpool.Pool); ok && pool != nil {
 			pool.Close()
 			log.Println("PostgreSQL connection pool closed.")
 		}
 	}()
+	{{end}}
 	{{end}}
 
 	{{if eq .Tool "gorm"}}
