@@ -36,12 +36,11 @@ import (
 	
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
+	"{{.ModulePath}}/domain/entities"
+	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/infrastructure/database"
-	{{if eq .Tool "gorm"}}"
-	{{.ModulePath}}/infrastructure/repositories"
-	{{end}}
-	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
+	
 	{{else if eq .Architecture "hexagonal" -}}
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/adapters/primary/http/middleware"

@@ -352,11 +352,41 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 		var destPath string
 
 		// generateToolFiles for sqlc to ddd architecture
+		isSimple := strings.ToLower(string(tg.Config.Architecture)) == "simple"
+		isClean := strings.ToLower(string(tg.Config.Architecture)) == "clean"
 		isDDD := strings.ToLower(string(tg.Config.Architecture)) == "ddd"
+		isHexa := strings.ToLower(string(tg.Config.Architecture)) == "hexagonal"
+
 		slashedRelPath := filepath.ToSlash(relPath)
 
 		// generateToolFiles for sqlc to ddd architecture
 		switch {
+		// for generate file sqlc simple
+		case isSimple && strings.HasPrefix(slashedRelPath, "db/migrations"):
+			// move folder migrations
+			filename := strings.TrimPrefix(slashedRelPath, "db/migrations")
+
+			destPath = filepath.Join("db/migration", filename)
+		case isSimple && strings.HasPrefix(slashedRelPath, "db/queries"):
+			// move folder queries
+			filename := strings.TrimPrefix(slashedRelPath, "db/queries")
+
+			destPath = filepath.Join("db/query", filename)
+
+		// for generate file sqlc clean
+		case isClean && strings.HasPrefix(slashedRelPath, "db/migrations"):
+			// move folder migrations
+			filename := strings.TrimPrefix(slashedRelPath, "db/migrations")
+
+			destPath = filepath.Join("infrastructure/database/migration", filename)
+
+		case isClean && strings.HasPrefix(slashedRelPath, "db/queries"):
+			// move folder queries
+			filename := strings.TrimPrefix(slashedRelPath, "db/queries")
+
+			destPath = filepath.Join("infrastructure/database/query", filename)
+
+		// for generate file sqlc ddd
 		case isDDD && strings.HasPrefix(slashedRelPath, "db/migrations"):
 			// move folder migrations
 			filename := strings.TrimPrefix(slashedRelPath, "db/migrations")
@@ -367,6 +397,17 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 			filename := strings.TrimPrefix(slashedRelPath, "db/queries")
 
 			destPath = filepath.Join("infrastructure/database/query", filename)
+
+		case isHexa && strings.HasPrefix(slashedRelPath, "db/migrations"):
+			// move folder migrations
+			filename := strings.TrimPrefix(slashedRelPath, "db/migrations")
+
+			destPath = filepath.Join("secondary/database/migrations", filename)
+		case isHexa && strings.HasPrefix(slashedRelPath, "db/queries"):
+			// move folder query
+			filename := strings.TrimPrefix(slashedRelPath, "db/queries")
+
+			destPath = filepath.Join("secondary/database/query", filename)
 		default:
 			// for sqlc simple architecture
 			switch {

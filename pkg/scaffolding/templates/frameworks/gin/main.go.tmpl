@@ -35,10 +35,9 @@ import (
 	
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
-	"{{.ModulePath}}/domain"
+	"{{.ModulePath}}/domain/entities"
+	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/infrastructure/database"
-	"{{.ModulePath}}/infrastructure/repositories"
-	"{{.ModulePath}}/interfaces/middleware"
 	"{{.ModulePath}}/interfaces/routes"
 	
 	{{else if eq .Architecture "hexagonal" -}}
@@ -97,10 +96,12 @@ func main() {
 	// Run Gorm migrations.
 	{{if eq .Architecture "simple"}}
 	migrate.RunGormAutoMigration(db)
+
 	{{else if eq .Architecture "ddd"}}
 	migrate.RunGormAutoMigration(db)
+
 	{{else if eq .Architecture "clean"}}
-	if err := db.AutoMigrate(&domain.User{}); err != nil {
+	if err := db.AutoMigrate(&entities.User{}); err != nil {
 		log.Fatalf("Failed to auto-migrate database: %v", err)
 	}
 	{{else if eq .Architecture "hexagonal"}}

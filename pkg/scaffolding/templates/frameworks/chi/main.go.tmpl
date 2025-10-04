@@ -34,12 +34,14 @@ import (
 	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/infrastructure/database"
 	"{{.ModulePath}}/interfaces/routes"
+	
 	{{else if eq .Architecture "clean" -}}
 	"{{.ModulePath}}/config"
-	"{{.ModulePath}}/domain"
+	"{{.ModulePath}}/domain/entities"
+	"{{.ModulePath}}/domain/utils"
 	"{{.ModulePath}}/infrastructure/database"
-	"{{.ModulePath}}/infrastructure/repositories"
 	"{{.ModulePath}}/interfaces/routes"
+	
 	{{else if eq .Architecture "hexagonal" -}}
 	"{{.ModulePath}}/config"
 	"{{.ModulePath}}/adapters/primary/http/routes"

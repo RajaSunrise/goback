@@ -203,12 +203,12 @@ func (h *UserHandler) DeleteUser(c *fiber.Ctx) error {
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var req CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		c.JSON(http.StatusBadRequest, gin.H{"errors": "invalid request body"})
 		return
 	}
 
 	if err := h.validator.Validate(req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"errors": err})
 		return
 	}
 	
@@ -228,7 +228,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	{{end}}
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"errors": "invalid user ID"})
 		return
 	}
 	
@@ -272,7 +272,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	if err := h.validator.Validate(req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"errors": err})
 		return
 	}
 	
@@ -318,11 +318,11 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 func (h *UserHandler) CreateUser(c echo.Context) error {
 	var req CreateUserRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"errors": "invalid request body"})
 	}
 
 	if err := h.validator.Validate(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusBadRequest, map[string]string{"errors": err})
 	}
 	
 	user, err := h.userUsecase.CreateUser(c.Request().Context(), req.Name, req.Email, req.Password)
@@ -341,7 +341,7 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	{{end}}
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"errors": "invalid user ID"})
 	}
 	
 	user, err := h.userUsecase.GetUser(c.Request().Context(), {{if eq .Database "postgresql"}}id{{else}}uint(id){{end}})
@@ -379,16 +379,16 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	{{end}}
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid user ID"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"errors": "invalid user ID"})
 	}
 	
 	var req UpdateUserRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"errors": "invalid request body"})
 	}
 
 	if err := h.validator.Validate(req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return c.JSON(http.StatusBadRequest, map[string]string{"errors": err})
 	}
 	
 	dto := entities.UpdateUserDTO{
