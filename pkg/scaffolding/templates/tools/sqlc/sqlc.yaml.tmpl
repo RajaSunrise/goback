@@ -4,6 +4,9 @@ sql:
   {{- if eq .Architecture "ddd" }}
     schema: "infrastructure/database/migrations"
     queries: "infrastructure/database/query"
+  {{- else if eq .Architecture "clean" }}
+    schema: "infrastructure/database/migrations"
+    queries: "infrastructure/database/query"
   {{- else }}
     schema: "db/migration"
     queries: "db/query"
@@ -11,6 +14,9 @@ sql:
     gen:
       go:
       {{- if eq .Architecture "ddd" }}
+        package: "database"
+        out: "infrastructure/database/sqlc"
+      {{- else if eq .Architecture "clean" }}
         package: "database"
         out: "infrastructure/database/sqlc"
       {{- else }}
