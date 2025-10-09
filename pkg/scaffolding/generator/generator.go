@@ -378,7 +378,7 @@ func (tg *TemplateGenerator) generateToolFiles() error {
 			// move folder migrations
 			filename := strings.TrimPrefix(slashedRelPath, "db/migrations")
 
-			destPath = filepath.Join("infrastructure/database/migration", filename)
+			destPath = filepath.Join("infrastructure/database/migrations", filename)
 
 		case isClean && strings.HasPrefix(slashedRelPath, "db/queries"):
 			// move folder queries
