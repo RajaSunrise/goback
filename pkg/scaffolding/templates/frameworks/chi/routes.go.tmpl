@@ -33,6 +33,9 @@ import (
 	"{{.ModulePath}}/infrastructure/repositories"
 	"{{.ModulePath}}/interfaces/handlers"
 	"{{.ModulePath}}/domain/utils"
+	{{- if eq .Tool "sqlc" }}
+	db_sqlc "{{.ModulePath}}/infrastructure/database/sqlc"
+	{{- end }}
 	
 	{{else if eq .Architecture "hexagonal" -}}
 	"{{.ModulePath}}/adapters/primary/http/handlers"
